@@ -681,7 +681,7 @@ jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
 	#SBATCH -J "${groupname}_stats"
 	#SBATCH -d ${dependmsplit}
 	$load_java
-	export IBM_JAVA_OPTIONS="-Xmx16384m -Xgcthreads1"
+	export JAVA_OPTIONS="-Xmx16384m -XX:ParallelGCThreads=1"
 
 	echo 'Experiment description: $about' > $outputdir/inter.txt
 	${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt
@@ -712,7 +712,8 @@ STATS`
 	#SBATCH -J "${groupname}_hic"
 	#SBATCH -d $dependstats
 	${load_java}
-	export IBM_JAVA_OPTIONS="-Xmx48192m -Xgcthreads1"
+	export JAVA_OPTIONS="-Xmx48192m -XX:ParallelGCThreads=1"
+
 	${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
 HIC`
 
@@ -730,7 +731,8 @@ HIC`
 	#SBATCH -J "${groupname}_hic30"
 	#SBATCH -d ${dependstats}
 	${load_java}
-	export IBM_JAVA_OPTIONS="-Xmx48192m -Xgcthreads1"
+	export JAVA_OPTIONS="-Xmx48192m -XX:ParallelGCThreads=1"
+
 	${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
 HIC30`
 
