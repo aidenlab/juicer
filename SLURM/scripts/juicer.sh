@@ -70,37 +70,39 @@ shopt -s extglob
 # set global tmpdir so no problems with /var/tmp
 ## use cluster load commands:
 #usePath=""
-load_bwa="module load BioBuilds/2015.04"
-load_java="module load Java/7.1.2.0"
+load_bwa="module load BioBuilds/2015.11"
+#load_java="module load Java/7.1.2.0"
 #load_cluster=""
 #load_coreutils=""
 load_gpu="module load gcccuda/2.6.10;export PATH=\$PATH:/usr/local/cuda/bin/;"
-# Juicer directory, contains scripts/, references/, and restriction_sites/
-juiceDir="/poscratch/aidenlab/juicer"
+# Juicer directory, contains scripts/. references/, and restriction_sites/ moved to referencegenomes
+juiceDir="/home/keagen/programs/juicer/SLURM"
+# Reference genome direction, contains fasta files and restriction site files somewhere in here
+refDir="/scratch/PI/kornberg/keagen/referencegenomes/fly"
 # default queue, can also be set in options
-queue="commons"
+queue="kornberg,owners,bigmem,normal"
 # default long queue, can also be set in options
-long_queue="commons"
+long_queue="kornberg,owners,normal"
 # size to split fastqs. adjust to match your needs. 4000000=1M reads per split
-splitsize=90000000
+splitsize=8000000 # 2M reads per split.
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
 # if your fastq files look different, change this value
 read1str="_R1" 
 read2str="_R2" 
 
+# top level directory, can also be set in options
+topDir=$(dirname `pwd`)
 # unique name for jobs in this run
-groupname="a$(date +%s)"
+groupname=$(basename $topDir)
 
 ## Default options, overridden by command line arguments
 
-# top level directory, can also be set in options
-topDir=$(pwd)
 #output messages
-outDir="$topDir/debug"
+outDir="$topDir/output/debug"
 # restriction enzyme, can also be set in options
 site="DpnII"
 # genome ID, default to human, can also be set in options
-genomeID="hg19"
+genomeID="dm6"
 # normally both read ends are aligned with long read aligner; 
 # if one end is short, this is set                 
 shortreadend=0
@@ -181,11 +183,18 @@ then
 		mm10) refSeq="${juiceDir}/references/Mus_musculus_assembly10.fasta";;
 		hg38) refSeq="${juiceDir}/references/hg38.fa";;
 		hg19) refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
+		dm3) refSeq="${refDir}/${genomeID}/BWA/dm3.fa";;
+		dm6) refSeq="${refDir}/${genomeID}/BWA/dm6.fa";;
+
 
     *)  echo "$usageHelp"
         echo "$genomeHelp"
         exit 1
     esac
+    
+   	## Also set genomePath since genomeID is set (added by K. Eagen).
+   	genomePath="/scratch/PI/kornberg/keagen/referencegenomes/fly/${genomeID}/${genomeID}.chrom.sizes"
+
 else
     ## Reference sequence passed in, so genomePath must be set for the .hic file
     ## to be properly created
@@ -232,7 +241,7 @@ esac
 
 if [ -z "$site_file" ]
 then
-    site_file="${juiceDir}/restriction_sites/${genomeID}_${site}.txt"
+    site_file="${refDir}/${genomeID}/restriction_sites/${genomeID}_${site}.txt"
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
@@ -258,6 +267,18 @@ else
 	if stat -t ${fastqdir} >/dev/null 2>&1
 		then
 		echo "(-: Looking for fastq files...fastq files exist"
+		# Added by K. Eagen.
+		testname=$(ls -l ${fastqdir} | awk 'NR==1{print $9}')
+		if [ "${testname: -3}" == ".gz" ]
+			then
+			echo "Fastq files are zipped.  Unzipping them."
+			for i in ${fastqdir}; do
+				echo "Unzipping fastq file $i."
+				srun -N 1 -p "$queue" unpigz -p 16 $i
+			done
+			echo "Done unzipping fastq files!"
+		fi
+
 	else
 		if [ ! -d "$splitdir" ]; then 
 			echo "***! Failed to find any files matching ${fastqdir}"
@@ -404,7 +425,7 @@ do
 CNTLIG
 
 	# align read1 fastq
-	if [ -v shortread ] || [ "$shortreadend" -eq 1 ]
+	if [ ! -z ${shortread+x} ] || [ "$shortreadend" -eq 1 ]
 	then
 		alloc_mem=16384
 	else
@@ -424,7 +445,7 @@ CNTLIG
 		#SBATCH -J "${groupname}_align1_${jname}"
 		$load_bwa
 		# Align read1 
-		if [ -v shortread ] || [ "$shortreadend" -eq 1 ]
+		if [ ! -z ${shortread+x} ] || [ "$shortreadend" -eq 1 ]
 		then		
             echo 'Running command bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam'
 			srun --ntasks=1 bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && srun --ntasks=1 bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam
@@ -449,7 +470,7 @@ ALGNR1`
 	dependalign="afterok:$jid"
 
 	# align read2 fastq
-	if [ -v shortread ] || [ "$shortreadend" -eq 2 ]
+	if [ ! -z ${shortread+x} ] || [ "$shortreadend" -eq 2 ]
 	then
 		alloc_mem=16384
 	else
@@ -469,7 +490,7 @@ ALGNR1`
 		#SBATCH -J "${groupname}_align2_${jname}"
 		$load_bwa
 		# Align read2
-		if [ -v shortread ] || [ $shortreadend -eq 2 ]
+		if [ ! -z ${shortread+x} ] || [ $shortreadend -eq 2 ]
 		then		
             echo 'Running command bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam '
 			srun --ntasks=1 bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && srun --ntasks=1 bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam
