@@ -251,11 +251,11 @@ if [ ! -e "$site_file" ]; then
 fi
 
 ## Directories to be created and regex strings for listing files
-splitdir=${topDir}"/splits"
-donesplitdir=$topDir"/done_splits"
+splitdir=${topDir}"/output/splits"
+donesplitdir=$topDir"/output/done_splits"
 fastqdir=${topDir}"/fastq/*_R*.fastq*"
-outputdir=${topDir}"/aligned"
-tmpdir=${topDir}"/HIC_tmp"
+outputdir=${topDir}"/output/aligned"
+tmpdir=${topDir}"/output/HIC_tmp"
 
 ## Check that fastq directory exists and has proper fastq files
 if [ ! -d "$topDir/fastq" ]; then
@@ -371,6 +371,7 @@ dependsplit="afterok"
 			#SBATCH -o $outDir/split-%j.out
 			#SBATCH -e $outDir/split-%j.err
 			#SBATCH -J "${groupname}_split_${i}"
+			module load coreutils
 			echo "Split file: $filename"
 			split -a 3 -l $splitsize -d --additional-suffix=.fastq $i $splitdir/$filename
 SPLITEND`
