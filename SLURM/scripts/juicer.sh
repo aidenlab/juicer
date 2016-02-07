@@ -70,7 +70,7 @@ shopt -s extglob
 # set global tmpdir so no problems with /var/tmp
 ## use cluster load commands:
 #usePath=""
-load_bwa="module load BioBuilds/2015.11"
+load_bwa="module load biobuilds/2015.11"
 #load_java="module load Java/7.1.2.0"
 #load_cluster=""
 #load_coreutils=""
@@ -607,6 +607,7 @@ then
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_fragmerge"
 	$sbatch_wait
+	module load coreutils
 	export LC_COLLATE=C
 	#Set to 3600 minutes, but should be set to ~4 minutes per split file.
 	#if ! sort --parallel=8 -S 120G -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
@@ -743,7 +744,6 @@ HIC30`
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
-	#SBATCH --gres=gpu:kepler:1
 	#SBATCH -o $outDir/postproc_wrap-%j.out
 	#SBATCH -e $outDir/postproc_wrap-%j.err
 	#SBATCH -t 1440

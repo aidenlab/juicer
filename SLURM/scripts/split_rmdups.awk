@@ -34,7 +34,7 @@ BEGIN{
 			sname = sprintf("%s_msplit%04d_", groupname, name);
 			sscriptname = sprintf("%s/.%s.slurm", outDir, sname)
 			printf("#!/bin/bash\n#SBATCH -o %s/dup.out\n#SBATCH -e %s/dup.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit%04d\n#SBATCH -t 1440\nsrun awk -f %s/scripts/dups.awk -v name=%s/%s %s/split%04d\n", outDir, outDir, queue, groupname, name, juicedir, dir, sname, dir, name) > sscriptname;
-			sysstring = sprintf("bash %s", sscriptname);
+			sysstring = sprintf("sbatch %s", sscriptname);
 			system(sysstring);
 			name++;
 			tot=0;
