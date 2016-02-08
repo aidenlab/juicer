@@ -70,11 +70,11 @@ shopt -s extglob
 # set global tmpdir so no problems with /var/tmp
 ## use cluster load commands:
 #usePath=""
-load_bwa="module load biobuilds/2015.11"
+load_bwa="module load biobuilds"
 #load_java="module load Java/7.1.2.0"
 #load_cluster=""
 #load_coreutils=""
-load_gpu="module load gcccuda/2.6.10;export PATH=\$PATH:/usr/local/cuda/bin/;"
+load_gpu="module load cuda/7.0;export PATH=\$PATH:/usr/local/cuda/bin/;"
 # Juicer directory, contains scripts/. references/, and restriction_sites/ moved to referencegenomes
 juiceDir="/home/keagen/programs/juicer/SLURM"
 # Reference genome direction, contains fasta files and restriction site files somewhere in here
@@ -624,11 +624,36 @@ dependmrgsrt="afterok:$jid"
 fi
 
 # Remove the duplicates from the big sorted file
-if [ -z $final ]
+if [ -z $final ] && [ -z $postproc ]
 then
 
+	if [ -z $dedup ]
+	then
+		sbatch_wait="#SBATCH -d $dependmrgsrt"
+	else
+		sbatch_wait=""
+	fi
+	
+	# Guard job for dedup. this job is a placeholder to hold any job submitted after dedup.
+	# We keep the ID of this guard, so we can later alter dependencies of inner dedupping phase.
+	# After dedup is done, this job will be released. 
+	guardjid=`sbatch <<- DEDUPGUARD | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash -l
+	#SBATCH -p $queue
+	#SBATCH -o $outDir/dedupguard-%j.out
+	#SBATCH -e $outDir/dedupguard-%j.err
+	#SBATCH -t 10
+	#SBATCH -c 1
+	#SBATCH -H
+	#SBATCH --ntasks=1
+	#SBATCH -J "${groupname}_dedup_guard"
+	${sbatch_wait}
+	DEDUPGUARD`
+	
+	dependguard="afterok:$guardjid"
+	
 	# if jobs succeeded, kill the cleanup job, remove the duplicates from the big sorted file
-    	jid=`sbatch <<- DEDUP | egrep -o -e "\b[0-9]+$"
+	jid=`sbatch <<- DEDUP | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
@@ -637,27 +662,37 @@ then
 	#SBATCH -t 1440
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH -J "${groupname}_osplit"
-	#SBATCH -d $dependmrgsrt
-	awk -v queue=$long_queue -v groupname=$groupname -v outDir=$outDir -v dir=$outputdir -v topDir=$topDir -v juicedir=$juiceDir -v site=$site -v genomeID=$genomeID -v genomePath=$genomePath -v user=$USER -f $juiceDir/scripts/split_rmdups.awk $outputdir/merged_sort.txt
-DEDUP`
+	#SBATCH -J "${groupname}_dedup"
+	${sbatch_wait}
+	squeue -u $USER -o "%A %T %j %E %R" | column -t
+	awk -v queue=$long_queue -v groupname=$groupname -v outDir=$outDir -v dir=$outputdir -v topDir=$topDir -v juicedir=$juiceDir -v site=$site -v genomeID=$genomeID -v genomePath=$genomePath -v user=$USER -v guardjid=$guardjid -f $juiceDir/scripts/split_rmdups.awk $outputdir/merged_sort.txt
+	##Schedule new job to run after last dedup part:
+	##Push guard to run after last dedup is completed:
+	squeue -u $USER -o "%A %T %j %E %R" | column -t
+	scontrol release $guardjid
+	DEDUP`
+	
 	dependosplit="afterok:$jid"
-
+	
+	#Push dedup guard to run only after dedup is complete:
+	scontrol update JobID=$guardjid dependency=afterok:$jid
+	
 	#Wait for all parts of split_rmdups to complete:
 	jid=`sbatch <<- MSPLITWAIT | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
-	#SBATCH -o $outDir/msplit_wait-%j.out
-	#SBATCH -e $outDir/msplit_wait-%j.err
+	#SBATCH -o $outDir/post_dedup-%j.out
+	#SBATCH -e $outDir/post_dedup-%j.err
 	#SBATCH -t 100
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH -J "${groupname}_msplit_wait"
-	#SBATCH -d ${dependosplit}
+	#SBATCH -J "${groupname}_post_dedup"
+	#SBATCH -d ${dependguard}
 	rm -Rf $tmpdir;
 	find $outDir -type f -size 0 | xargs rm
-MSPLITWAIT`
-
+	squeue -u $USER -o "%A %T %j %E %R" | column -t
+	MSPLITWAIT`
+	
 	dependmsplit="afterok:$jid"
 fi
 
@@ -742,8 +777,9 @@ HIC30`
 
 	jid=`sbatch <<- POSTPROC | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
+	#SBATCH -p owners,gpu
 	#SBATCH --mem-per-cpu=2G
+	#SBATCH --gres=gpu:1
 	#SBATCH -o $outDir/postproc_wrap-%j.out
 	#SBATCH -e $outDir/postproc_wrap-%j.err
 	#SBATCH -t 1440
@@ -752,7 +788,7 @@ HIC30`
 	#SBATCH -d $dependhic30
 	${load_java}
 	${load_gpu}
-	${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
+	${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic -m ${refDir}/motif -g $genomeID
 POSTPROC`
 	dependpostproc="afterok:$jid"
 
