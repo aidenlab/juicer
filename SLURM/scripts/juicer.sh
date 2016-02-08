@@ -788,7 +788,7 @@ HIC30`
 	#SBATCH -d $dependhic30
 	${load_java}
 	${load_gpu}
-	${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic -m ${refDir}/motif -g $genomeID
+	${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic -m ${refDir}/motifs -g $genomeID
 POSTPROC`
 	dependpostproc="afterok:$jid"
 
