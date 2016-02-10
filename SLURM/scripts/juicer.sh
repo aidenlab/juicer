@@ -74,7 +74,7 @@ load_bwa="module load biobuilds"
 #load_java="module load Java/7.1.2.0"
 #load_cluster=""
 #load_coreutils=""
-load_gpu="module load cuda/7.0;export PATH=\$PATH:/usr/local/cuda/bin/;"
+load_gpu="module load cuda/7.5"
 # Juicer directory, contains scripts/. references/, and restriction_sites/ moved to referencegenomes
 juiceDir="/home/keagen/programs/juicer/SLURM"
 # Reference genome direction, contains fasta files and restriction site files somewhere in here
@@ -778,7 +778,8 @@ HIC30`
 	jid=`sbatch <<- POSTPROC | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p owners,gpu
-	#SBATCH --mem-per-cpu=2G
+	#SBATCH --qos=gpu
+	#SBATCH --mem-per-cpu=16G
 	#SBATCH --gres=gpu:1
 	#SBATCH -o $outDir/postproc_wrap-%j.out
 	#SBATCH -e $outDir/postproc_wrap-%j.err
