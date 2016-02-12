@@ -91,7 +91,7 @@ read1str="_R1"
 read2str="_R2" 
 
 # top level directory, can also be set in options
-topDir=$(dirname `pwd`)
+topDir=$(pwd)
 # unique name for jobs in this run
 groupname=$(basename $topDir)
 
@@ -778,17 +778,18 @@ HIC30`
 	jid=`sbatch <<- POSTPROC | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p owners,gpu
-	#SBATCH --qos=gpu
 	#SBATCH --mem-per-cpu=16G
 	#SBATCH --gres=gpu:1
 	#SBATCH -o $outDir/postproc_wrap-%j.out
 	#SBATCH -e $outDir/postproc_wrap-%j.err
-	#SBATCH -t 1440
+	#SBATCH -t 60
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_postproc_wrap"
 	#SBATCH -d $dependhic30
 	${load_java}
 	${load_gpu}
+	mkdir /local-scratch/$USER/juicer
+	export TMPDIR=/local-scratch/keagen/juicer
 	${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic -m ${refDir}/motifs -g $genomeID
 POSTPROC`
 	dependpostproc="afterok:$jid"
