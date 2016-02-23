@@ -98,7 +98,7 @@ groupname=$(basename $topDir)
 ## Default options, overridden by command line arguments
 
 #output messages
-outDir="$topDir/output/debug"
+outDir="$topDir/debug"
 # restriction enzyme, can also be set in options
 site="DpnII"
 # genome ID, default to human, can also be set in options
@@ -746,7 +746,7 @@ STATS`
 	#SBATCH -t 1440
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH --mem-per-cpu=8G
+	#SBATCH --mem-per-cpu=32G
 	#SBATCH -J "${groupname}_hic"
 	#SBATCH -d $dependstats
 	${load_java}
@@ -765,7 +765,7 @@ HIC`
 	#SBATCH -t 1440
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH --mem-per-cpu=8G
+	#SBATCH --mem-per-cpu=32G
 	#SBATCH -J "${groupname}_hic30"
 	#SBATCH -d ${dependstats}
 	${load_java}
