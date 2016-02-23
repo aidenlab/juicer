@@ -251,11 +251,11 @@ if [ ! -e "$site_file" ]; then
 fi
 
 ## Directories to be created and regex strings for listing files
-splitdir=${topDir}"/output/splits"
-donesplitdir=$topDir"/output/done_splits"
+splitdir=${topDir}"/juicer_splits"
+donesplitdir=$topDir"/juicer_done_splits"
 fastqdir=${topDir}"/fastq/*_R*.fastq*"
-outputdir=${topDir}"/output/aligned"
-tmpdir=${topDir}"/output/HIC_tmp"
+outputdir=${topDir}"/juicer_aligned"
+tmpdir=${topDir}"/juicer_HIC_tmp"
 
 ## Check that fastq directory exists and has proper fastq files
 if [ ! -d "$topDir/fastq" ]; then
@@ -428,9 +428,9 @@ CNTLIG
 	# align read1 fastq
 	if [ ! -z ${shortread+x} ] || [ "$shortreadend" -eq 1 ]
 	then
-		alloc_mem=16384
+		alloc_mem=8000
 	else
-		alloc_mem=12288
+		alloc_mem=8000
 	fi	
 	
 	jid=`sbatch <<- ALGNR1 | egrep -o -e "\b[0-9]+$"
@@ -564,7 +564,8 @@ ALGNR2`
 			echo "***! Failure during merge of read files"
 			exit 100
 		else
-			rm $name1$ext.sa* $name2$ext.sa* $name1${ext}_sort*.sam $name2${ext}_sort*.sam
+			# Modified to keep $name1$ext.sam and $name2$ext.sam for use later.
+			rm $name1${ext}_sort*.sam $name2${ext}_sort*.sam
 			echo "$name$ext.sam created successfully."
 		fi
 
@@ -599,7 +600,7 @@ then
     jid=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
-	#SBATCH --mem-per-cpu=16G
+	#SBATCH --mem-per-cpu=8G
 	#SBATCH -o $outDir/fragmerge-%j.out
 	#SBATCH -e $outDir/fragmerge-%j.err
 	#SBATCH -t 1440
@@ -745,7 +746,7 @@ STATS`
 	#SBATCH -t 1440
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH --mem-per-cpu=32G
+	#SBATCH --mem-per-cpu=8G
 	#SBATCH -J "${groupname}_hic"
 	#SBATCH -d $dependstats
 	${load_java}
@@ -764,7 +765,7 @@ HIC`
 	#SBATCH -t 1440
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH --mem-per-cpu=32G
+	#SBATCH --mem-per-cpu=8G
 	#SBATCH -J "${groupname}_hic30"
 	#SBATCH -d ${dependstats}
 	${load_java}
@@ -778,7 +779,7 @@ HIC30`
 	jid=`sbatch <<- POSTPROC | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p owners,gpu
-	#SBATCH --mem-per-cpu=16G
+	#SBATCH --mem-per-cpu=8G
 	#SBATCH --gres=gpu:1
 	#SBATCH -o $outDir/postproc_wrap-%j.out
 	#SBATCH -e $outDir/postproc_wrap-%j.err
