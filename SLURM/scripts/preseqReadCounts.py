@@ -1,11 +1,12 @@
 import os
 import sys
+from subprocess import check_output
 import numpy as np
 
 # Just need the number of unique (nodups) reads:
-numUnique = os.getenv('numUnique')
-#numUnique = sys.argv[1]
-#numUnique = sum(1 for line in open(os.getcwd()+'/juicer_aligned/merged_nodups.txt'))
+def wc(filename):
+    return int(check_output(["wc", "-l", filename]).split()[0])
+numUnique = wc(os.getcwd()+'/juicer_aligned/merged_nodups.txt')
 
 dups = np.loadtxt(os.getcwd()+'/juicer_aligned/dups.txt', dtype=np.str, usecols=(0,1,2,4,5,6))
 #Columns are strand1, chr1, position1, strand2, chr2, position2
@@ -44,6 +45,6 @@ dupReadCounts += 1
 
 # Merge this with an appropriately size array of 1's to reflect the true read count:
 
-obsReadCounts = np.concatenate((np.ones(numUnique - len(dupReadCounts)), dupReadCounts))
+obsReadCounts = np.concatenate((np.ones(int(numUnique) - len(dupReadCounts)), dupReadCounts))
 
 np.savetxt(os.getcwd()+'/preseq_output/obsReadCounts.txt', obsReadCounts)

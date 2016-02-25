@@ -744,8 +744,7 @@ jid=`sbatch <<- PRESEQ | egrep -o -e "\b[0-9]+$"
 	#SBATCH -J "${groupname}_preseq"
 	#SBATCH -d ${dependmsplit}
 
-	numUnique=$(wc -l < $topDir/juicer_aligned/merged_nodups.txt)
-	srun python ${juiceDir}/scripts/preseqReadCounts.py $numUnique
+	srun python ${juiceDir}/scripts/preseqReadCounts.py
 		
 	module load preseq
 	preseq c_curve -V -s 100000 -o $topDir/preseq_output/${groupname}_c_curve.txt $topDir/preseq_output/obsReadCounts.txt
