@@ -19,7 +19,7 @@ percentDups = (1-np.amax(cCurve[:,1])/np.amax(cCurve[:,0]))*100
 plt.plot(cCurve[:,0]/1e6, cCurve[:,1]/1e6, 'ro', even/1e6, even/1e6, 'k--')
 plt.xlabel('Observed Total Reads (M)')
 plt.ylabel('Observed Distinct Reads (M)')
-plt.title('Observed Complexity Plot; {0}% PCR Duplicates'.format("%.2f"%percentDups))
+plt.title('Observed Complexity Plot\n{0}% PCR Duplicates (% of aligned reads)'.format("%.2f"%percentDups))
 plt.savefig(os.getcwd()+'/preseq_output/{0}_c_curve.png'.format(groupname))
 plt.clf()
 
@@ -44,6 +44,6 @@ ax2.axis([0, (lcExtrap[:,0][b])/1e6, 0, 100])
 ax2.set_ylabel('Predicted Percent Distinct Reads', color='b')
 for tl in ax2.get_yticklabels():
     tl.set_color('b')
-plt.title('Predicted Complexity Plot;\n Library Complexity Estimate: {0}'.format("{:,}".format(predict)))
+plt.title('Predicted Complexity Plot\nLibrary Complexity Estimate: {0}'.format("{:,}".format(predict)))
 plt.savefig(os.getcwd()+'/preseq_output/{0}_lc_extrap.png'.format(groupname))
 plt.clf()

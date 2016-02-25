@@ -80,9 +80,9 @@ juiceDir="/home/keagen/programs/juicer/SLURM"
 # Reference genome direction, contains fasta files and restriction site files somewhere in here
 refDir="/scratch/PI/kornberg/keagen/referencegenomes/fly"
 # default queue, can also be set in options
-queue="owners,bigmem,normal"
+queue="kornberg,owners,bigmem,normal"
 # default long queue, can also be set in options
-long_queue="owners,normal"
+long_queue="kornberg,owners,normal"
 # size to split fastqs. adjust to match your needs. 4000000=1M reads per split
 splitsize=8000000 # 2M reads per split.
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
@@ -102,7 +102,7 @@ outDir="$topDir/debug"
 # restriction enzyme, can also be set in options
 site="DpnII"
 # genome ID, default to human, can also be set in options
-genomeID="dm6"
+genomeID="dm3"
 # normally both read ends are aligned with long read aligner; 
 # if one end is short, this is set                 
 shortreadend=0
@@ -730,27 +730,27 @@ if [ ! -d "$topDir/preseq_output" ]; then
 	mkdir $topDir/preseq_output
 fi
 
-# For large files, this may need a lot of memory.  Right now use 4 cores on bigmem (192 GB RAM).
+# For large files, this may need a lot of memory.  Right now request 250G on owners,normal but may need to switch to bigmem.
 
 jid=`sbatch <<- PRESEQ | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p bigmem
-	#SBATCH --qos=bigmem
+	#SBATCH -p $queue
 	#SBATCH -o $outDir/preseq-%j.out
 	#SBATCH -e $outDir/preseq-%j.err
 	#SBATCH -t 16:00:00
 	#SBATCH -n 1
-	#SBATCH -c 2
+	#SBATCH -c 1
+	#SBATCH --mem-per-cpu=250G
 	#SBATCH -J "${groupname}_preseq"
-	#SBATCH -d ${dependmsplit}
-
+	
 	srun python ${juiceDir}/scripts/preseqReadCounts.py
 		
 	module load preseq
 	preseq c_curve -V -s 100000 -o $topDir/preseq_output/${groupname}_c_curve.txt $topDir/preseq_output/obsReadCounts.txt
+
 	preseq lc_extrap -V -o $topDir/preseq_output/${groupname}_lc_extrap.txt $topDir/preseq_output/obsReadCounts.txt
-	
-	srun xvfb-run python ${juiceDir}/scripts//preseqPlots.py
+
+	srun xvfb-run python ${juiceDir}/scripts/preseqPlots.py
 	
 PRESEQ`
 
