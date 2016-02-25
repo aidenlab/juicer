@@ -80,9 +80,9 @@ juiceDir="/home/keagen/programs/juicer/SLURM"
 # Reference genome direction, contains fasta files and restriction site files somewhere in here
 refDir="/scratch/PI/kornberg/keagen/referencegenomes/fly"
 # default queue, can also be set in options
-queue="kornberg,owners,bigmem,normal"
+queue="owners,bigmem,normal"
 # default long queue, can also be set in options
-long_queue="kornberg,owners,normal"
+long_queue="owners,normal"
 # size to split fastqs. adjust to match your needs. 4000000=1M reads per split
 splitsize=8000000 # 2M reads per split.
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
@@ -356,7 +356,7 @@ then
 	for FASTQFILE in ${fastqdir}; do
 		jid=`sbatch <<- QC | egrep -o -e "\b[0-9]+$"
 			#!/bin/bash -l
-			#SBATCH -p kornberg,owners,bigmem,normal
+			#SBATCH -p $queue
 			#SBATCH --mem-per-cpu=4G
 			#SBATCH -o $outDir/qc-%j.out
 			#SBATCH -e $outDir/qc-%j.err
@@ -730,25 +730,22 @@ if [ ! -d "$topDir/preseq_output" ]; then
 	mkdir $topDir/preseq_output
 fi
 
-# Get the size of the dups file, so we know how much memory to ask for:
-
-dups_size=`du -m "$topDir/juicer_aligned/dups.txt" | cut -f1`
-preseq_mem=`expr $dups_size \* 2`
+# For large files, this may need a lot of memory.  Right now use 2 cores on bigmem (96 GB RAM).
 
 jid=`sbatch <<- PRESEQ | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p bigmem
 	#SBATCH --qos=bigmem
-	#SBATCH --mem-per-cpu=$preseq_mem
 	#SBATCH -o $outDir/preseq-%j.out
 	#SBATCH -e $outDir/preseq-%j.err
-	#SBATCH -t 16:00
+	#SBATCH -t 16:00:00
 	#SBATCH -n 1
-	#SBATCH -c 1
+	#SBATCH -c 2
 	#SBATCH -J "${groupname}_preseq"
 	#SBATCH -d ${dependmsplit}
 
-	python ${juiceDir}/scripts/preseqReadCounts.py
+	numUnique=$(wc -l < $topDir/juicer_aligned/merged_nodups.txt)
+	srun python ${juiceDir}/scripts/preseqReadCounts.py $numUnique
 		
 	module load preseq
 	preseq c_curve -V -s 100000 -o $topDir/preseq_output/${groupname}_c_curve.txt $topDir/preseq_output/obsReadCounts.txt
