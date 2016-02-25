@@ -4,7 +4,9 @@ Juicer is a platform for analyzing kilobase resolution Hi-C data. In this distri
 we include the pipeline for generating Hi-C maps from fastq raw data files and command
 line tools for feature annotation on the Hi-C maps.
 
-		Juicer is currently in its alpha release. If you have any difficulties using Juicer,
+		Juicer is currently in its alpha release. For general questions, please use the
+		The Google Group: <https://groups.google.com/forum/#!forum/juicer_aidenlab>
+		If you have further difficulties using Juicer,
 		please do not hesitate to contact us (theaidenlab@gmail.com)
 
 
