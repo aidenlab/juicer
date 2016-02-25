@@ -730,7 +730,7 @@ if [ ! -d "$topDir/preseq_output" ]; then
 	mkdir $topDir/preseq_output
 fi
 
-# For large files, this may need a lot of memory.  Right now use 2 cores on bigmem (96 GB RAM).
+# For large files, this may need a lot of memory.  Right now use 4 cores on bigmem (192 GB RAM).
 
 jid=`sbatch <<- PRESEQ | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
