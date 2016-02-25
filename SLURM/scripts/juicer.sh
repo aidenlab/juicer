@@ -345,6 +345,33 @@ srun --ntasks=1 -c 1 -p "$queue" -t 1 -o ${outDir}/head-%j.out -e ${outDir}/head
 # Not in merge, dedup,  or final stage, i.e. need to split and align files.
 if [ -z $merge ] && [ -z $final ] && [ -z $dedup ]
 then
+	# First do QC.  Must have FastQ screen installed for this (FastQC some with biobuilds).
+	
+	if [ ! -d "$topDir/qc_output" ]; then
+		mkdir $topDir/qc_output
+	fi
+
+	echo -e "(-: Running FastQC and FastQ Screen on $fastqdir\n in queue $queue"
+	
+	for FASTQFILE in ${fastqdir}; do
+		jid=`sbatch <<- QC | egrep -o -e "\b[0-9]+$"
+			#!/bin/bash -l
+			#SBATCH -p kornberg,owners,bigmem,normal
+			#SBATCH --mem-per-cpu=4G
+			#SBATCH -o $outDir/qc-%j.out
+			#SBATCH -e $outDir/qc-%j.err
+			#SBATCH -t 1440
+			#SBATCH -c 2
+			#SBATCH --ntasks=1
+			#SBATCH -J "${groupname}_qc_${FASTQFILE}"
+			module load biobuilds
+			module load fastq_screen
+
+			srun fastqc $FASTQFILE --outdir=$topDir/qc_output
+			srun fastq_screen --aligner bowtie2 --subset 1000000 --force $FASTQFILE --outdir=$topDir/qc_output
+		QC`
+	done
+	
 	echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with site file $site_file"
 
     ## Split fastq files into smaller portions for parallelizing alignment 
@@ -428,9 +455,9 @@ CNTLIG
 	# align read1 fastq
 	if [ ! -z ${shortread+x} ] || [ "$shortreadend" -eq 1 ]
 	then
-		alloc_mem=8000
+		alloc_mem=16384
 	else
-		alloc_mem=8000
+		alloc_mem=12288
 	fi	
 	
 	jid=`sbatch <<- ALGNR1 | egrep -o -e "\b[0-9]+$"
@@ -600,7 +627,7 @@ then
     jid=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
-	#SBATCH --mem-per-cpu=8G
+	#SBATCH --mem-per-cpu=16G
 	#SBATCH -o $outDir/fragmerge-%j.out
 	#SBATCH -e $outDir/fragmerge-%j.err
 	#SBATCH -t 1440
@@ -697,6 +724,40 @@ then
 	dependmsplit="afterok:$jid"
 fi
 
+# Run preseq for complexity analysis/plots.  Must have preseq installed for this.
+
+if [ ! -d "$topDir/preseq_output" ]; then
+	mkdir $topDir/preseq_output
+fi
+
+# Get the size of the dups file, so we know how much memory to ask for:
+
+dups_size=`du -m "$topDir/juicer_aligned/dups.txt" | cut -f1`
+preseq_mem=`expr $dups_size \* 2`
+
+jid=`sbatch <<- PRESEQ | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash -l
+	#SBATCH -p bigmem
+	#SBATCH --qos=bigmem
+	#SBATCH --mem-per-cpu=$preseq_mem
+	#SBATCH -o $outDir/preseq-%j.out
+	#SBATCH -e $outDir/preseq-%j.err
+	#SBATCH -t 16:00
+	#SBATCH -n 1
+	#SBATCH -c 1
+	#SBATCH -J "${groupname}_preseq"
+	#SBATCH -d ${dependmsplit}
+
+	python ${juiceDir}/scripts/preseqReadCounts.py
+		
+	module load preseq
+	preseq c_curve -V -s 100000 -o $topDir/preseq_output/${groupname}_c_curve.txt $topDir/preseq_output/obsReadCounts.txt
+	preseq lc_extrap -V -o $topDir/preseq_output/${groupname}_lc_extrap.txt $topDir/preseq_output/obsReadCounts.txt
+	
+	srun xvfb-run python ${juiceDir}/scripts//preseqPlots.py
+	
+PRESEQ`
+
 if [ -z "$genomePath" ]
 then
         #If no path to genome is give, use genome ID as default.
@@ -779,7 +840,7 @@ HIC30`
 	jid=`sbatch <<- POSTPROC | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p owners,gpu
-	#SBATCH --mem-per-cpu=8G
+	#SBATCH --mem-per-cpu=16G
 	#SBATCH --gres=gpu:1
 	#SBATCH -o $outDir/postproc_wrap-%j.out
 	#SBATCH -e $outDir/postproc_wrap-%j.err
