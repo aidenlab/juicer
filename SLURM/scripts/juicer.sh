@@ -274,7 +274,7 @@ else
 			for i in ${fastqdir}; do
 				echo "Unzipping fastq file $i."
 				module load pigz
-				srun -N 1 -p "$queue" unpigz -p 16 $i
+				srun -n 1 -c 16 -p "$queue" unpigz -p 16 $i
 			done
 			echo "Done unzipping fastq files!"
 		else [ "${testname: -3}" == ".bz2" ]
@@ -282,7 +282,7 @@ else
 			for i in ${fastqdir}; do
 				echo "Unzipping fastq file $i."
 				module load pbzip2
-				srun -N 1 -p "$queue" pbzip2 -d -p16 $i
+				srun -n 1 -c 16 -p "$queue" pbzip2 -d -p16 $i
 			done
 			echo "Done unzipping fastq files!"
 		fi
