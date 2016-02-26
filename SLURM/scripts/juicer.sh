@@ -749,6 +749,7 @@ jid=`sbatch <<- PRESEQ | egrep -o -e "\b[0-9]+$"
 	#SBATCH -c 1
 	#SBATCH --mem-per-cpu=250G
 	#SBATCH -J "${groupname}_preseq"
+	#SBATCH -d ${dependmsplit}
 	
 	srun python ${juiceDir}/scripts/preseqReadCounts.py
 		
