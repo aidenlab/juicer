@@ -46,8 +46,7 @@ jid=`sbatch <<- CLEANUP | egrep -o -e "\b[0-9]+$"
 	#SBATCH -e $outDir/cleanup-%j.err
 	#SBATCH -t 16:00:00
 	#SBATCH -n 1
-	#SBATCH -c 1
-	#SBATCH --mem-per-cpu=250G
+	#SBATCH -c 16
 	#SBATCH -J "${groupname}_cleanup"
 
 	module load pbzip2
