@@ -27,6 +27,18 @@
 # Sanity check once pipeline is complete to be sure number of lines adds up, deduping
 # proceeded appropriately, and that files were created
 
+# top level directory, can also be set in options
+topDir=$(pwd)
+# unique name for jobs in this run
+groupname=$(basename $topDir)
+
+splitdir=${topDir}"/juicer_splits"
+donesplitdir=$topDir"/juicer_done_splits"
+fastqdir=${topDir}"/fastq/*_R*.fastq*"
+outputdir=${topDir}"/juicer_aligned"
+tmpdir=${topDir}"/juicer_HIC_tmp"
+
+
 if [ -z $ARG1 ]
 then
 # Start by checking the statistics to see if they add up 

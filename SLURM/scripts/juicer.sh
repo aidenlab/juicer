@@ -591,8 +591,7 @@ ALGNR2`
 			echo "***! Failure during merge of read files"
 			exit 100
 		else
-			# Modified to keep $name1$ext.sam and $name2$ext.sam for use later.
-			rm $name1${ext}_sort*.sam $name2${ext}_sort*.sam
+			rm $name1$ext.sa* and $name2$ext.sa* $name1${ext}_sort*.sam $name2${ext}_sort*.sam
 			echo "$name$ext.sam created successfully."
 		fi
 
