@@ -20,4 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-java -Djava.awt.headless=true -Djava.library.path=`dirname $0`/lib64 -Djava.library.path=/home/keagen/lib/JCuda-All-0.7.5-bin-Linux-x86_64 -Xmx16000m -Xms16000m -XX:ParallelGCThreads=1 -jar `dirname $0`/juicebox_tools.jar $*
+#java -Djava.awt.headless=true -Djava.library.path=`dirname $0`/lib64 -Djava.library.path=/home/keagen/lib/JCuda-All-0.7.5-bin-Linux-x86_64 -Xmx16000m -Xms16000m -XX:ParallelGCThreads=1 -jar `dirname $0`/juicebox_tools.jar $*
+
+# For high resolution use the following jar.  This was compiled from modified juicebox source code.
+java -Djava.awt.headless=true -Djava.library.path=`dirname $0`/lib64 -Djava.library.path=/home/keagen/lib/JCuda-All-0.7.5-bin-Linux-x86_64 -Xmx16000m -Xms16000m -XX:ParallelGCThreads=1 -jar `dirname $0`/juicebox_tools_hires.jar $*
