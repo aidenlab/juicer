@@ -268,24 +268,15 @@ else
 		then
 		echo "(-: Looking for fastq files...fastq files exist"
 		# Added by K. Eagen.
-		testname=$(ls -l ${fastqdir} | awk 'NR==1{print $9}')
-		if [ "${testname: -3}" == ".gz" ]; then
-			echo "Fastq files are gzip compressed.  Decompressing them."
-			for i in ${fastqdir}; do
-				echo "Unzipping fastq file $i."
+		for i in ${fastqdir}; do
+			if [ "${i##*.}" == "gz" ]; then
 				module load pigz
 				srun -n 1 -c 16 -p "$queue" unpigz -p 16 $i
-			done
-			echo "Done unzipping fastq files!"
-		elif [ "${testname: -3}" == ".bz2" ]
-			echo "Fastq files are bzip2 compressed.  Decompressing them."
-			for i in ${fastqdir}; do
-				echo "Unzipping fastq file $i."
+			elif [ "${i##*.}" == "bz2" ]; then
 				module load pbzip2
 				srun -n 1 -c 16 -p "$queue" pbzip2 -d -p16 $i
-			done
-			echo "Done unzipping fastq files!"
-		fi
+			fi
+		done
 
 	else
 		if [ ! -d "$splitdir" ]; then 
