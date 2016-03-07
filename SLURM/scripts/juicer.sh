@@ -254,7 +254,7 @@ fi
 splitdir=${topDir}"/juicer_splits"
 donesplitdir=$topDir"/juicer_done_splits"
 fastqdir=${topDir}"/fastq/*_R*.fastq*"
-outputdir=${topDir}"/juicer_aligned"
+outputdir=${topDir}"/juicer_output"
 tmpdir=${topDir}"/juicer_HIC_tmp"
 
 ## Check that fastq directory exists and has proper fastq files
@@ -629,15 +629,15 @@ then
 	#SBATCH -o $outDir/fragmerge-%j.out
 	#SBATCH -e $outDir/fragmerge-%j.err
 	#SBATCH -t 1440
-	#SBATCH -c 1
+	#SBATCH -c 8
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_fragmerge"
 	$sbatch_wait
 	module load coreutils
 	export LC_COLLATE=C
 	#Set to 3600 minutes, but should be set to ~4 minutes per split file.
-	#if ! sort --parallel=8 -S 120G -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
-	if ! sort -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
+	if ! sort --parallel=8 -S 120G -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
+	#if ! sort -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
 	then 
 		echo "***! Some problems occurred somewhere in creating  sorted align files."
 		exit 22
@@ -747,7 +747,7 @@ jid=`sbatch <<- PRESEQ | egrep -o -e "\b[0-9]+$"
 	module load preseq
 	preseq c_curve -V -s 100000 -o $topDir/preseq_output/${groupname}_c_curve.txt $topDir/preseq_output/obsReadCounts.txt
 
-	preseq lc_extrap -V -o $topDir/preseq_output/${groupname}_lc_extrap.txt $topDir/preseq_output/obsReadCounts.txt
+	preseq lc_extrap -e 1000000000000 -V -o $topDir/preseq_output/${groupname}_lc_extrap.txt $topDir/preseq_output/obsReadCounts.txt
 
 	srun xvfb-run python ${juiceDir}/scripts/preseqPlots.py
 	
@@ -798,7 +798,7 @@ STATS`
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
 	#SBATCH -o $outDir/hic-%j.out
-        #SBATCH -e $outDir/hic-%j.err	
+    #SBATCH -e $outDir/hic-%j.err	
 	#SBATCH -t 1440
 	#SBATCH -c 1
 	#SBATCH --ntasks=1

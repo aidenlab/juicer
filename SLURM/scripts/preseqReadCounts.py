@@ -6,9 +6,9 @@ import numpy as np
 # Just need the number of unique (nodups) reads:
 def wc(filename):
     return int(check_output(["wc", "-l", filename]).split()[0])
-numUnique = wc(os.getcwd()+'/juicer_aligned/merged_nodups.txt')
+numUnique = wc(os.getcwd()+'/juicer_output/merged_nodups.txt')
 
-dups = np.loadtxt(os.getcwd()+'/juicer_aligned/dups.txt', dtype=np.str, usecols=(0,1,2,4,5,6))
+dups = np.loadtxt(os.getcwd()+'/juicer_output/dups.txt', dtype=np.str, usecols=(0,1,2,4,5,6))
 #Columns are strand1, chr1, position1, strand2, chr2, position2
 
 def testDups(array, i, j):
