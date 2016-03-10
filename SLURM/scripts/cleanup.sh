@@ -35,9 +35,9 @@ groupname=$(basename $topDir)
 #output messages
 outDir="$topDir/debug"
 
-total=`ls -l juicer_aligned/merged_sort.txt | awk '{print $5}'`
-total2=`ls -l juicer_aligned/merged_nodups.txt juicer_aligned/dups.txt juicer_aligned/opt_dups.txt | awk '{sum = sum + $5}END{print sum}'`
-if [ $total -eq $total2 ]; then rm juicer_aligned/merged_sort.txt; rm -r juicer_splits; else echo "Problem: The sum of merged_nodups and the dups files is not the same size as merged_sort.txt"; fi
+total=`ls -l juicer_output/merged_sort.txt | awk '{print $5}'`
+total2=`ls -l juicer_output/merged_nodups.txt juicer_output/dups.txt juicer_output/opt_dups.txt | awk '{sum = sum + $5}END{print sum}'`
+if [ $total -eq $total2 ]; then rm juicer_output/merged_sort.txt; rm -r juicer_splits; else echo "Problem: The sum of merged_nodups and the dups files is not the same size as merged_sort.txt"; fi
 
 jid=`sbatch <<- CLEANUP | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l

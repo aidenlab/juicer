@@ -35,7 +35,7 @@ groupname=$(basename $topDir)
 splitdir=${topDir}"/juicer_splits"
 donesplitdir=$topDir"/juicer_done_splits"
 fastqdir=${topDir}"/fastq/*_R*.fastq*"
-outputdir=${topDir}"/juicer_aligned"
+outputdir=${topDir}"/juicer_output"
 tmpdir=${topDir}"/juicer_HIC_tmp"
 
 
@@ -89,7 +89,7 @@ else
    fi
 fi
 
-if [ -f ${outputdir}/inter.hic ] && [ -s ${outputdir}/inter.hic ] && [ -f ${outputdir}/inter_30.hic ] && [ -s ${outputdir}/inter_30.hic ]
+if [ -f ${outputdir}/${groupname}_inter.hic ] && [ -s ${outputdir}/${groupname}_inter.hic ] && [ -f ${outputdir}/${groupname}_inter_30.hic ] && [ -s ${outputdir}/${groupname}_inter_30.hic ]
 then
     echo "(-: Pipeline successfully completed (-:";
     echo "Run cleanup.sh to remove the splits directory";

@@ -808,7 +808,7 @@ STATS`
 	${load_java}
 	export JAVA_OPTIONS="-Xmx48192m -XX:ParallelGCThreads=1"
 
-	${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
+	${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/${groupname}_inter.hic $genomePath
 HIC`
 
 	dependhic="afterok:$jid"
@@ -827,7 +827,7 @@ HIC`
 	${load_java}
 	export JAVA_OPTIONS="-Xmx48192m -XX:ParallelGCThreads=1"
 
-	${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
+	${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/${groupname}_inter_30.hic $genomePath
 HIC30`
 
 	dependhic30="${dependhic}:$jid"
@@ -847,7 +847,7 @@ HIC30`
 	${load_gpu}
 	mkdir /local-scratch/$USER/juicer
 	export TMPDIR=/local-scratch/keagen/juicer
-	${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic -m ${refDir}/motifs -g $genomeID
+	${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/${groupname}_inter_30.hic -m ${refDir}/motifs -g $genomeID
 POSTPROC`
 	dependpostproc="afterok:$jid"
 
