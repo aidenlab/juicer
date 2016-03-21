@@ -584,7 +584,7 @@ fi
 dependdump="afterok"
 
 for res in 5000 2000 1000 500; do
-	for chr in chr2L chr2R chr3L chr3R chrX; do
+	for chr in chr2L chr2R chr3L chr3R chrX chr4; do
 		jid=`sbatch <<- DUMPDATA | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
 		#SBATCH -p $queue

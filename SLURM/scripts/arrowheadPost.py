@@ -23,6 +23,7 @@ for i in range(1, len(resolutions)):
 # Sort by corner score (column 9)
 ind = np.argsort(arrowheadIn[:,9])[::-1]
 sorted = [arrowheadIn[i] for i in ind]
+sorted = np.array(sorted)
 
 # Get the indices of the TADs that conflict in the sorted array.
 idx = []	
@@ -37,30 +38,31 @@ for i in range(0, len(sorted)):
 			j += 1
 			continue
 		if int(line[2]) - int(line[1]) >= (int(test[2]) - int(test[1])): # Line is bigger
-			if line[1] <= test[1] <= line[2]:
+			if int(line[1]) <= int(test[1]) <= int(line[2]):
 				idx.append(j)
-			if line[1] <= test[2] <= line[2]:
+			if int(line[1]) <= int(test[2]) <= int(line[2]):
 				idx.append(j)
 		else: # Test is bigger
-			if test[1] <= line[1] <= test[2]:
+			if int(test[1]) <= int(line[1]) <= int(test[2]):
 				idx.append(j)
-			if test[1] <= line[2] <= test[2]:
+			if int(test[1]) <= int(line[2]) <= int(test[2]):
 				idx.append(j)
 		j += 1
 
 sortedFiltered = np.delete(sorted, np.unique(idx), axis=0)
-	
-ind = np.lexsort((sortedFiltered[:,5], sortedFiltered[:,2], sortedFiltered[:,4], sortedFiltered[:,1], sortedFiltered[:,3], sortedFiltered[:,0]))
-finalTADs = [sortedFiltered[i] for i in ind]
 
-print 'Saving '+str(len(finalTADs))+' TADs, including heterochromatic and poorly mapped chromosomes.'
-np.savetxt(topDir+'/juicer_output/{0}_randomizedpositions_inter_30_TADs_FINAL.txt'.format(groupname), np.vstack((header, finalTADs)), delimiter='\t', fmt='%.40s')
+# Sort by chromosome, TAD start, TAD end	
+idx2 = np.lexsort((sortedFiltered[:,5], sortedFiltered[:,2], sortedFiltered[:,4], sortedFiltered[:,1], sortedFiltered[:,3], sortedFiltered[:,0]))
+finalTADs = [sortedFiltered[i] for i in idx2]
 
-idx = []
+# Remove heterochromatic and poorly assembled chromosomes.
+idx3 = []
 for i in range(0, len(finalTADs)):
 	if finalTADs[i][0] not in chroms:
-		idx.append(i)
-finalTADs2 = np.delete(finalTADs, idx, axis=0)		
+		idx3.append(i)
+finalTADs2 = np.delete(finalTADs, idx3, axis=0)		
 
 print 'Saving '+str(len(finalTADs2))+' TADs, excluding heterochromatic and poorly mapped chromosomes.'
-np.savetxt(topDir+'/juicer_output/{0}_randomizedpositions_inter_30_TADs_FINAL.bed'.format(groupname), finalTADs2[:,[0,1,2]], delimiter='\t', fmt='%.40s')
+np.savetxt(topDir+'/juicer_output/{0}_randomizedpositions_inter_30_TADs_Arrowhead.txt'.format(groupname), np.vstack((header, finalTADs2)), delimiter='\t', fmt='%s')
+
+np.savetxt(topDir+'/juicer_output/{0}_randomizedpositions_inter_30_TADs_Arrowhead.bed'.format(groupname), finalTADs2[:,[0,1,2]], delimiter='\t', fmt='%s')
