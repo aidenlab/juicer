@@ -673,14 +673,19 @@ jid=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
 	mkdir /local-scratch/$USER/juicer
 	export TMPDIR=/local-scratch/keagen/juicer
 
+	# Be sure to be running HiCCUPs on a version of juicebox clt that has the krNeighborhood value set to 10.
 	srun ${juiceDir}/scripts/juicebox hiccups $outputdir/${groupname}_randomizedpositions_inter_30.hic -m 512 -k KR \
-	-r 2000 \
-	-f 0.1 \
-	-p 8 \
-	-i 14 \
-	-t 0.02,1.5,1.75,2 \
+	-r 1000 \
+	-f 0.001 \
+	-p 5 \
+	-i 10 \
+	-t 0.02,2,2,2.5 \
 	-d 20000 \
 	$outputdir/${groupname}_randomizedpositions_inter_30_loops.txt
+
+	# Post-process with a gutter to remove any loops less than 10 kb.
+
+	srun python ${juiceDir}/scripts/hiccupsPost.py $outputdir/${groupname}_randomizedpositions_inter_30_loops.txt
 
 HICCUPS`
 
