@@ -139,37 +139,35 @@ Command Line Tools Usage
 ------------------------
 To launch the command line tools, use the shell script “juicebox.sh” on Unix/MacOS
 or type
-		java -jar juicebox_tools.jar (command...) [flags...] <parameters...>
+		`java -jar juicebox_tools.jar (command...) [flags...] <parameters...>`
 
 For HiCCUPS loop calling without the shell or bat script, you will need to
 call:
-		java -Xms512m -Xmx2048m -Djava.library.path=path/to/natives/ -jar Juicebox_CLT.jar hiccups [flags...] <parameters...>
+		`java -Xms512m -Xmx2048m -Djava.library.path=path/to/natives/ -jar Juicebox_CLT.jar hiccups [flags...] <parameters...>`
    where path/to/natives is the path to the native libraries used for Jcuda
    By default, these are located in the lib/jcuda folder.
 
 In the command line tools, there are 4 functions:
-		"apa" for conducting aggregate peak analysis
-		"hiccups" for annotating loops
-		"motifs" for finding CTCF motifs
-		"arrowhead" for annotating contact domains
+		`apa` for conducting aggregate peak analysis
+		`hiccups` for annotating loops
+		`motifs` for finding CTCF motifs
+		`arrowhead` for annotating contact domains
 
-The "juicebox.sh” (Unix/MacOS) script can be used in place of the unwieldy
-		java -Djava.library.path=path/to/natives/ -jar juicebox_tools.jar
+The `juicebox.sh` (Unix/MacOS) script can be used in place of the unwieldy
+		`java -Djava.library.path=path/to/natives/ -jar juicebox_tools.jar`
 
 -------
 ###Arrowhead
 -------
 
-arrowhead [-c chromosome(s)] [-m matrix size] [-r resolution] [-k normalization (NONE/VC/VC_SQRT/KR)] " +
-                "<HiC file(s)> <output_file> [feature_list] [control_list]
+`arrowhead [-c chromosome(s)] [-m matrix size] [-r resolution] [-k normalization (NONE/VC/VC_SQRT/KR)] <HiC file(s)> <output_file> [feature_list] [control_list]`
 
 The required arguments are:
 
-<HiC file(s)>: Address of HiC file(s) which should end with ".hic". This is the file you will
-   load into Juicebox. URLs or local addresses may be used. To sum multiple HiC Files together,
-   use the '+' symbol between the addresses (no whitespace between addresses)
+`<HiC file(s)>`: Address of HiC file(s) which should end with ".hic". This is the file you will
+   load into Juicebox. URLs or local addresses may be used.
 
-<output_file>: Final list of all contact domains found by Arrowhead. Can be visualized directly in Juicebox
+`<output_file>`: Final list of all contact domains found by Arrowhead. Can be visualized directly in Juicebox
   as a 2D annotation.
 
 -- NOTE -- If you want to find scores for a feature and control list, both must be provided:
@@ -180,13 +178,13 @@ The required arguments are:
 
 The optional arguments are:
 
--c <String(s)> Chromosome(s) on which Arrowhead will be run. The number/letter for the chromosome can be used with or
+`-c <String(s)>` Chromosome(s) on which Arrowhead will be run. The number/letter for the chromosome can be used with or
   without appending the "chr" string. Multiple chromosomes can be specified using commas (e.g. 1,chr2,X,chrY)<br>
--m <int> Size of the sliding window along the diagonal in which contact domains will be found. Must be an even
+`-m <int>` Size of the sliding window along the diagonal in which contact domains will be found. Must be an even
   number as (m/2) is used as the increment for the sliding window. (Default 2000)<br>
--r <int> resolution for which Arrowhead will be run. Generally, 5kB (5000) or 10kB (10000)
+`-r <int>` resolution for which Arrowhead will be run. Generally, 5kB (5000) or 10kB (10000)
   resolution is used depending on the depth of sequencing in the HiC file(s).<br>
--k <NONE/VC/VC_SQRT/KR> Normalizations (case sensitive) that can be selected. Generally, KR (Knight-Ruiz)
+`-k <NONE/VC/VC_SQRT/KR>` Normalizations (case sensitive) that can be selected. Generally, KR (Knight-Ruiz)
        balancing should be used when available.
 
 
@@ -224,51 +222,49 @@ NOTE: Arrowhead will choose appropriate defaults for HiC files if no specificati
 ###HiCCUPS
 -------
 
-hiccups [-m matrixSize] [-c chromosome(s)] [-r resolution(s)] [-k normalization (NONE/VC/VC_SQRT/KR)] [-f fdr] [-p peak width] [-i window]
-   [-t thresholds] [-d centroid distances] <HiC file(s)> <outputLoopsList>
+`hiccups [-m matrixSize] [-c chromosome(s)] [-r resolution(s)] [-k normalization (NONE/VC/VC_SQRT/KR)] [-f fdr] [-p peak width] [-i window] [-t thresholds] [-d centroid distances] <HiC file(s)> <outputLoopsList>`
 
 The required arguments are:
 
-<HiC file(s)>: Address of HiC file(s) which should end with ".hic". This is the file you will
-   load into Juicebox. URLs or local addresses may be used. To sum multiple HiC Files together,
-   use the '+' symbol between the addresses (no whitespace between addresses)
+`<HiC file(s)>`: Address of HiC file(s) which should end with ".hic". This is the file you will
+   load into Juicebox. URLs or local addresses may be used.
 
-<outputLoopsList>: Final list of all loops found by HiCCUPS. Can be visualized directly in Juicebox as a 2D annotation.
+`<outputLoopsList>`: Final list of all loops found by HiCCUPS. Can be visualized directly in Juicebox as a 2D annotation.
    By default, various values critical to the HICCUPS algorithm are saved as attributes for each loop found. These can be
    disabled using the suppress flag below.
 
 The optional arguments are:
-   <br>-m <int> Maximum size of the submatrix within the chromosome passed on to GPU (Must be an even number greater than 40
+   <br>`-m <int>` Maximum size of the submatrix within the chromosome passed on to GPU (Must be an even number greater than 40
        to prevent issues from running the CUDA kernel). The upper limit will depend on your GPU. Dedicated GPUs
        should be able to use values such as 500, 1000, or 2048 without trouble. Integrated GPUs are unlikely to run
        sizes larger than 90 or 100. Matrix size will not effect the result, merely the time it takes for hiccups.
        Larger values (with a dedicated GPU) will run fastest.
-   <br>-c <String(s)> Chromosome(s) on which HiCCUPS will be run. The number/letter for the chromosome can be used with or
+   <br>`-c <String(s)>` Chromosome(s) on which HiCCUPS will be run. The number/letter for the chromosome can be used with or
        without appending the "chr" string. Multiple chromosomes can be specified using commas (e.g. 1,chr2,X,chrY)
-   <br>-r <int(s)> Resolution(s) for which HiCCUPS will be run. Multiple resolutions can be specified using commas
+   <br>`-r <int(s)>` Resolution(s) for which HiCCUPS will be run. Multiple resolutions can be specified using commas
        (e.g. 25000,10000,5000). Due to the nature of DNA looping, it is unlikely that loops will be found at
        lower resolutions (i.e. 50kB or 100kB)
        IMPORTANT: if multiple resolutions are used, the flags below can be configured so that different parameters are
        used for the different resolutions.
-   <br>-k <NONE/VC/VC_SQRT/KR> Normalizations (case sensitive) that can be selected. Generally, KR (Knight-Ruiz)
+   <br>`-k <NONE/VC/VC_SQRT/KR>` Normalizations (case sensitive) that can be selected. Generally, KR (Knight-Ruiz)
        balancing should be used when available.
-   <br>-f <int(s)> FDR values actually corresponding to max_q_val (i.e. for 1% FDR use 0.01, for 10%FDR use 0.1). Different
+   <br>`-f <int(s)>` FDR values actually corresponding to max_q_val (i.e. for 1% FDR use 0.01, for 10%FDR use 0.1). Different
        FDR values can be used for each resolution using commas. (e.g "-r 5000,10000 -f 0.1,0.15" would run HiCCUPS at
        10% FDR for resolution 5000 and 15% FDR for resolution 10000)
-   <br>-p <int(s)> Peak width used for finding enriched pixels in HiCCUPS. Different peak widths can be used for each
+   <br>`-p <int(s)>` Peak width used for finding enriched pixels in HiCCUPS. Different peak widths can be used for each
        resolution using commas. (e.g "-r 5000,10000 -p 4,2" would run at peak width 4 for resolution 5000 and
        peak width 2 for resolution 10000)
-   <br>-i <int(s)> Window width used for finding enriched pixels in HiCCUPS. Different window widths can be used for each
+   <br>`-i <int(s)>` Window width used for finding enriched pixels in HiCCUPS. Different window widths can be used for each
        resolution using commas. (e.g "-r 5000,10000 -p 10,6" would run at window width 10 for resolution 5000 and
        window width 6 for resolution 10000)
-   <br>-t <floats> Thresholds for merging loop lists of different resolutions. Four values must be given, separated by
+   <br>`-t <floats>` Thresholds for merging loop lists of different resolutions. Four values must be given, separated by
        commas (e.g. 0.02,1.5,1.75,2). These thresholds (in order) represent:
-       > threshold allowed for sum of FDR values of the horizontal, vertical, donut, and bottom left filters
+       - threshold allowed for sum of FDR values of the horizontal, vertical, donut, and bottom left filters
            (an accepted loop must stay below this threshold)
-       > threshold ratio that both the horizontal and vertical filters must exceed
-       > threshold ratio that both the donut and bottom left filters must exceed
-       > threshold ratio that at least one of the donut and bottom left filters must exceed
-   <br>-d <ints> Distances used for merging nearby pixels to a centroid. Different distances can be used for each
+       - threshold ratio that both the horizontal and vertical filters must exceed
+       - threshold ratio that both the donut and bottom left filters must exceed
+       - threshold ratio that at least one of the donut and bottom left filters must exceed
+   <br>`-d <ints>` Distances used for merging nearby pixels to a centroid. Different distances can be used for each
        resolution using commas. (e.g "-r 5000,10000 -d 20000,21000” would merge pixels within 20kB of each 
        other at 5kB resolution and within 21kB at 10kB resolution.
 
@@ -316,30 +312,29 @@ Note that these are values used for generating the GM12878 loop list
 The "apa" command takes three required arguments and a number of optional
 arguments.
 
-apa [-n minval] [-x maxval] [-w window]  [-r resolution(s)] [-c chromosome(s)]
-   [-k NONE/VC/VC_SQRT/KR] <HiC file(s)> <PeaksFile> <SaveFolder>
+`apa [-n minval] [-x maxval] [-w window]  [-r resolution(s)] [-c chromosome(s)] [-k NONE/VC/VC_SQRT/KR] <HiC file(s)> <PeaksFile> <SaveFolder>`
 
 The required arguments are:
 
-<br><HiC file(s)>: Address of HiC file(s) which should end with ".hic". This is the file you will
+<br>`<HiC file(s)>`: Address of HiC file(s) which should end with ".hic". This is the file you will
    load into Juicebox. URLs or local addresses may be used. To sum multiple HiC Files together,
    use the '+' symbol between the addresses (no whitespace between addresses)
-<br><PeaksFile>: List of peaks in standard 2D feature format (chr1 x1 x2 chr2 y1 y2 color ...)
-<br><SaveFolder>: Working directory where outputs will be saved
+<br>`<PeaksFile>`: List of peaks in standard 2D feature format (chr1 x1 x2 chr2 y1 y2 color ...)
+<br>`<SaveFolder>`: Working directory where outputs will be saved
 
 The optional arguments are:<br>
-   <br>-n <int> minimum distance away from the diagonal. Used to filter peaks too close to the diagonal.
+   <br>`-n <int>` minimum distance away from the diagonal. Used to filter peaks too close to the diagonal.
        Units are in terms of the provided resolution. (e.g. -n 30 @ resolution 5kB will filter loops
-       within 30*(5000/sqrt(2)) units of the diagonal)
-   <br>-x <int> maximum distance away from the diagonal. Used to filter peaks too far from the diagonal.
+       within 30(5000/sqrt(2)) units of the diagonal)
+   <br>`-x <int>` maximum distance away from the diagonal. Used to filter peaks too far from the diagonal.
        Units are in terms of the provided resolution. (e.g. -n 30 @ resolution 5kB will filter loops
-       further than 30*(5000/sqrt(2)) units of the diagonal)
-   <br>-w <int> width of region to be aggregated around the specified loops (units of resolution)
-   <br>-r <int(s)> resolution for APA; multiple resolutions can be specified using commas (e.g. 5000,10000)
-   <br>-c <String(s)> Chromosome(s) on which APA will be run. The number/letter for the chromosome can be
+       further than 30(5000/sqrt(2)) units of the diagonal)
+   <br>`-w <int>` width of region to be aggregated around the specified loops (units of resolution)
+   <br>`-r <int(s)>` resolution for APA; multiple resolutions can be specified using commas (e.g. 5000,10000)
+   <br>`-c <String(s)>` Chromosome(s) on which APA will be run. The number/letter for the chromosome can be
        used with or without appending the "chr" string. Multiple chromosomes can be specified using
        commas (e.g. 1,chr2,X,chrY)
-   <br>-k <NONE/VC/VC_SQRT/KR> Normalizations (case sensitive) that can be selected. Generally, KR (Knight-Ruiz)
+   <br>`-k <NONE/VC/VC_SQRT/KR>` Normalizations (case sensitive) that can be selected. Generally, KR (Knight-Ruiz)
        balancing should be used when available.
 <br>
 Default settings of optional arguments:
@@ -372,19 +367,19 @@ and save them under the results folder
 ###Motif Finder
 -----------------------
 
-motifs <genomeID> <bed_file_dir> <looplist> [custom_global_motif_list]
+`motifs <genomeID> <bed_file_dir> <looplist> [custom_global_motif_list]`
 
 The required arguments are:
 
-<genomeID>: hg19 supported by default. For other genome assemblies, provide a 
+`<genomeID>`: hg19 supported by default. For other genome assemblies, provide a 
   custom_global_motif_list in FIMO format.
 
-<bed_file_dir> File path to a directory (e.g. ) which contains two folders: "unique" and
+`<bed_file_dir>` File path to a directory (e.g. ) which contains two folders: "unique" and
   "inferred". These folders should contain a combination of RAD21, SMC3, and CTCF BED files.
   By intersecting these 1D tracks, the strongest peaks will be identified. Unique motifs
   generally use a more stringent combination of BED files than inferred motifs.
 
-<looplist>: List of peaks in standard 2D feature format (chr1 x1 x2 chr2 y1 y2 color ...)
+`<looplist>`: List of peaks in standard 2D feature format (chr1 x1 x2 chr2 y1 y2 color ...)
 
 -- NOTE -- If you want to use a custom list of potential motifs:
 
