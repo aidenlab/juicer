@@ -377,11 +377,11 @@ for i in $(seq -w 0 $(expr $chunks - 1)); do
 	#SBATCH -t 16:00:00
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH --mem-per-cpu=15G
+	#SBATCH --mem-per-cpu=30G
 	#SBATCH -J "${groupname}_randomize_positions-$i"
 	#SBATCH -d ${dependsplitmerged_nodups}
 
-	srun python ${juiceDir}/scripts/randomizePositions.py $i $site_file $splitdir
+	python ${juiceDir}/scripts/randomizePositions.py $i $site_file $splitdir
 	
 	RANDOMIZE_POSITIONS`
 	dependrandomizepos="${dependrandomizepos}:$jid"
@@ -414,7 +414,7 @@ jid=`sbatch <<- MERGE_RANDS | egrep -o -e "\b[0-9]+$"
 	
 	# Also finish intrafragment statistics	
 	cat $splitdir/intrafragment_statistics_*.txt > $outputdir/intrafragment_statistics.tmp
-	srun python ${juiceDir}/scripts/intrafragStats.py $outputdir
+	python ${juiceDir}/scripts/intrafragStats.py $outputdir
 	rm $outputdir/intrafragment_statistics.tmp
 	
 MERGE_RANDS`
@@ -439,7 +439,7 @@ jid=`sbatch <<- PRESEQ | egrep -o -e "\b[0-9]+$"
 	#SBATCH -J "${groupname}_preseq"
 	#SBATCH -d $dependmerge_replicates
 	
-	srun python ${juiceDir}/scripts/preseqReadCounts.py
+	python ${juiceDir}/scripts/preseqReadCounts.py
 		
 	module load preseq
 	preseq c_curve -v -V -s 100000 -o $topDir/preseq_output/${groupname}_c_curve.txt $topDir/preseq_output/obsReadCounts.txt
@@ -610,7 +610,7 @@ jid=`sbatch <<- COVERAGE | egrep -o -e "\b[0-9]+$"
 	#SBATCH -p $queue
 	#SBATCH -o $outDir/coverage-%j.out
 	#SBATCH -e $outDir/coverage-%j.err
-	#SBATCH -t 60
+	#SBATCH -t 180
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH --mem-per-cpu=16G
@@ -652,7 +652,7 @@ jid=`sbatch <<- ARROWHEAD_POST | egrep -o -e "\b[0-9]+$"
 	#SBATCH -J "${groupname}_arrowhead_post"
 	#SBATCH -d $dependarrowhead
 
-	srun python ${juiceDir}/scripts/arrowheadPost.py
+	python ${juiceDir}/scripts/arrowheadPost.py
 
 	ARROWHEAD_POST`
 
@@ -681,11 +681,11 @@ jid=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
 	-i 10 \
 	-t 0.02,2,2,2.5 \
 	-d 20000 \
-	$outputdir/${groupname}_randomizedpositions_inter_30_loops.txt
+	$outputdir/${groupname}_randomizedpositions_inter_30_loops_hiccups.txt
 
 	# Post-process with a gutter to remove any loops less than 10 kb.
 
-	srun python ${juiceDir}/scripts/hiccupsPost.py $outputdir/${groupname}_randomizedpositions_inter_30_loops.txt
+	python ${juiceDir}/scripts/hiccupsPost.py $outputdir/${groupname}_randomizedpositions_inter_30_loops.txt
 
 HICCUPS`
 

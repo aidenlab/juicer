@@ -742,7 +742,7 @@ jid=`sbatch <<- PRESEQ | egrep -o -e "\b[0-9]+$"
 	#SBATCH -J "${groupname}_preseq"
 	#SBATCH -d ${dependmsplit}
 	
-	srun python ${juiceDir}/scripts/preseqReadCounts.py
+	python ${juiceDir}/scripts/preseqReadCounts.py
 		
 	module load preseq
 	preseq c_curve -v -V -s 100000 -o $topDir/preseq_output/${groupname}_c_curve.txt $topDir/preseq_output/obsReadCounts.txt
