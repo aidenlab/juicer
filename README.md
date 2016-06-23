@@ -5,7 +5,11 @@ we include the pipeline for generating Hi-C maps from fastq raw data files and c
 line tools for feature annotation on the Hi-C maps.
 
 		Juicer is currently in its alpha release. For general questions, please use the
+<<<<<<< HEAD
+		The Google Group: <https://groups.google.com/forum/#!forum/juicer_aidenlab>
+=======
 		The Google Group: <https://groups.google.com/forum/#!forum/3d-genomics>
+>>>>>>> upstream/master
 		If you have further difficulties using Juicer,
 		please do not hesitate to contact us (theaidenlab@gmail.com)
 

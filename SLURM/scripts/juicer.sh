@@ -70,37 +70,39 @@ shopt -s extglob
 # set global tmpdir so no problems with /var/tmp
 ## use cluster load commands:
 #usePath=""
-load_bwa="module load BioBuilds/2015.04"
-load_java="module load Java/7.1.2.0"
+load_bwa="module load biobuilds"
+#load_java="module load Java/7.1.2.0"
 #load_cluster=""
 #load_coreutils=""
-load_gpu="module load gcccuda/2.6.10;export PATH=\$PATH:/usr/local/cuda/bin/;"
-# Juicer directory, contains scripts/, references/, and restriction_sites/
-juiceDir="/poscratch/aidenlab/juicer"
+load_gpu="module load cuda/7.5"
+# Juicer directory, contains scripts/. references/, and restriction_sites/ moved to referencegenomes
+juiceDir="/home/keagen/programs/juicer/SLURM"
+# Reference genome direction, contains fasta files and restriction site files somewhere in here
+refDir="/scratch/PI/kornberg/keagen/referencegenomes/fly"
 # default queue, can also be set in options
-queue="commons"
+queue="kornberg,owners,bigmem,normal"
 # default long queue, can also be set in options
-long_queue="commons"
+long_queue="kornberg,owners,normal"
 # size to split fastqs. adjust to match your needs. 4000000=1M reads per split
-splitsize=90000000
+splitsize=8000000 # 2M reads per split.
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
 # if your fastq files look different, change this value
 read1str="_R1" 
 read2str="_R2" 
 
+# top level directory, can also be set in options
+topDir=$(pwd)
 # unique name for jobs in this run
-groupname="a$(date +%s)"
+groupname=$(basename $topDir)
 
 ## Default options, overridden by command line arguments
 
-# top level directory, can also be set in options
-topDir=$(pwd)
 #output messages
 outDir="$topDir/debug"
 # restriction enzyme, can also be set in options
 site="DpnII"
 # genome ID, default to human, can also be set in options
-genomeID="hg19"
+genomeID="dm3"
 # normally both read ends are aligned with long read aligner; 
 # if one end is short, this is set                 
 shortreadend=0
@@ -181,11 +183,18 @@ then
 		mm10) refSeq="${juiceDir}/references/Mus_musculus_assembly10.fasta";;
 		hg38) refSeq="${juiceDir}/references/hg38.fa";;
 		hg19) refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
+		dm3) refSeq="${refDir}/${genomeID}/BWA/dm3.fa";;
+		dm6) refSeq="${refDir}/${genomeID}/BWA/dm6.fa";;
+
 
     *)  echo "$usageHelp"
         echo "$genomeHelp"
         exit 1
     esac
+    
+   	## Also set genomePath since genomeID is set (added by K. Eagen).
+   	genomePath="/scratch/PI/kornberg/keagen/referencegenomes/fly/${genomeID}/${genomeID}.chrom.sizes"
+
 else
     ## Reference sequence passed in, so genomePath must be set for the .hic file
     ## to be properly created
@@ -232,7 +241,7 @@ esac
 
 if [ -z "$site_file" ]
 then
-    site_file="${juiceDir}/restriction_sites/${genomeID}_${site}.txt"
+    site_file="${refDir}/${genomeID}/restriction_sites/${genomeID}_${site}.txt"
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
@@ -242,11 +251,11 @@ if [ ! -e "$site_file" ]; then
 fi
 
 ## Directories to be created and regex strings for listing files
-splitdir=${topDir}"/splits"
-donesplitdir=$topDir"/done_splits"
+splitdir=${topDir}"/juicer_splits"
+donesplitdir=$topDir"/juicer_done_splits"
 fastqdir=${topDir}"/fastq/*_R*.fastq*"
-outputdir=${topDir}"/aligned"
-tmpdir=${topDir}"/HIC_tmp"
+outputdir=${topDir}"/juicer_output"
+tmpdir=${topDir}"/juicer_HIC_tmp"
 
 ## Check that fastq directory exists and has proper fastq files
 if [ ! -d "$topDir/fastq" ]; then
@@ -258,6 +267,17 @@ else
 	if stat -t ${fastqdir} >/dev/null 2>&1
 		then
 		echo "(-: Looking for fastq files...fastq files exist"
+		# Added by K. Eagen.
+		for i in ${fastqdir}; do
+			if [ "${i##*.}" == "gz" ]; then
+				module load pigz
+				srun -n 1 -c 16 -p "$queue" unpigz -p 16 $i
+			elif [ "${i##*.}" == "bz2" ]; then
+				module load pbzip2
+				srun -n 1 -c 16 -p "$queue" pbzip2 -d -p16 $i
+			fi
+		done
+
 	else
 		if [ ! -d "$splitdir" ]; then 
 			echo "***! Failed to find any files matching ${fastqdir}"
@@ -324,6 +344,33 @@ srun --ntasks=1 -c 1 -p "$queue" -t 1 -o ${outDir}/head-%j.out -e ${outDir}/head
 # Not in merge, dedup,  or final stage, i.e. need to split and align files.
 if [ -z $merge ] && [ -z $final ] && [ -z $dedup ]
 then
+	# First do QC.  Must have FastQ screen installed for this (FastQC some with biobuilds).
+	
+	if [ ! -d "$topDir/qc_output" ]; then
+		mkdir $topDir/qc_output
+	fi
+
+	echo -e "(-: Running FastQC and FastQ Screen on $fastqdir\n in queue $queue"
+	
+	for FASTQFILE in ${fastqdir}; do
+		jid=`sbatch <<- QC | egrep -o -e "\b[0-9]+$"
+			#!/bin/bash -l
+			#SBATCH -p $queue
+			#SBATCH --mem-per-cpu=4G
+			#SBATCH -o $outDir/qc-%j.out
+			#SBATCH -e $outDir/qc-%j.err
+			#SBATCH -t 1440
+			#SBATCH -c 2
+			#SBATCH --ntasks=1
+			#SBATCH -J "${groupname}_qc_${FASTQFILE}"
+			module load biobuilds
+			module load fastq_screen
+
+			srun fastqc $FASTQFILE --outdir=$topDir/qc_output
+			srun fastq_screen --aligner bowtie2 --subset 1000000 --force $FASTQFILE --outdir=$topDir/qc_output
+		QC`
+	done
+	
 	echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with site file $site_file"
 
     ## Split fastq files into smaller portions for parallelizing alignment 
@@ -350,6 +397,7 @@ dependsplit="afterok"
 			#SBATCH -o $outDir/split-%j.out
 			#SBATCH -e $outDir/split-%j.err
 			#SBATCH -J "${groupname}_split_${i}"
+			module load coreutils
 			echo "Split file: $filename"
 			split -a 3 -l $splitsize -d --additional-suffix=.fastq $i $splitdir/$filename
 SPLITEND`
@@ -404,7 +452,7 @@ do
 CNTLIG
 
 	# align read1 fastq
-	if [ -v shortread ] || [ "$shortreadend" -eq 1 ]
+	if [ ! -z ${shortread+x} ] || [ "$shortreadend" -eq 1 ]
 	then
 		alloc_mem=16384
 	else
@@ -424,7 +472,7 @@ CNTLIG
 		#SBATCH -J "${groupname}_align1_${jname}"
 		$load_bwa
 		# Align read1 
-		if [ -v shortread ] || [ "$shortreadend" -eq 1 ]
+		if [ ! -z ${shortread+x} ] || [ "$shortreadend" -eq 1 ]
 		then		
             echo 'Running command bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam'
 			srun --ntasks=1 bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && srun --ntasks=1 bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam
@@ -449,7 +497,7 @@ ALGNR1`
 	dependalign="afterok:$jid"
 
 	# align read2 fastq
-	if [ -v shortread ] || [ "$shortreadend" -eq 2 ]
+	if [ ! -z ${shortread+x} ] || [ "$shortreadend" -eq 2 ]
 	then
 		alloc_mem=16384
 	else
@@ -469,7 +517,7 @@ ALGNR1`
 		#SBATCH -J "${groupname}_align2_${jname}"
 		$load_bwa
 		# Align read2
-		if [ -v shortread ] || [ $shortreadend -eq 2 ]
+		if [ ! -z ${shortread+x} ] || [ $shortreadend -eq 2 ]
 		then		
             echo 'Running command bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam '
 			srun --ntasks=1 bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && srun --ntasks=1 bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam
@@ -542,7 +590,7 @@ ALGNR2`
 			echo "***! Failure during merge of read files"
 			exit 100
 		else
-			rm $name1$ext.sa* $name2$ext.sa* $name1${ext}_sort*.sam $name2${ext}_sort*.sam
+			rm $name1$ext.sa* and $name2$ext.sa* $name1${ext}_sort*.sam $name2${ext}_sort*.sam
 			echo "$name$ext.sam created successfully."
 		fi
 
@@ -581,14 +629,15 @@ then
 	#SBATCH -o $outDir/fragmerge-%j.out
 	#SBATCH -e $outDir/fragmerge-%j.err
 	#SBATCH -t 1440
-	#SBATCH -c 1
+	#SBATCH -c 8
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_fragmerge"
 	$sbatch_wait
+	module load coreutils
 	export LC_COLLATE=C
 	#Set to 3600 minutes, but should be set to ~4 minutes per split file.
-	#if ! sort --parallel=8 -S 120G -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
-	if ! sort -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
+	if ! sort --parallel=8 -S 120G -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
+	#if ! sort -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
 	then 
 		echo "***! Some problems occurred somewhere in creating  sorted align files."
 		exit 22
@@ -601,11 +650,36 @@ dependmrgsrt="afterok:$jid"
 fi
 
 # Remove the duplicates from the big sorted file
-if [ -z $final ]
+if [ -z $final ] && [ -z $postproc ]
 then
 
+	if [ -z $dedup ]
+	then
+		sbatch_wait="#SBATCH -d $dependmrgsrt"
+	else
+		sbatch_wait=""
+	fi
+	
+	# Guard job for dedup. this job is a placeholder to hold any job submitted after dedup.
+	# We keep the ID of this guard, so we can later alter dependencies of inner dedupping phase.
+	# After dedup is done, this job will be released. 
+	guardjid=`sbatch <<- DEDUPGUARD | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash -l
+	#SBATCH -p $queue
+	#SBATCH -o $outDir/dedupguard-%j.out
+	#SBATCH -e $outDir/dedupguard-%j.err
+	#SBATCH -t 10
+	#SBATCH -c 1
+	#SBATCH -H
+	#SBATCH --ntasks=1
+	#SBATCH -J "${groupname}_dedup_guard"
+	${sbatch_wait}
+	DEDUPGUARD`
+	
+	dependguard="afterok:$guardjid"
+	
 	# if jobs succeeded, kill the cleanup job, remove the duplicates from the big sorted file
-    	jid=`sbatch <<- DEDUP | egrep -o -e "\b[0-9]+$"
+	jid=`sbatch <<- DEDUP | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
@@ -614,29 +688,70 @@ then
 	#SBATCH -t 1440
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH -J "${groupname}_osplit"
-	#SBATCH -d $dependmrgsrt
-	awk -v queue=$long_queue -v groupname=$groupname -v outDir=$outDir -v dir=$outputdir -v topDir=$topDir -v juicedir=$juiceDir -v site=$site -v genomeID=$genomeID -v genomePath=$genomePath -v user=$USER -f $juiceDir/scripts/split_rmdups.awk $outputdir/merged_sort.txt
-DEDUP`
+	#SBATCH -J "${groupname}_dedup"
+	${sbatch_wait}
+	squeue -u $USER -o "%A %T %j %E %R" | column -t
+	awk -v queue=$long_queue -v groupname=$groupname -v outDir=$outDir -v dir=$outputdir -v topDir=$topDir -v juicedir=$juiceDir -v site=$site -v genomeID=$genomeID -v genomePath=$genomePath -v user=$USER -v guardjid=$guardjid -f $juiceDir/scripts/split_rmdups.awk $outputdir/merged_sort.txt
+	##Schedule new job to run after last dedup part:
+	##Push guard to run after last dedup is completed:
+	squeue -u $USER -o "%A %T %j %E %R" | column -t
+	scontrol release $guardjid
+	DEDUP`
+	
 	dependosplit="afterok:$jid"
-
+	
+	#Push dedup guard to run only after dedup is complete:
+	scontrol update JobID=$guardjid dependency=afterok:$jid
+	
 	#Wait for all parts of split_rmdups to complete:
 	jid=`sbatch <<- MSPLITWAIT | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
-	#SBATCH -o $outDir/msplit_wait-%j.out
-	#SBATCH -e $outDir/msplit_wait-%j.err
+	#SBATCH -o $outDir/post_dedup-%j.out
+	#SBATCH -e $outDir/post_dedup-%j.err
 	#SBATCH -t 100
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH -J "${groupname}_msplit_wait"
-	#SBATCH -d ${dependosplit}
+	#SBATCH -J "${groupname}_post_dedup"
+	#SBATCH -d ${dependguard}
 	rm -Rf $tmpdir;
 	find $outDir -type f -size 0 | xargs rm
-MSPLITWAIT`
-
+	squeue -u $USER -o "%A %T %j %E %R" | column -t
+	MSPLITWAIT`
+	
 	dependmsplit="afterok:$jid"
 fi
+
+# Run preseq for complexity analysis/plots.  Must have preseq installed for this.
+
+if [ ! -d "$topDir/preseq_output" ]; then
+	mkdir $topDir/preseq_output
+fi
+
+# For large files, this may need a lot of memory.  Right now request 250G on owners,normal but may need to switch to bigmem.
+
+jid=`sbatch <<- PRESEQ | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash -l
+	#SBATCH -p $queue
+	#SBATCH -o $outDir/preseq-%j.out
+	#SBATCH -e $outDir/preseq-%j.err
+	#SBATCH -t 16:00:00
+	#SBATCH -n 1
+	#SBATCH -c 1
+	#SBATCH --mem-per-cpu=250G
+	#SBATCH -J "${groupname}_preseq"
+	#SBATCH -d ${dependmsplit}
+	
+	python ${juiceDir}/scripts/preseqReadCounts.py
+		
+	module load preseq
+	preseq c_curve -v -V -s 100000 -o $topDir/preseq_output/${groupname}_c_curve.txt $topDir/preseq_output/obsReadCounts.txt
+
+	preseq lc_extrap -v -e 1000000000000 -V -o $topDir/preseq_output/${groupname}_lc_extrap.txt $topDir/preseq_output/obsReadCounts.txt
+
+	srun xvfb-run python ${juiceDir}/scripts/preseqPlots.py
+	
+PRESEQ`
 
 if [ -z "$genomePath" ]
 then
@@ -660,7 +775,7 @@ jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
 	#SBATCH -J "${groupname}_stats"
 	#SBATCH -d ${dependmsplit}
 	$load_java
-	export IBM_JAVA_OPTIONS="-Xmx16384m -Xgcthreads1"
+	export JAVA_OPTIONS="-Xmx16384m -XX:ParallelGCThreads=1"
 
 	echo 'Experiment description: $about' > $outputdir/inter.txt
 	${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt
@@ -683,7 +798,7 @@ STATS`
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
 	#SBATCH -o $outDir/hic-%j.out
-        #SBATCH -e $outDir/hic-%j.err	
+    #SBATCH -e $outDir/hic-%j.err	
 	#SBATCH -t 1440
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
@@ -691,8 +806,9 @@ STATS`
 	#SBATCH -J "${groupname}_hic"
 	#SBATCH -d $dependstats
 	${load_java}
-	export IBM_JAVA_OPTIONS="-Xmx48192m -Xgcthreads1"
-	${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
+	export JAVA_OPTIONS="-Xmx48192m -XX:ParallelGCThreads=1"
+
+	${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/${groupname}_inter.hic $genomePath
 HIC`
 
 	dependhic="afterok:$jid"
@@ -709,26 +825,29 @@ HIC`
 	#SBATCH -J "${groupname}_hic30"
 	#SBATCH -d ${dependstats}
 	${load_java}
-	export IBM_JAVA_OPTIONS="-Xmx48192m -Xgcthreads1"
-	${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
+	export JAVA_OPTIONS="-Xmx48192m -XX:ParallelGCThreads=1"
+
+	${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/${groupname}_inter_30.hic $genomePath
 HIC30`
 
 	dependhic30="${dependhic}:$jid"
 
 	jid=`sbatch <<- POSTPROC | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
-	#SBATCH --mem-per-cpu=2G
-	#SBATCH --gres=gpu:kepler:1
+	#SBATCH -p owners,gpu
+	#SBATCH --mem-per-cpu=16G
+	#SBATCH --gres=gpu:1
 	#SBATCH -o $outDir/postproc_wrap-%j.out
 	#SBATCH -e $outDir/postproc_wrap-%j.err
-	#SBATCH -t 1440
+	#SBATCH -t 60
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_postproc_wrap"
 	#SBATCH -d $dependhic30
 	${load_java}
 	${load_gpu}
-	${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
+	mkdir /local-scratch/$USER/juicer
+	export TMPDIR=/local-scratch/keagen/juicer
+	${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/${groupname}_inter_30.hic -m ${refDir}/motifs -g $genomeID
 POSTPROC`
 	dependpostproc="afterok:$jid"
 

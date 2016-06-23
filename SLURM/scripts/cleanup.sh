@@ -25,7 +25,30 @@
 
 # Script to clean up big repetitive files and zip fastqs. Run after you are 
 # sure the pipeline ran successfully.  Run from top directory (HIC001 e.g.).
-total=`ls -l aligned/merged_sort.txt | awk '{print $5}'`
-total2=`ls -l aligned/merged_nodups.txt aligned/dups.txt aligned/opt_dups.txt | awk '{sum = sum + $5}END{print sum}'`
-if [ $total -eq $total2 ]; then rm aligned/merged_sort.txt; rm -r splits; else echo "Problem: The sum of merged_nodups and the dups files is not the same size as merged_sort.txt"; fi
-#bzip2 fastq/*.fastq
+
+juiceDir="/home/keagen/programs/juicer/SLURM"
+# top level directory, can also be set in options
+topDir=$(pwd)
+# unique name for jobs in this run
+groupname=$(basename $topDir)
+
+#output messages
+outDir="$topDir/debug"
+
+total=`ls -l juicer_output/merged_sort.txt | awk '{print $5}'`
+total2=`ls -l juicer_output/merged_nodups.txt juicer_output/dups.txt juicer_output/opt_dups.txt | awk '{sum = sum + $5}END{print sum}'`
+if [ $total -eq $total2 ]; then rm juicer_output/merged_sort.txt; rm -r juicer_splits; else echo "Problem: The sum of merged_nodups and the dups files is not the same size as merged_sort.txt"; fi
+
+jid=`sbatch <<- CLEANUP | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash -l
+	#SBATCH -p kornberg,owners,normal
+	#SBATCH -o $outDir/cleanup-%j.out
+	#SBATCH -e $outDir/cleanup-%j.err
+	#SBATCH -t 16:00:00
+	#SBATCH -n 1
+	#SBATCH -c 16
+	#SBATCH -J "${groupname}_cleanup"
+
+	module load pbzip2
+	pbzip2 -p16 fastq/*.fastq
+CLEANUP`

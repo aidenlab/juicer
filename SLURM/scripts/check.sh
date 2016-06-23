@@ -27,6 +27,18 @@
 # Sanity check once pipeline is complete to be sure number of lines adds up, deduping
 # proceeded appropriately, and that files were created
 
+# top level directory, can also be set in options
+topDir=$(pwd)
+# unique name for jobs in this run
+groupname=$(basename $topDir)
+
+splitdir=${topDir}"/juicer_splits"
+donesplitdir=$topDir"/juicer_done_splits"
+fastqdir=${topDir}"/fastq/*_R*.fastq*"
+outputdir=${topDir}"/juicer_output"
+tmpdir=${topDir}"/juicer_HIC_tmp"
+
+
 if [ -z $ARG1 ]
 then
 # Start by checking the statistics to see if they add up 
@@ -77,7 +89,7 @@ else
    fi
 fi
 
-if [ -f ${outputdir}/inter.hic ] && [ -s ${outputdir}/inter.hic ] && [ -f ${outputdir}/inter_30.hic ] && [ -s ${outputdir}/inter_30.hic ]
+if [ -f ${outputdir}/${groupname}_inter.hic ] && [ -s ${outputdir}/${groupname}_inter.hic ] && [ -f ${outputdir}/${groupname}_inter_30.hic ] && [ -s ${outputdir}/${groupname}_inter_30.hic ]
 then
     echo "(-: Pipeline successfully completed (-:";
     echo "Run cleanup.sh to remove the splits directory";
