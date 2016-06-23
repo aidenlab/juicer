@@ -20,11 +20,11 @@ header = np.genfromtxt(loopsFile, dtype=np.str, skip_footer = rows-1)
 
 hiccupsIn = np.loadtxt(loopsFile, dtype=np.str, skiprows=1)
 
-# Get indices of loops smaller than cutoff and remove heterochromatic and poorly assembled chromosomes.
+# Get indices of loops smaller than cutoff, with few numCollapsed, and remove heterochromatic and poorly assembled chromosomes.
 idx = []
 for i in range(0, len(hiccupsIn)):
 	line = hiccupsIn[i]
-	if int(line[5]) - int(line[1]) <= 10000 or line[0] not in chroms:
+	if int(line[5]) - int(line[1]) <= 15000 or line[-4].astype(int) <= 3 or line[0] not in chroms:
 		idx.append(i)
 
 hiccupsOut = np.delete(hiccupsIn, idx, axis=0)
@@ -35,21 +35,21 @@ np.savetxt(topDir+'/juicer_output/{0}_randomizedpositions_inter_30_loops_hiccups
 # Create a bed file of loops.  For loop "regions" use the outermost boundaries of loop anchors.
 np.savetxt(topDir+'/juicer_output/{0}_randomizedpositions_inter_30_loops_hiccups_gutter10.bed'.format(groupname), hiccupsOut[:,[0,1,5]], delimiter='\t', fmt='%s')
 
-# Get loop anchors.  For any anchor less than 5 kb, extend to 5 kb.
+# Get loop anchors.  Define loop anchors as the central 1 kb of identified anchors.
 
 anchors1 = np.zeros((len(hiccupsOut), 3), dtype='S10')
 for i in range(0, len(hiccupsOut)):
 	line = hiccupsOut[i]
-	if int(line[2]) - int(line[1]) < 5000:
-		anchors1[i] = [line[0], int(round((float(line[2]) + float(line[1]))/2 - 2500)), int(round((float(line[2]) + float(line[1]))/2 + 2500))]
+	if int(line[2]) - int(line[1]) < 1000:
+		anchors1[i] = [line[0], int(round((float(line[2]) + float(line[1]))/2 - 500)), int(round((float(line[2]) + float(line[1]))/2 + 500))]
 	else:
 		anchors1[i] = line[0:3]
 
 anchors2 = np.zeros((len(hiccupsOut), 3), dtype='S10')
 for i in range(0, len(hiccupsOut)):
 	line = hiccupsOut[i]
-	if int(line[5]) - int(line[4]) < 5000:
-		anchors2[i] = [line[0], int(round((float(line[5]) + float(line[4]))/2 - 2500)), int(round((float(line[5]) + float(line[4]))/2 + 2500))]
+	if int(line[5]) - int(line[4]) < 1000:
+		anchors2[i] = [line[0], int(round((float(line[5]) + float(line[4]))/2 - 500)), int(round((float(line[5]) + float(line[4]))/2 + 500))]
 	else:
 		anchors2[i] = line[3:6]
 

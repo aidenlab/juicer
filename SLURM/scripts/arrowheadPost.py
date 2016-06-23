@@ -5,7 +5,7 @@ import numpy as np
 from subprocess import check_output
 import pybedtools
 
-resolutions = [5000, 2000, 1000]
+resolutions = [5000, 2000, 1000, 500]
 
 topDir = os.getcwd()
 groupname = os.path.split(topDir)[1]
@@ -22,8 +22,8 @@ for i in range(1, len(resolutions)):
 	a = np.vstack((arrowheadIn, np.loadtxt(topDir+'/juicer_output/{0}_randomizedpositions_inter_30_TADs_res{1}.txt_{1}_blocks'.format(groupname, resolutions[i]), dtype=np.str, skiprows=1)))
 	arrowheadIn = a
 
-# Sort by corner score (column 9)
-ind = np.argsort(arrowheadIn[:,9])[::-1]
+# Sort by corner score (column 7)
+ind = np.argsort(arrowheadIn[:,7].astype(float))[::-1]
 sorted = [arrowheadIn[i] for i in ind]
 sorted = np.array(sorted)
 
@@ -64,8 +64,14 @@ for i in range(0, len(finalTADs)):
 		idx3.append(i)
 finalTADs2 = np.delete(finalTADs, idx3, axis=0)	
 
+# Get some descriptive stats about lengths:
+lengths = finalTADs2[:,2].astype(float) - finalTADs2[:,1].astype(float)
+
 # Save the TADs in juicebox format.
 print 'Saving '+str(len(finalTADs2))+' TADs, excluding heterochromatic and poorly mapped chromosomes.'
+print 'Median TAD length is: '+str(np.median(lengths))+' bp.'
+print 'Mean TAD length is: '+str(np.mean(lengths))+' bp.'
+
 np.savetxt(topDir+'/juicer_output/{0}_randomizedpositions_inter_30_TADs_Arrowhead.txt'.format(groupname), np.vstack((header, finalTADs2)), delimiter='\t', fmt='%s')
 
 # Save the TADs in bed format.
@@ -76,7 +82,12 @@ for i in range(0, len(finalTADs2)):
 
 np.savetxt(topDir+'/juicer_output/{0}_randomizedpositions_inter_30_TADs_Arrowhead.bed'.format(groupname), np.hstack((finalTADs2[:,[0,1,2]], names)), delimiter='\t', fmt='%s')
 
+"""
 # Save the boundaries in bed format.
+
+if not os.path.exists(topDir+'/juicer_output/TADs'):
+	os.mkdir(topDir+'/juicer_output/TADs')
+
 starts = np.zeros((len(finalTADs2), 3), dtype='|S12')
 for i in range(0, len(starts)):
 	starts[i] = ['TAD_start', '0', '+']
@@ -124,5 +135,6 @@ for i in range(0, len(finalTADs2)):
 np.savetxt(topDir+'/juicer_output/TADs/{0}_leftInterbands.bed'.format(groupname), np.hstack((leftInterbands, names)), delimiter='\t', fmt='%s')
 
 np.savetxt(topDir+'/juicer_output/TADs/{0}_rightInterbands.bed'.format(groupname), np.hstack((rightInterbands, names)), delimiter='\t', fmt='%s')
+"""
 
 

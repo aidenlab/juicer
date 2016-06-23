@@ -1,7 +1,12 @@
 import os
 import sys
+
+print 'From "srun python", the python being used is located at' + sys.executable
+print 'From "srun python", the PYTHONPATH being used is located at' + os.environ['PYTHONPATH']
+
 import numpy as np
 from subprocess import check_output
+
 
 topDir = os.getcwd()
 rank = int(sys.argv[1]) # Which split file to work on
