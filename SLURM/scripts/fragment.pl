@@ -57,7 +57,6 @@ my %hindIII;
 
 # read in restriction site file and store as multidimensional array
 open FILE, $site_file or die $!;
-
 while (<FILE>) {
   my @locs = split;
   my $key = shift(@locs);

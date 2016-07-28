@@ -31,7 +31,8 @@
 #                                                                              
 # [topDir]/mega     - Location of result of processing the mega map
 #
-
+# Juicer version 1.5
+juicer_version="1.5" 
 ## Set the following variables to work with your system
 
 ## use cluster load commands:
@@ -43,9 +44,9 @@
 # Juicer directory, contains scripts/ and restriction_sites/
 juiceDir="/opt/juicer"
 # default queue, can also be set in options
-queue="normal"
+queue="Stat"
 # default long queue, can also be set in options
-long_queue="long"
+long_queue="Merge"
 # unique name for jobs in this run
 groupname="a$(date +%s)"
 
@@ -59,10 +60,11 @@ site="DpnII"
 genomeID="hg19"
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-h]"
-genomeHelp="   genomeID must be defined in the script, e.g. \"hg19\" or \"mm10\" \(default \"${genomeID}\")"
-dirHelp="   [topDir] is the top level directory (default \"${topDir}\") and must contain links to all merged_nodups files underneath it"
-siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"${site}\"); alternatively, this can be the restriction site file"
+usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-hx]"
+genomeHelp="   genomeID must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \"$genomeID\")"
+dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged_nodups files underneath it"
+siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
+excludeHelp="   -x: exclude fragment-delimited maps from Hi-C mega map (will run much faster)"
 helpHelp="   -h: print this help and exit"
 
 printHelpAndExit() {
@@ -70,16 +72,18 @@ printHelpAndExit() {
     echo "$genomeHelp"
     echo "$dirHelp"
     echo "$siteHelp"
+    echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hs:" opt; do
+while getopts "d:g:hxs:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
+  x) exclude=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -89,6 +93,7 @@ case $site in
 	HindIII) ligation="AAGCTAGCTT";;
 	DpnII) ligation="GATCGATC";;
 	MboI) ligation="GATCGATC";;
+  none) ligation="XXXX";;
 	*)  ligation="XXXX"
       site_file=$site
       echo "$site not listed as recognized enzyme, so trying it as site file."
@@ -101,8 +106,10 @@ then
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ]; then
+if [ ! -e "$site_file" ] && [ "$site" != "none" ]
+then
     echo "***! $site_file does not exist. It must be created before running this script."
+    echo "The site file is used for statistics even if fragment delimited maps are excluded"
     exit 100
 fi
 
@@ -112,18 +119,19 @@ outputdir=${megadir}"/aligned"
 tmpdir=${megadir}"/HIC_tmp"
 export TMPDIR=${megadir}"/HIC_tmp"
 outfile=${megadir}/lsf.out
+touchfile1=${megadir}/touch1
 
 ## Check for existing merge_nodups files:
 
-merged_count=`find ${topDir} | grep merged_nodups.txt | wc -l`
+merged_count=`find -L ${topDir} | grep merged_nodups.txt | wc -l`
 if [ "$merged_count" -lt "1" ]
 then
 	echo "***! Failed to find at least one merged_nodups files under ${topDir}"
 	exit 100
 fi
 
-merged_names=$(find ${topDir} | grep merged_nodups.txt | tr '\n' ' ')
-inter_names=$(find ${topDir} | grep inter.txt | tr '\n' ' ')
+merged_names=$(find -L ${topDir} | grep merged_nodups.txt | tr '\n' ' ')
+inter_names=$(find -L ${topDir} | grep inter.txt | tr '\n' ' ')
 
 ## Create output directory, exit if already exists
 if [[ -d "${outputdir}" ]] 
@@ -150,9 +158,8 @@ chmod 777 ${outfile}
 #source $usePath
 #$load_cluster
 
-touchfile1=${megadir}/touch1
-jid1=`bsub -o ${megadir}/lsf.out -q Merge -J ${groupname}_topstats <<-TOPSTATS
-bjobs -w
+jid1=`bsub -o ${megadir}/lsf.out -q "${queue}" -J "${groupname}_topstats" <<-TOPSTATS
+
 export LC_ALL=C
 if ! awk -f ${juiceDir}/scripts/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
 then  
@@ -166,7 +173,7 @@ TOPSTATS`
 
 touchfile2=${megadir}/touch2
 # Merge all merged_nodups.txt files found under current dir
-jid2=`bsub -o ${megadir}/lsf.out -q Merge -J ${groupname}_merge -R "rusage[mem=4000]" -w " done(${groupname}_topstats) " <<- MRGSRT
+jid2=`bsub -o ${megadir}/lsf.out -q "${long_queue}" -J ${groupname}_merge -R "rusage[mem=16000]" -w "done(${groupname}_topstats)" <<- MRGSRT
 if [ ! -f "${touchfile1}" ]
 then
    echo "***! Top stats job failed, type bjobs -l $jid1 to see what happened."
@@ -186,7 +193,7 @@ MRGSRT`
 touchfile3=${megadir}/touch3  
 
 # Create statistics files for MQ > 0
-jid3=`bsub -o ${megadir}/lsf.out -q Stat -J ${groupname}_inter0 -w " done(${groupname}_merge) " <<- INTER0
+jid3=`bsub -o ${megadir}/lsf.out -q "${queue}" -J "${groupname}_inter0" -w "done(${groupname}_merge)" <<- INTER0
 if [ ! -f "${touchfile2}" ]
 then
    echo "***! Sort job failed."
@@ -200,7 +207,7 @@ INTER0`
 touchfile4=${megadir}/touch4
 
 # Create statistics files for MQ > 30
-jid4=`bsub -o ${megadir}/lsf.out -q Stat -J "${groupname}_inter30" -w " done(${groupname}_merge) " <<- INTER30
+jid4=`bsub -o ${megadir}/lsf.out -q "${queue}" -J "${groupname}_inter30" -w "done(${groupname}_merge)" <<- INTER30
 if [ ! -f "${touchfile2}" ]
 then
    echo "***! Sort job failed."
@@ -213,7 +220,7 @@ INTER30`
 touchfile5=${megadir}/touch5
 
 # Create HIC maps file for MQ > 0
-jid5=`bsub -o ${megadir}/lsf.out -q Stat -J ${groupname}_hic0 -w " done(${groupname}_inter30) " <<- HIC0
+jid5=`bsub -o ${megadir}/lsf.out -q "${queue}" -J "${groupname}_hic0" -w "done(${groupname}_inter30)" -R "rusage[mem=16000]" <<- HIC0
 #source $usePath
 #$load_java
 if [ ! -f "${touchfile3}" ]
@@ -221,13 +228,24 @@ then
    echo "***! Statistics q=1 job failed."
    exit 100;
 fi
-${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
-touch $touchfile5
+exitcode=-999
+if [ -z "$exclude" ]
+then
+	${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+    exitcode=\$?
+else
+	${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+    exitcode=\$?
+fi
+if [ "\${exitcode}" -eq 0 ]
+then
+    touch $touchfile5
+fi
 HIC0`
 
 touchfile6=${megadir}/touch6
 # Create HIC maps file for MQ > 30
-jid6=`bsub -o ${megadir}/lsf.out -q Stat -J ${groupname}_hic30 -w " done(${groupname}_inter30) " <<- HIC30
+jid6=`bsub -o ${megadir}/lsf.out -q "${queue}" -J "${groupname}_hic30" -w "done(${groupname}_inter30)" -R "rusage[mem=16000]" <<- HIC30
 #source $usePath
 #$load_java	
 if [ ! -f "${touchfile4}" ]
@@ -235,13 +253,24 @@ then
    echo "***! Statistics q=30 job failed."
    exit 100;
 fi
-${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+exitcode=-999
+if [ -z "${exclude}" ]
+then
+	${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+   exitcode=\$?
+else
+	${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+   exitcode=\$?
+fi
+if [ "\${exitcode}" -eq 0 ]
+then
 touch $touchfile6
+fi
 HIC30`
 
 touchfile7=${megadir}/touch7
 # Create loop and domain lists file for MQ > 30
-jid7=`bsub  -o ${megadir}/lsf.out -q Stat -J ${groupname}_postproc -w " done(${groupname}_hic30) " <<- POSTPROC
+jid7=`bsub  -o ${megadir}/lsf.out -q "${queue}" -J "${groupname}_postproc" -w "done(${groupname}_hic30)" <<- POSTPROC
 #source $usePath
 #$load_java	
 export _JAVA_OPTIONS=-Xmx16384m;
@@ -255,7 +284,7 @@ ${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i 
 touch $touchfile7
 POSTPROC`
 
-jid8=`bsub -o ${megadir}/lsf.out -q CleanFnl -J ${groupname}_final -w " done(${groupname}_postproc) " <<- FINAL
+jid8=`bsub -o ${megadir}/lsf.out -j y -q "${queue}" -J "${groupname}_done" -w "done(${groupname}_postproc)" <<- FINAL
 if [ ! -f "${touchfile5}" ]
 then
    echo "***! Failed to make inter.hic."   

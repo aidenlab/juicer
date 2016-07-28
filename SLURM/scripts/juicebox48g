@@ -20,4 +20,5 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-java -Djava.awt.headless=true -Djava.library.path=`dirname $0`/lib64 -Xms49152m -Xmx49152m -Xgcthreads1 -jar `dirname $0`/juicebox_tools.jar $*
+# Juicer version 1.5
+java -Djava.awt.headless=true -Djava.library.path=`dirname $0`/lib64 -Xms49152m -Xmx49152m -Xgcthreads1 -jar `dirname $0`/juicebox_tools.7.5.jar $*

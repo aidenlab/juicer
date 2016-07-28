@@ -22,10 +22,9 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
-
 # Helper script for finding what files successfully aligned and preparing the directory for
 # rerunning juicer.sh
-
+# Juicer version 1.5
 ls -l splits > ls_splits
 
 awk '($9 ~/R1/ && $9 ~/fastq$/) || ($9 ~/R1/ && $9 ~/gz$/) {split($9, a, "_R1");  print a[1]a[2], $9}($9 ~/R2/ && $9 ~/fastq$/) || ($9 ~/R2/ && $9 ~/gz$/){split($9,a,"_R2");print a[1]a[2], $9}' ls_splits > fastq.txt

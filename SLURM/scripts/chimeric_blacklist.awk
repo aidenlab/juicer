@@ -22,7 +22,6 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
-
 # Takes a SAM file, looks for chimeric reads and normal reads.  Outputs  
 # only those reads mapped to chromosomes 1-24 with MAPQ > 0.
 #
@@ -41,6 +40,7 @@
 # one non-ligation junction end is far from the others, are sent to fname2.
 #
 # awk -f chimeric_blacklist.awk -v fname1="norm_chimera" fname2="abnorm_chimera" fname3="unmapped"
+# Juicer version 1.5 
 
 # returns absolute value
 function abs(value)
@@ -286,6 +286,13 @@ BEGIN{
 					print c[i] > fname3;
 				}	
 				count_unmapped++;
+      }
+    }
+    else if (count == 1) {
+      # this actually shouldn't happen, but it happens with alternate aligners on occasion
+      count_abnorm++;
+      for (i in c) {
+				print c[i] > fname2;
       }
     }
     # reset variables

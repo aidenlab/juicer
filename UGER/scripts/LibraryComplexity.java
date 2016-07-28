@@ -22,6 +22,7 @@
  *  THE SOFTWARE.
  *
  * Based on PicardTools 
+ * Juicer version 1.5
  */
 import java.text.NumberFormat;
 import java.text.ParseException;

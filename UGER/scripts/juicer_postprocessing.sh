@@ -22,11 +22,11 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
-
 # Juicer postprocessing script.
 # This will run the major post-processing on the HiC file, including finding
 # loops with HiCCUPS, finding motifs of these loops with MotifFinder, and
 # finding contact domains with Arrowhead.
+# Juicer version 1.5
 
 ## Read arguments
 usageHelp="Usage: ${0} [-h] -j <juicebox_file_path> -i <hic_file_path> -m <bed_file_dir> -g <genome ID>"
@@ -44,31 +44,31 @@ bed_file_dir="/broad/aidenlab/references/motif"
 
 while getopts "h:g:j:i:m:" opt; do
     case $opt in
-h) printHelpAndExit 0;;
-  j) juiceboxpath=$OPTARG ;;
-  i) hic_file_path=$OPTARG ;;
-  m) bed_file_dir=$OPTARG ;; 
-  g) genomeID=$OPTARG ;;
-[?]) printHelpAndExit 1;;
+	h) printHelpAndExit 0;;
+	j) juiceboxpath=$OPTARG ;;
+	i) hic_file_path=$OPTARG ;;
+	m) bed_file_dir=$OPTARG ;; 
+	g) genomeID=$OPTARG ;;
+	[?]) printHelpAndExit 1;;
     esac
 done
 
 ## Check that juicebox exists 
 if [ ! -e "${juiceboxpath}" ]; then
-  echo "***! Can't find juicebox in ${juiceboxpath}";
-  exit 100;
+    echo "***! Can't find juicebox in ${juiceboxpath}";
+    exit 100;
 fi
 
 ## Check that hic file exists    
 if [ ! -e "${hic_file_path}" ]; then
-  echo "***! Can't find inter.hic in ${hic_file_path}";
-  exit 100;
+    echo "***! Can't find inter.hic in ${hic_file_path}";
+    exit 100;
 fi
 
 ## Check that bed folder exists    
 if [ ! -e "${bed_file_dir}" ]; then
-  echo "***! Can't find folder ${bed_file_dir}";
-  exit 100;
+    echo "***! Can't find folder ${bed_file_dir}";
+    exit 100;
 fi
 
 echo -e "${juiceboxpath} is post-processing Hi-C for ${genomeID}\nData read from ${hic_file_path}.\nMotifs read from ${bed_file_dir}\n"

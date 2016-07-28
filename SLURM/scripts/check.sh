@@ -1,5 +1,4 @@
 #!/bin/bash
-
 ##########
 #The MIT License (MIT)
 #
@@ -26,7 +25,7 @@
 #
 # Sanity check once pipeline is complete to be sure number of lines adds up, deduping
 # proceeded appropriately, and that files were created
-
+# Juicer version 1.5
 if [ -z $ARG1 ]
 then
 # Start by checking the statistics to see if they add up 
@@ -35,6 +34,7 @@ then
     if [ $check1 -eq 0 ] || [ -z "$res1" ]
     then
         echo "***! Error! The statistics do not add up. Alignment likely failed to complete on one or more files. Run relaunch_prep.sh"
+    	echo "Stats don't add up.  Check ${outputdir} for results"
         exit 100
     fi
 fi
@@ -49,18 +49,21 @@ total2=`ls -l ${outputdir}/merged_nodups.txt ${outputdir}/dups.txt ${outputdir}/
 if [ -z $total ] || [ -z $total2 ] || [ $total -ne $total2 ]
 then
     echo "***! Error! The sorted file and dups/no dups files do not add up, or were empty. Merge or dedupping likely failed, restart pipeline with -S merge or -S dedup"
+    echo "Dups don't add up.  Check ${outputdir} for results"
     exit 100
 fi
 
 wctotal=`cat ${splitdir}/*_linecount.txt | awk '{sum+=$1}END{print sum/4}'`
 check2=`cat ${splitdir}/*norm*res* | awk '{s2+=$2;}END{print s2}'`
-check4=`cat ${splitdir}/*norm*res* | awk '{s4+=$4;}END{print s4}'`
+# the below, check4, is still buggy and needs to be corrected
+check4=`cat ${splitdir}/*norm*res* | awk '{s+=$3+$4+$5+$6;}END{print s}'`
  
 if [ -z $ARG1 ] 
 then
     if [ $wctotal -ne $check2 ]
     then
         echo "***! Error! The number of reads in the fastqs (${wctotal}) is not the same as the number of reads reported in the stats (${check2}), likely due to a failure during alignment"
+        echo "Reads don't add up.  Check ${outputdir} for results"
         exit 100
     fi
 else
@@ -70,6 +73,7 @@ else
    if [ $wctotal -ne $calctotal ]
    then
         echo "***! Error! The number of reads in the fastqs (${wctotal}) is not the same as the number of alignable reads reported in the stats (${check4}) plus unmapped/ambiguous (${unmapamb}), likely due to a failure during alignment. Run relaunch_prep.sh"
+        echo "Reads don't add up.  Check ${outputdir} for results"
         exit 100
    else
        echo "Total: $wctotal"
@@ -81,7 +85,9 @@ if [ -f ${outputdir}/inter.hic ] && [ -s ${outputdir}/inter.hic ] && [ -f ${outp
 then
     echo "(-: Pipeline successfully completed (-:";
     echo "Run cleanup.sh to remove the splits directory";
+    echo "Check ${outputdir} for results"
 else
     echo "***! Error! Either inter.hic or inter_30.hic were not created"
+    echo "Either inter.hic or inter_30.hic were not created.  Check ${outputdir} for results"
     exit 100
 fi

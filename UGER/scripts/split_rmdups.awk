@@ -21,9 +21,9 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
-
-# Dedup script that submits deduping jobs after splitting at known non-duplicate
-#
+# Dedup script that submits deduping jobs after splitting at known 
+# non-duplicates 
+# Juicer version 1.5
 BEGIN{
 	tot=0;
 	name=0;

@@ -24,6 +24,7 @@
 ##########
 #
 # Small helper script to count reads with ligation junction
+# Juicer version 1.5
 if [ "$ARG1" -eq 1 ]
 then 
     num1=$(paste <(zcat $name1$ext) <(zcat $name2$ext) | grep -c $ligation)

@@ -31,7 +31,8 @@
 #                                                                              
 # [topDir]/mega     - Location of result of processing the mega map
 #
-
+# Juicer version 1.5
+juicer_version="1.5" 
 ## Set the following variables to work with your system
 
 ## use cluster load commands:
@@ -64,6 +65,7 @@ usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-h]"
 genomeHelp="   genomeID must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \"$genomeID\")"
 dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged_nodups files underneath it"
 siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
+excludeHelp="   -x: exclude fragment-delimited maps from Hi-C mega map (will run much faster)"
 helpHelp="   -h: print this help and exit"
 
 printHelpAndExit() {
@@ -71,16 +73,18 @@ printHelpAndExit() {
     echo "$genomeHelp"
     echo "$dirHelp"
     echo "$siteHelp"
+    echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hs:" opt; do
+while getopts "d:g:hxs:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
+  x) exclude=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -90,6 +94,7 @@ case $site in
 	HindIII) ligation="AAGCTAGCTT";;
 	DpnII) ligation="GATCGATC";;
 	MboI) ligation="GATCGATC";;
+    none) ligation="XXXX";;
 	*)  ligation="XXXX"
       site_file=$site
       echo "$site not listed as recognized enzyme, so trying it as site file."
@@ -102,8 +107,10 @@ then
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ]; then
+if [ ! -e "$site_file" ] && [ "$site" != "none" ]
+then
     echo "***! $site_file does not exist. It must be created before running this script."
+    echo "The site file is used for statistics even if fragment delimited maps are excluded"
     exit 100
 fi
 
@@ -120,15 +127,15 @@ touchfile1=${megadir}/touch1
 
 ## Check for existing merge_nodups files:
 
-merged_count=`find ${topDir} | grep merged_nodups.txt | wc -l`
+merged_count=`find -L ${topDir} | grep merged_nodups.txt | wc -l`
 if [ "$merged_count" -lt "1" ]
 then
 	echo "***! Failed to find at least one merged_nodups files under ${topDir}"
 	exit 100
 fi
 
-merged_names=$(find ${topDir} | grep merged_nodups.txt | tr '\n' ' ')
-inter_names=$(find ${topDir} | grep inter.txt | tr '\n' ' ')
+merged_names=$(find -L ${topDir} | grep merged_nodups.txt | tr '\n' ' ')
+inter_names=$(find -L ${topDir} | grep inter.txt | tr '\n' ' ')
 
 ## Create output directory, exit if already exists
 if [[ -d "${outputdir}" ]] 
@@ -266,6 +273,7 @@ jid5=`sbatch <<- HIC0 | egrep -o -e "\b[0-9]+$"
 #SBATCH -e $outDir/hic0-%j.err
 #SBATCH -J "${groupname}_hic0"
 #SBATCH -d "${dependinter0}"
+#SBATCH --mem-per-cpu=32G
 #source $usePath
 $load_java
 if [ ! -f "${touchfile3}" ]
@@ -273,8 +281,18 @@ then
    echo "***! Statistics q=1 job failed."
    exit 100;
 fi
-${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
-touch $touchfile5
+if [ -z "$exclude" ]
+then
+	${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+    exitcode=\$?
+else
+	${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+    exitcode=\$?
+fi
+if [ "\${exitcode}" -eq 0 ]
+then
+    touch $touchfile5
+fi
 HIC0`
 dependhic0="afterok:$jid5"
 
@@ -290,6 +308,7 @@ jid6=`sbatch <<- HIC30 | egrep -o -e "\b[0-9]+$"
 #SBATCH -e $outDir/hic30-%j.err
 #SBATCH -J "${groupname}_hic30"
 #SBATCH -d "${dependinter30}"
+#SBATCH --mem-per-cpu=32G
 #source $usePath
 $load_java	
 if [ ! -f "${touchfile4}" ]
@@ -297,15 +316,25 @@ then
    echo "***! Statistics q=30 job failed."
    exit 100;
 fi
-${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
-touch $touchfile6
+if [ -z "${exclude}" ]
+then
+	${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+   exitcode=\$?
+else
+	${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+   exitcode=\$?
+fi
+if [ "\${exitcode}" -eq 0 ]
+then
+    touch $touchfile6
+fi
 HIC30`
 dependhic30="${dependhic0}:$jid6"
 dependhic30only="afterok:$jid6"
 
 # Create loop lists file for MQ > 30
 touchfile7=${megadir}/touch7
-jid7=`sbatch <<- POSTPROC| egrep -o -e "\b[0-9]+$"
+jid7=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
 #!/bin/bash -l
 #SBATCH -p ${long_queue}
 #SBATCH -t 1440
@@ -313,9 +342,9 @@ jid7=`sbatch <<- POSTPROC| egrep -o -e "\b[0-9]+$"
 #SBATCH --ntasks=1
 #SBATCH --mem-per-cpu=4G 
 #SBATCH --gres=gpu:kepler:1
-#SBATCH -o $outDir/postproc-%j.out
-#SBATCH -e $outDir/postproc-%j.err
-#SBATCH -J "${groupname}_postproc"
+#SBATCH -o $outDir/hiccups-%j.out
+#SBATCH -e $outDir/hiccups-%j.err
+#SBATCH -J "${groupname}_hiccups"
 #SBATCH -d "${dependhic30only}"
 #source $usePath
 $load_java	
@@ -325,13 +354,39 @@ then
    exit 100;
 fi
 ${load_gpu}
-${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicebox -i ${outputdir}/inter_30.hic -m ${juiceDir}/references/motif -g ${genomeID}
+${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
 touch $touchfile7
-POSTPROC`
-dependpostproc="afterok:$jid7"
+HICCUPS`
+dependhiccups="afterok:$jid7"
+
+touchfile8=${megadir}/touch8
+# Create domain lists for MQ > 30
+jid8=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
+#!/bin/bash -l
+#SBATCH -p ${long_queue}
+#SBATCH -t 1440
+#SBATCH -c 2
+#SBATCH --ntasks=1
+#SBATCH --mem-per-cpu=4G 
+#SBATCH -o $outDir/arrowhead-%j.out
+#SBATCH -e $outDir/arrowhead-%j.err
+#SBATCH -J "${groupname}_arrowhead"
+#SBATCH -d "${dependhic30only}"
+#source $usePath
+$load_java	
+if [ ! -f "${touchfile6}" ]
+then
+   echo "***! HIC maps q=30 job failed."
+   exit 100;
+fi
+${juiceDir}/scripts/juicer_arrows.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic
+touch $touchfile8
+ARROWS`
+dependarrows="${dependhic0}:$jid8"
+dependarrowsonly="afterok:$jid8"
 
 # Final checks
-jid8=`sbatch <<- FINAL | egrep -o -e "\b[0-9]+$"
+jid9=`sbatch <<- FINAL | egrep -o -e "\b[0-9]+$"
 #!/bin/bash -l
 #SBATCH -p ${long_queue}
 #SBATCH -t 100
@@ -340,7 +395,7 @@ jid8=`sbatch <<- FINAL | egrep -o -e "\b[0-9]+$"
 #SBATCH -o $outDir/done-%j.out
 #SBATCH -e $outDir/done-%j.err
 #SBATCH -J "${groupname}_done"
-#SBATCH -d "${dependpostproc}"
+#SBATCH -d "${dependarrows}"
 
 if [ ! -f "${touchfile5}" ]
 then
@@ -354,12 +409,18 @@ then
 fi
 if [ ! -f "${touchfile7}" ]
 then
-   echo "***! Failed to create  domain and loop lists."   
+   echo "***! Failed to create loop lists."   
+   exit 100;
+fi
+if [ ! -f "${touchfile8}" ]
+then
+   echo "***! Failed to create domain lists."   
    exit 100;
 fi
 rmdir ${tmpdir}
-rm $touchfile1 $touchfile2 $touchfile3 $touchfile4 $touchfile5 $touchfile6 $touchfile7
+rm $touchfile1 $touchfile2 $touchfile3 $touchfile4 $touchfile5 $touchfile6 $touchfile7 $touchfile8
 echo "(-: Successfully completed making mega map. Done. :-)"
+echo $topDir, $site, $genomeID, $genomePath | mail -r MegaJuicer@rice.edu -s \"Mega Juicer pipeline finished successfully @ Rice" -t $USER@rice.edu;
 FINAL`
-dependfinal="afterok:$jid8"
+dependfinal="afterok:$jid9"
 echo "(-: Finished adding all jobs... please wait while processing."

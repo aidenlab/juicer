@@ -25,10 +25,10 @@
 
 # Helper script for finding what files successfully aligned and preparing the directory for
 # rerunning juicer.sh
-
+# Juicer version 1.5
 ls -l splits > ls_splits
 
-awk '($9 ~/R1/ && $9 ~/fastq$/) || ($9 ~/R1/ && $9 ~/gz$/) {split($9, a, "_R1");  print a[1]a[2], $9}($9 ~/R2/ && $9 ~/fastq$/) || ($9 ~/R2/ && $9 ~/gz$/){split($9,a,"_R2");print a[1]a[2], $9}' ls_splits > fastq.txt
+awk '($9 ~/_R1/ && $9 ~/fastq$/) || ($9 ~/_R1/ && $9 ~/gz$/) {split($9, a, "_R1");  print a[1]a[2], $9}($9 ~/_R2/ && $9 ~/fastq$/) || ($9 ~/_R2/ && $9 ~/gz$/){split($9,a,"_R2");print a[1]a[2], $9}' ls_splits > fastq.txt
 awk '{name="splits/"$1"_norm.txt.res.txt"; if ((getline line < name) > 0){ split(line, a); if (length(a)<6 || a[2] != a[3]+a[4]+a[5]+a[6] || a[2] == 0){print "mv splits/"$2, "not_done; rm -f splits/"$1"*; rm -f splits/"$2"*;"} close(name);}else {print "mv splits/"$2, "not_done; rm -f splits/"$1"*; rm -f splits/"$2"*;"}}' fastq.txt > mv_me.sh
 mkdir not_done
 chmod 755 mv_me.sh
@@ -43,6 +43,7 @@ if [ "$(ls -A not_done)" ]
             mv splits done_splits
         fi
         mv not_done splits
+
         if [ -d done_debug ]
         then
             mv debug/* done_debug/.
@@ -50,6 +51,7 @@ if [ "$(ls -A not_done)" ]
         else
             mv debug done_debug
         fi
+
 else
     rmdir not_done
     echo "Fastqs are aligned, run juicer.sh with -S merge flag";

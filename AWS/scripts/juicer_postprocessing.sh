@@ -26,6 +26,7 @@
 # This will run the major post-processing on the HiC file, including finding
 # loops with HiCCUPS, finding motifs of these loops with MotifFinder, and
 # finding contact domains with Arrowhead.
+# Juicer version 1.5
 
 ## Read arguments
 usageHelp="Usage: ${0} [-h] -j <juicebox_file_path> -i <hic_file_path> -m <bed_file_dir> -g <genome ID>"
@@ -54,20 +55,20 @@ done
 
 ## Check that juicebox exists 
 if [ ! -e "${juiceboxpath}" ]; then
-  echo "***! Can't find juicebox in ${juiceboxpath}";
-  exit 100;
+    echo "***! Can't find juicebox in ${juiceboxpath}";
+    exit 100;
 fi
 
 ## Check that hic file exists    
 if [ ! -e "${hic_file_path}" ]; then
-  echo "***! Can't find inter.hic in ${hic_file_path}";
-  exit 100;
+    echo "***! Can't find inter.hic in ${hic_file_path}";
+    exit 100;
 fi
 
 ## Check that bed folder exists    
 if [ ! -e "${bed_file_dir}" ]; then
-  echo "***! Can't find folder ${bed_file_dir}";
-  exit 100;
+    echo "***! Can't find folder ${bed_file_dir}";
+    exit 100;
 fi
 
 echo -e "${juiceboxpath} is post-processing Hi-C for ${genomeID}\nData read from ${hic_file_path}.\nMotifs read from ${bed_file_dir}\n"
@@ -77,14 +78,13 @@ if [ $? -ne 0 ]; then
     echo "***! Problem while running Arrowhead";
     exit 100
 fi
-
 echo -e "\nHiCCUPS:\n"
 if hash nvcc 2>/dev/null 
 then 
     ${juiceboxpath} hiccups ${hic_file_path} ${hic_file_path%.*}"_loops.txt"
     if [ $? -ne 0 ]; then
-        echo "***! Problem while running HiCCUPS";
-        exit 100
+	echo "***! Problem while running HiCCUPS";
+	exit 100
     fi
 else 
     echo "GPUs are not installed so HiCCUPs cannot be run";
@@ -98,7 +98,7 @@ then
     ${juiceboxpath} motifs ${genomeID} ${bed_file_dir} ${hic_file_path%.*}"_loops.txt"
     echo -e "\n(-: Feature annotation successfully completed (-:"
 else
-    # if loop lists do not exist but Juicebox didn't return an error, likely 
-    # too sparse
+  # if loop lists do not exist but Juicebox didn't return an error, likely 
+  # too sparse
     echo -e "\n(-: Postprocessing successfully completed, maps too sparse to annotate or GPUs unavailable (-:"
 fi

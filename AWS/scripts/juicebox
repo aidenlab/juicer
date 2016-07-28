@@ -20,4 +20,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-java -Djava.io.tmpdir=/opt/juicer/tmp -Djava.awt.headless=true -Djava.library.path=/opt/cuda-7.0/lib64  -Xmx32000m -Xms8000m -jar /opt/juicer/scripts/juicebox_tools.jar $*
+java -Djava.io.tmpdir=/opt/juicer/tmp -Djava.awt.headless=true -Djava.library.path=/opt/cuda-7.0/lib64  -Xmx32000m -Xms8000m -jar /opt/juicer/scripts/juicebox_tools.7.0.jar $*

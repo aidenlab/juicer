@@ -22,7 +22,6 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
-
 # Perl script to convert to fragment map from infile. The infile should be the
 # "intermediate" form: no duplicates, 10 fields, laid out as:
 #
@@ -32,7 +31,7 @@
 # each line, the sorted locations of the enzyme restriction sites.
 #
 # Usage:  fragment.pl <infile>
-
+# Juicer version 1.5
 use POSIX;
 
 $site_file = "/broad/aidenlab/restriction_sites/hg19_DpnII.txt";

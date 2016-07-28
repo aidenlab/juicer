@@ -22,6 +22,8 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
+# Script to read in individual split outputs and put stats together
+# Juicer version 1.5
 {
 a1+=$2; # total reads
 a2+=$3; # normal

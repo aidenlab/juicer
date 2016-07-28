@@ -1,5 +1,6 @@
 #! /usr/bin/env python
-
+# Generate site positions in genome from given restriction enzyme
+# Juicer 1.5
 import sys
 import subprocess
 import re

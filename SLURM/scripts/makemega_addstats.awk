@@ -22,7 +22,8 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
-
+# Helper script for taking in multiple inter.txt and producing sums
+# Juicer version 1.5
 $1=="Sequenced"{
 gsub(/,/,"",$4);
  total=total+$4;

@@ -28,9 +28,6 @@
 #
 # str1 chr1 pos1 frag1 str2 chr2 pos2 frag2 mapq1 cigar1 seq1 mapq2 cigar2 seq2
 #
-# (Old form no fragments.)
-# (Old form contained 10 fields with the cigar fields eliminated.)
-#
 # This intermediate form makes it easy to sort (to remove duplicates) and to
 # grab just the first six fields to create the HiC map.
 #
@@ -38,14 +35,14 @@
 # determine the histogram of mapQ values, the number of dangling ends, and the
 # number of ligation junctions.  Cigar is needed to properly calculate dups.
 #
-# The script also requires a HindIII restriction site file, which lists on
-# each line, the sorted locations of the HindIII restriction sites.
+# The script also requires a restriction site file, which lists on
+# each line, the sorted locations of the restriction sites.
 #
 # The script will print out the total reads, # dangling ends, # ligation
 # junctions, #intra vs inter chromosomal reads, # inner/outer/right/left
 # read pairs, a histogram of the MAPQ values, a histogram of the distance
-# from the closest HindIII site, and a count of which end was closest to the
-# HindIII site.
+# from the closest restriction enzyme site, and a count of which end was closest to the
+# restriction enzyme site.
 #
 # Usage:	statistics.pl [infile or stream]
 
@@ -128,6 +125,10 @@ my $unique = 0;
 # logspace bins
 my @bins = (10,12,15,19,23,28,35,43,53,66,81,100,123,152,187,231,285,351,433,534,658,811,1000,1233,1520,1874,2310,2848,3511,4329,5337,6579,8111,10000,12328,15199,18738,23101,28480,35112,43288,53367,65793,81113,100000,123285,151991,187382,231013,284804,351119,432876,533670,657933,811131,1000000,1232847,1519911,1873817,2310130,2848036,3511192,4328761,5336699,6579332,8111308,10000000,12328467,15199111,18738174,23101297,28480359,35111917,43287613,53366992,65793322,81113083,100000000,123284674,151991108,187381742,231012970,284803587,351119173,432876128,533669923,657933225,811130831,1000000000,1232846739,1519911083,1873817423,2310129700,2848035868,3511191734,4328761281,5336699231,6579332247,8111308308,10000000000);
 
+if (index($site_file, "none") != -1) {
+   #no restriction enzyme, no need for RE distance
+ }
+else {
 # read in restriction site file and store as multidimensional array
 open FILE, $site_file or die $!;
 while (<FILE>) {
@@ -137,7 +138,7 @@ while (<FILE>) {
 	$chromosomes{$key} = $ref;
 }
 close(FILE);
-
+}
 # read in infile and calculate statistics
 #open FILE, $infile or die $!;
 while (<>) {
@@ -264,7 +265,8 @@ while (<>) {
       }
     }
     # determine distance from nearest HindIII site, add to histogram
-    my $report = ($record[1] != $record[5]) || ($pos_dist >= 20000);
+    if (index($site_file, "none") == -1) {
+    my $report = (($record[1] != $record[5]) || ($pos_dist >= 20000));
     my $dist = &distHindIII($record[0], $record[1], $record[2], $record[3], $report);
     if ($dist <= 2000) {
       $hindIII{$dist}++;
@@ -274,7 +276,7 @@ while (<>) {
     if ($dist <= 2000) {
       $hindIII{$dist}++;
     }
-    
+    }
     if ($is_dangling) {
       if ($record[10] =~ m/^$dangling_junction/) {
         $dist = &distHindIII($record[0], $record[1], $record[2], $record[3], 1);
@@ -451,7 +453,6 @@ close FILE;
 # Find distance to nearest HindIII restriction site
 sub distHindIII {
 	# find upper index of position in sites array via binary search
-	#my $index = &bsearch($_[2],$chromosomes{$_[1]});
 	my $index = $_[3];
 	# get distance to each end of HindIII fragment
 	my $dist1;
@@ -464,16 +465,6 @@ sub distHindIII {
 	}
 	my $dist2 = abs($_[2] - $chromosomes{$_[1]}[$index]);
 	
-#	if ($index == 0) {
-#		if (!($_[2] >= 0 && $_[2] <= $chromosomes{$_[1]}[$index])) {
-#	    print(STDERR "Problem not " . $_[2] . " >= 0 && <= " . $chromosomes{$_[1]}[$index] . " " . $_[1] . " index = " . $index . " chr = " . $_[1] . "\n");
-#		}
-#	}
-#	else {
-#		if (!($_[2] >= $chromosomes{$_[1]}[$index-1] && $_[2] <= $chromosomes{$_[1]}[$index])) {
-#	    print(STDERR "Problem not " . $_[2] . " >= " . $chromosomes{$_[1]}[$index-1] . " && <= " . $chromosomes{$_[1]}[$index] . " index = " . $index . " chr = " . $_[1] . "\n");
-#		}
-#	}
 	# get minimum value -- if (dist1 <= dist2), it's dist1, else dist2
 	my $retval = $dist1 <= $dist2 ? $dist1 : $dist2; 
 	# get which end of the fragment this is, 3' or 5' (depends on strand)
