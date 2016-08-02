@@ -461,7 +461,7 @@ SPLITMV
 CNTLIG
 
 	# align read1 fastq
-	if [ -v shortread ] || [ "$shortreadend" -eq 1 ]
+	if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
 	then
 	    alloc_mem=16000
 	else
@@ -477,7 +477,7 @@ CNTLIG
 	#BSUB -R "rusage[mem=$alloc_mem]"
 	#BSUB -J "${groupname}_align1${jname}"
 	# Align read1 
-	if [ -v shortread ] || [ "$shortreadend" -eq 1 ]
+	if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
 	then		
            echo 'Running command bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam'
 	   bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam
@@ -502,7 +502,7 @@ CNTLIG
 ALGNR1
 
 	# align read2 fastq
-	if [ -v shortread ] || [ "$shortreadend" -eq 2 ]
+	if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
 	then
 	    alloc_mem=16000
 	else
@@ -518,7 +518,7 @@ ALGNR1
 	#BSUB -R "rusage[mem=$alloc_mem]"
 	#BSUB -J "${groupname}_align2${jname}"
 	# Align read2
-	if [ -v shortread ] || [ $shortreadend -eq 2 ]
+	if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
 	then		
            echo 'Running command bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam '
 	   bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam
