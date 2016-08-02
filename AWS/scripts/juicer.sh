@@ -733,7 +733,7 @@ then
     ${waitstring}
     #BSUB -J "${groupname}_osplit"
     bkill -J ${groupname}_clean1
-    awk -v queue=$long_queue -v outfile=$topDir/lsf.out -v juicedir=${juiceDir}  -v dir=$outputdir -v groupname=$groupname -f ${juiceDir}/scripts/split_rmdups.awk $outputdir/merged_sort.txt
+    awk -v queue=$long_queue -v outfile=$topDir/lsf.out -v juicedir=${juiceDir}  -v dir=$outputdir -v queuetime=$long_queue_time -v groupname=$groupname -f ${juiceDir}/scripts/split_rmdups.awk $outputdir/merged_sort.txt
 KILLCLNUP
 
     # if it dies, cleanup and write to relaunch script

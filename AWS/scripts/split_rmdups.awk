@@ -36,7 +36,7 @@ BEGIN{
 	if (tot >= 1000000) {
 		if (p1 != $1 || p2 != $2 || p4 != $4 || p5 != $5 || p8 != $8) {
 			sname=sprintf("%s_msplit%04d_", groupname, name);
-			sysstring = sprintf("bsub -o %s -q %s -J %s <<- EOF\nawk -f  %s/scripts/dups.awk -v name=%s/%s %s/split%04d;\nEOF\n", outfile, queue, sname, juicedir, dir, sname, dir, name, dir, name);
+			sysstring = sprintf("bsub -W %s -o %s -q %s -J %s <<- EOF\nawk -f  %s/scripts/dups.awk -v name=%s/%s %s/split%04d;\nEOF\n", queuetime, outfile, queue, sname, juicedir, dir, sname, dir, name, dir, name);
 			system(sysstring);
       if (name==0) {
 				waitstring=sprintf("done(%s)", sname);
@@ -55,7 +55,7 @@ BEGIN{
 }
 END {
 	sname=sprintf("%s_msplit%04d_", groupname, name);
-	sysstring = sprintf("bsub -o %s -q %s -J %s <<-EOF\nawk -f %s/scripts/dups.awk -v name=%s/%s %s/split%04d;\nEOF\n", outfile, queue, sname, juicedir, dir, sname, dir, name, dir, name);
+	sysstring = sprintf("bsub -W %s -o %s -q %s -J %s <<-EOF\nawk -f %s/scripts/dups.awk -v name=%s/%s %s/split%04d;\nEOF\n", queuetime, outfile, queue, sname, juicedir, dir, sname, dir, name, dir, name);
   system(sysstring);
 	if (name==0) {
 		waitstring=sprintf("done(%s)", sname);
@@ -63,9 +63,9 @@ END {
 	else {
 		waitstring=sprintf("%s && done(%s)", waitstring, sname);
 	}
-	sysstring = sprintf("bsub -o %s -q %s -J %s_catsplit -w \"%s\" <<-EOF\ncat %s/%s_msplit*_optdups.txt > %s/opt_dups.txt;  cat %s/%s_msplit*_dups.txt > %s/dups.txt;cat %s/%s_msplit*_merged_nodups.txt > %s/merged_nodups.txt; \nEOF\n", outfile, queue, groupname, waitstring, dir, groupname, dir, dir, groupname, dir, dir, groupname, dir, dir);
+	sysstring = sprintf("bsub -W %s -o %s -q %s -J %s_catsplit -w \"%s\" <<-EOF\ncat %s/%s_msplit*_optdups.txt > %s/opt_dups.txt;  cat %s/%s_msplit*_dups.txt > %s/dups.txt;cat %s/%s_msplit*_merged_nodups.txt > %s/merged_nodups.txt; \nEOF\n", queuetime, outfile, queue, groupname, waitstring, dir, groupname, dir, dir, groupname, dir, dir, groupname, dir, dir);
   system(sysstring);
- 	sysstring = sprintf("bsub -o %s -q %s -J %s_rmsplit  -w \"done(%s_catsplit)\" <<- EOF\n rm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt; rm %s/split*;\nEOF",outfile, queue, groupname, groupname, dir, dir, dir, dir);
+ 	sysstring = sprintf("bsub -W %s -o %s -q %s -J %s_rmsplit  -w \"done(%s_catsplit)\" <<- EOF\n rm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt; rm %s/split*;\nEOF",queuetime, outfile, queue, groupname, groupname, dir, dir, dir, dir);
   system(sysstring);
 
 
