@@ -427,7 +427,7 @@ SPLITEND
         fi
         qsub -o ${topDir}/uger.out -j y -q ${queue} -r y -N ${groupname}${jname}countligations -v ARG1=${usegzip},name=${name},name1=${name1},name2=${name2},ext=${ext},ligation=${ligation} ${juiceDir}/scripts/countligations.sh
         # align read1 fastq
-        if [ $shortread ] || [ $shortreadend -eq 1 ]
+        if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
         then
  	    alloc_mem=16
         else
@@ -440,7 +440,7 @@ SPLITEND
         source $usePath
         $load_bwa
         # Align read1 
-        if [ $shortread ] || [ $shortreadend -eq 1 ]
+        if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
         then		
             echo 'Running command bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam'
             bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam
@@ -468,7 +468,7 @@ SPLITEND
 ALGNR1
         touchfile2=${tmpdir}/${jname}2
  	      # align read2 fastq
- 	      if [ $shortread ] || [ $shortreadend -eq 2 ]
+ 	      if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
  	      then
  		        alloc_mem=16
  	      else
@@ -480,7 +480,7 @@ ALGNR1
         source $usePath
         $load_bwa
  		    # Align read2
- 		    if [ $shortread ] || [ $shortreadend -eq 2 ]
+ 		    if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
  		    then		
             echo 'Running command bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam '
  			      bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam
