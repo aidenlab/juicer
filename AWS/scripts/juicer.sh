@@ -819,7 +819,7 @@ FINCLN1
     #BSUB -W $queue_time
     #BSUB -o $topDir/lsf.out
     $waitstring3
-    bsub -o $topDir/lsf.out -q $queue -W $queue_time $diefinal -J "${groupname}_clean3" "bkill -q $long_queue 0; bkill -q CleanFnl 0"
+    bsub -o $topDir/lsf.out -q $queue -W $queue_time $diefinal -J "${groupname}_clean3" "bkill -q $long_queue 0; bkill -q CleanFnl 0; bkill -q $queue 0;"
 DIEFINAL
 else
     ## LSF users change queue below to $queue
