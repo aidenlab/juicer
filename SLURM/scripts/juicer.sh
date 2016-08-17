@@ -234,26 +234,13 @@ fi
 ## Set ligation junction based on restriction enzyme
 case $site in
     HindIII) ligation="AAGCTAGCTT";;
-    MseI)  ligation="TTATAA";;
     DpnII) ligation="GATCGATC";;
     MboI) ligation="GATCGATC";;
-    NlaIII) ligation="CATG";;
     NcoI) ligation="CCATGCATGG";;
-    MspI) ligation="CCGCGG";;
-    HinP1I) ligation="GCGCGC";;
-    StyD4I) ligation="CCNGGCCNGG";;
-    SaII) ligation="GTCGATCGAC";;
-    NheI) ligation="GCTAGCTAGC";;
-    StyI) ligation="CCWWGCWWGG";;
-    XhoI) ligation="CTCGATCGAG";;
-    merge) ligation="GATCGATC";;
-    BglII) ligation="AGATCGATCT";;
-    CviJI) ligation="'AGCC|GGCT|AGCT|GGCC|GGGG|GGGA|AGGG|CCCT|CCCC|TCCC|AGAG|CTCT'";;
     none) ligation="XXXX";;
     *)  ligation="XXXX"
 	echo "$site not listed as recognized enzyme. Using $site_file as site file"
 	echo "Ligation junction is undefined"
-	exit 100
 esac
 
 ## If DNAse-type experiment, no fragment maps

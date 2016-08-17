@@ -238,7 +238,6 @@ case $site in
     *)  ligation="XXXX"
 	echo "$site not listed as recognized enzyme. Using $site_file as site file"
 	echo "Ligation junction is undefined"
-	exit 100
 esac
 
 ## If DNAse-type experiment, no fragment maps
