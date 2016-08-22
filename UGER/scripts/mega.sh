@@ -34,21 +34,20 @@
 # Juicer version 1.5
 juicer_version="1.5" 
 ## Set the following variables to work with your system
-# set global tmpdir so no problems with /var/tmp
-export TMPDIR=/broad/hptmp
 
 ## use cluster load commands:
 usePath=/broad/software/scripts/useuse
 load_java="use Java-1.7"
+load_cluser="use UGER"
 # Juicer directory, contains scripts/ and restriction_sites/
 juiceDir="/broad/aidenlab"
 # unique name for jobs in this run
-groupname="a"`date +%s`
+groupname="a$(date +%s)"
 
 ## Default options, overridden by command line arguments
 
 # top level directory, can also be set in options
-topDir=`pwd`
+topDir=$(pwd)
 # restriction enzyme, can also be set in options
 site="DpnII"
 # genome ID, default to human, can also be set in options
@@ -69,7 +68,7 @@ printHelpAndExit() {
     echo "$siteHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
-    exit $1
+    exit "$1"
 }
 
 while getopts "d:g:hxs:" opt; do
@@ -78,24 +77,24 @@ while getopts "d:g:hxs:" opt; do
 	h) printHelpAndExit 0;;
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
-  x) exclude=1 ;;
+	x) exclude=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
 
 ## Set ligation junction based on restriction enzyme
 case $site in
-	HindIII) ligation="AAGCTAGCTT";;
-	DpnII) ligation="GATCGATC";;
-	MboI) ligation="GATCGATC";;
-  none) ligation="XXXX";;
-	*)  ligation="XXXX"
+    HindIII) ligation="AAGCTAGCTT";;
+    DpnII) ligation="GATCGATC";;
+    MboI) ligation="GATCGATC";;
+    none) ligation="XXXX";;
+    *)  ligation="XXXX"
       site_file=$site
       echo "$site not listed as recognized enzyme, so trying it as site file."
       echo "Ligation junction is undefined";;
 esac
 
-if [ -z $site_file ]
+if [ -z "$site_file" ]
 then
     site_file="${juiceDir}/restriction_sites/${genomeID}_${site}.txt"
 fi
@@ -112,7 +111,11 @@ fi
 megadir=${topDir}"/mega"
 outputdir=${megadir}"/aligned"
 tmpdir=${megadir}"/HIC_tmp"
-outfile=${megadir}/uger.out
+# set global tmpdir so no problems with /var/tmp
+export TMPDIR=${tmpdir}
+outfile=${megadir}/log.out
+#output messages
+logdir=${megadir}/debug
 
 ## Check for existing merge_nodups files:
 
@@ -130,9 +133,9 @@ inter_names=$(find -L ${topDir} | grep inter.txt | tr '\n' ' ')
 if [[ -d "${outputdir}" ]] 
 then
     echo "***! Move or remove directory \"${outputdir}\" before proceeding."
-	exit 101			
+    exit 101			
 else
-	mkdir -p ${outputdir}
+    mkdir -p ${outputdir}
 fi
 
 ## Create temporary directory
@@ -141,23 +144,26 @@ if [ ! -d "$tmpdir" ]; then
     chmod 777 $tmpdir
 fi
 
-#Prepare an empty log file:
-touch ${outfile}
-chmod 777 ${outfile}
+## Create log directory
+if [ ! -d "$logdir" ]; then
+    mkdir $logdir
+    chmod 777 $logdir
+fi
 
 ## Arguments have been checked and directories created. Now begins
 ## the real work of the pipeline
 
 source $usePath
-use UGER
+$load_cluster
 touchfile1=${megadir}/touch1
-jid1=`qsub -terse -o ${megadir}/uger.out -j y -q short -r y -N ${groupname}_topstats <<-TOPSTATS
+jid1=`qsub -terse -o ${logdir}/stats.out -e ${logdir}/stats.err -q short -r y -N ${groupname}_topstats <<-TOPSTATS
 export LC_ALL=en_US.UTF-8
 if ! awk -f ${juiceDir}/scripts/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
 then  
     echo "***! Some problems occurred somewhere in creating top stats files."
     exit 100
 else
+    echo "(-: Finished creating top stats files."
     cp ${outputdir}/inter.txt ${outputdir}/inter_30.txt
 fi
 touch $touchfile1
@@ -165,7 +171,7 @@ TOPSTATS`
 
 touchfile2=${megadir}/touch2
 # Merge all merged_nodups.txt files found under current dir
-jid2=`qsub -terse -o ${megadir}/uger.out -j y -q long -r y -N ${groupname}_merge -l m_mem_free=16g -hold_jid ${groupname}_topstats <<- MRGSRT
+jid2=`qsub -terse -o ${logdir}/merge.out -e ${logdir}/merge.err -q long -r y -N ${groupname}_merge -l m_mem_free=16g -hold_jid ${groupname}_topstats <<- MRGSRT
 if [ ! -f "${touchfile1}" ]
 then
    echo "***! Top stats job failed, type qacct -j $jid1 to see what happened."
@@ -176,7 +182,7 @@ then
 echo "***! Some problems occurred somewhere in creating sorted merged_nodups files."
     exit 100
 else
-echo "(-: Finished sorting all merged_nodups files into a single merge."
+  echo "(-: Finished sorting all merged_nodups files into a single merge."
   rm -r ${tmpdir}
 fi
 touch $touchfile2
@@ -186,7 +192,7 @@ touchfile3=${megadir}/touch3
 holdjobs1="-hold_jid ${groupname}_merge";    
 
 # Create statistics files for MQ > 0
-jid3=`qsub -terse -o ${megadir}/uger.out -j y -q long -r y -N ${groupname}_inter0 $holdjobs1 <<- INTER0
+jid3=`qsub -terse -o ${logdir}/inter0.out -e ${logdir}/inter0.err -q long -r y -N ${groupname}_inter0 $holdjobs1 <<- INTER0
 if [ ! -f "${touchfile2}" ]
 then
    echo "***! Sort job failed, type qacct -j $jid2 to see what happened."
@@ -201,7 +207,7 @@ touchfile4=${megadir}/touch4
 holdjobs2="-hold_jid ${groupname}_inter0";    
 
 # Create statistics files for MQ > 30
-jid4=`qsub -terse -o ${megadir}/uger.out -j y -q long -r y -N ${groupname}_inter30 $holdjobs1 <<- INTER30
+jid4=`qsub -terse -o ${logdir}/inter30.out -e ${megadir}/inter30.err -q long -r y -N ${groupname}_inter30 $holdjobs1 <<- INTER30
 if [ ! -f "${touchfile2}" ]
 then
    echo "***! Sort job failed, type qacct -j $jid2 to see what happened."
@@ -215,7 +221,7 @@ holdjobs3="-hold_jid ${groupname}_inter30";
 touchfile5=${megadir}/touch5
 
 # Create HIC maps file for MQ > 0
-jid5=`qsub -terse -o ${megadir}/uger.out -j y -q long -r y -N ${groupname}_hic0  -l m_mem_free=16g $holdjobs2 <<- HIC0
+jid5=`qsub -terse -o ${logdir}/hic0.out -e ${logdir}/hic0.err -q long -r y -N ${groupname}_hic0  -l m_mem_free=16g $holdjobs2 <<- HIC0
 source $usePath
 $load_java
 if [ ! -f "${touchfile3}" ]
@@ -226,12 +232,12 @@ fi
 exitcode=-999
 if [ -z "$exclude" ]
 then
-    echo "Launching ${juiceDir}/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
-    ${juiceDir}/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+    echo "Launching ${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
+    ${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
     exitcode=\$?
 else
-    echo "Launching ${juiceDir}/juicebox pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
-    ${juiceDir}/juicebox pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+    echo "Launching ${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
+    ${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
     exitcode=\$?
 fi
 if [ "\${exitcode}" -eq 0 ]
@@ -242,7 +248,7 @@ HIC0`
 
 touchfile6=${megadir}/touch6
 # Create HIC maps file for MQ > 30
-jid6=`qsub -terse -o ${megadir}/uger.out -j y -q long -r y -N ${groupname}_hic30 -l m_mem_free=16g $holdjobs3 <<- HIC30
+jid6=`qsub -terse -o ${logdir}/hic30.out -e ${logdir}/hic30.err -q long -r y -N ${groupname}_hic30 -l m_mem_free=16g $holdjobs3 <<- HIC30
 source $usePath
 $load_java	
 if [ ! -f "${touchfile4}" ]
@@ -253,12 +259,12 @@ fi
 exitcode=-999
 if [ -z "${exclude}" ]
 then
-    echo "Launching ${juiceDir}/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
-    ${juiceDir}/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+    echo "Launching ${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
+    ${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
    exitcode=\$?
 else
-    echo "Launching ${juiceDir}/juicebox pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
-    ${juiceDir}/juicebox pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+    echo "Launching ${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
+    ${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
    exitcode=\$?
 fi
 if [ "\${exitcode}" -eq 0 ]
@@ -268,7 +274,7 @@ fi
 HIC30`
 
 touchfile7=${megadir}/touch7
-jid7=`qsub -terse -o ${megadir}/uger.out -j y -q long -r y -N ${groupname}_postprocessing  -l m_mem_free=16g -hold_jid ${groupname}_hic30 <<- POSTPROC
+jid7=`qsub -terse -o ${logdir}/hiccups.out -e ${logdir}/hiccups.err -q long -r y -N ${groupname}_hiccups  -l m_mem_free=16g -hold_jid ${groupname}_hic30 <<- HICCUPS
 source $usePath;
 $load_java;
 export _JAVA_OPTIONS=-Xmx16384m;
@@ -278,13 +284,28 @@ then
    echo "***! Failed to make inter_30.hic, type qacct -j $jid6 to see what happened."
    exit 100;
 fi
-${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/juicebox -i ${outputdir}/inter_30.hic -m ${juiceDir}/references/motif -g ${genomeID}
+${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicebox -i ${outputdir}/inter_30.hic -m ${juiceDir}/references/motif -g ${genomeID}
 touch $touchfile7
-POSTPROC`
+HICCUPS`
 
-holdjobs="-hold_jid ${groupname}_hic0,${groupname}_hic30,${groupname}_postprocessing";
+touchfile8=${megadir}/touch8
+jid8=`qsub -terse -o ${logdir}/arrowhead.out -e ${logdir}/arrowhead.err -q long -r y -N ${groupname}_arrowhead  -l m_mem_free=4g -hold_jid ${groupname}_hic30 <<- ARROWHEAD
+source $usePath;
+$load_java;
+export _JAVA_OPTIONS=-Xmx16384m;
+export LC_ALL=en_US.UTF-8;
+if [ ! -f "${touchfile6}" ]
+then
+   echo "***! Failed to make inter_30.hic, type qacct -j $jid6 to see what happened."
+   exit 100;
+fi
+${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicebox -i ${outputdir}/inter_30.hic
+touch $touchfile8
+ARROWHEAD`
 
-qsub -o ${megadir}/uger.out -j y -q short -r y -N ${groupname}_done $holdjobs <<- FINAL
+holdjobs="-hold_jid ${groupname}_hic0,${groupname}_hic30,${groupname}_hiccups,${groupname}_arrowhead";
+
+qsub -o ${logdir}/done.out -e ${logdir}/done.err -q short -r y -N ${groupname}_done $holdjobs <<- FINAL
 if [ ! -f "${touchfile5}" ]
 then
    echo "***! Failed to make inter.hic, type qacct -j $jid5 to see what happened."   
@@ -297,11 +318,16 @@ then
 fi
 if [ ! -f "${touchfile7}" ]
 then
-   echo "***! Failed in postprocessing, type qacct -j $jid7 to see what happened."   
+   echo "***! Failed to create loop lists, type qacct -j $jid7 to see what happened."   
    exit 100;
 fi
-
-rm $touchfile1 $touchfile2 $touchfile3 $touchfile4 $touchfile5 $touchfile6 $touchfile7
+if [ ! -f "${touchfile8}" ]
+then
+   echo "***! Failed to create contact domain lists, type qacct -j $jid8 to see what happened."   
+   exit 100;
+fi
+rm -r ${tmpdir}
+rm $touchfile1 $touchfile2 $touchfile3 $touchfile4 $touchfile5 $touchfile6 $touchfile7 $touchfile8
 echo "(-: Successfully completed making mega map. Done. :-)"
 FINAL
 
