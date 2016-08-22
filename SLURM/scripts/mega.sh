@@ -118,10 +118,10 @@ fi
 megadir=${topDir}"/mega"
 outputdir=${megadir}"/aligned"
 tmpdir=${megadir}"/HIC_tmp"
-export TMPDIR=${megadir}"/HIC_tmp"
+export TMPDIR=${tmpdir}
 outfile=${megadir}/lsf.out
 #output messages
-outDir="$megadir/debug"
+logdir="$megadir/debug"
 touchfile1=${megadir}/touch1
 
 
@@ -153,9 +153,9 @@ if [ ! -d "$tmpdir" ]; then
 fi
 
 ## Create output directory, used for reporting commands output
-if [ ! -d "$outDir" ]; then
-        mkdir "$outDir"
-        chmod 777 "$outDir"
+if [ ! -d "$logdir" ]; then
+        mkdir "$logdir"
+        chmod 777 "$logdir"
 fi
 
 ## Arguments have been checked and directories created. Now begins
@@ -171,8 +171,8 @@ jid1=`sbatch <<- TOPSTATS | egrep -o -e "\b[0-9]+$"
 #SBATCH -t 1440
 #SBATCH -c 1
 #SBATCH --ntasks=1
-#SBATCH -o $outDir/topstats-%j.out
-#SBATCH -e $outDir/topstats-%j.err
+#SBATCH -o $logdir/topstats-%j.out
+#SBATCH -e $logdir/topstats-%j.err
 #SBATCH -J "${groupname}_topstats"
 export LC_COLLATE=C
 if ! awk -f ${juiceDir}/scripts/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
@@ -196,22 +196,22 @@ jid2=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
 #SBATCH -c 1
 #SBATCH --ntasks=1
 #SBATCH --mem-per-cpu=16384
-#SBATCH -o $outDir/merge-%j.out
-#SBATCH -e $outDir/merge-%j.err
+#SBATCH -o $logdir/merge-%j.out
+#SBATCH -e $logdir/merge-%j.err
 #SBATCH -J "${groupname}_merge"
 #SBATCH -d "${dependtopstats}"
 if [ ! -f "${touchfile1}" ]
 then
-   echo "***! Top stats job failed, type \"scontrol show job $jid1\" to see what happened."
-   exit 100;
+    echo "***! Top stats job failed, type \"scontrol show job $jid1\" to see what happened."
+    exit 100;
 fi
 if ! sort -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
 then 
-echo "***! Some problems occurred somewhere in creating sorted merged_nodups files."
+    echo "***! Some problems occurred somewhere in creating sorted merged_nodups files."
     exit 100
 else
-echo "(-: Finished sorting all merged_nodups files into a single merge."
-  rm -r ${tmpdir}
+    echo "(-: Finished sorting all merged_nodups files into a single merge."
+    rm -r ${tmpdir}
 fi
 touch $touchfile2
 MRGSRT`
@@ -225,8 +225,8 @@ jid3=`sbatch <<- INTER0 | egrep -o -e "\b[0-9]+$"
 #SBATCH -t 1440
 #SBATCH -c 1
 #SBATCH --ntasks=1
-#SBATCH -o $outDir/inter0-%j.out
-#SBATCH -e $outDir/inter0-%j.err
+#SBATCH -o $logdir/inter0-%j.out
+#SBATCH -e $logdir/inter0-%j.err
 #SBATCH -J "${groupname}_inter0"
 #SBATCH -d "${dependmerge}"
 if [ ! -f "${touchfile2}" ]
@@ -247,8 +247,8 @@ jid4=`sbatch <<- INTER30 | egrep -o -e "\b[0-9]+$"
 #SBATCH -t 1440
 #SBATCH -c 1
 #SBATCH --ntasks=1
-#SBATCH -o $outDir/inter30-%j.out
-#SBATCH -e $outDir/inter30-%j.err
+#SBATCH -o $logdir/inter30-%j.out
+#SBATCH -e $logdir/inter30-%j.err
 #SBATCH -J "${groupname}_inter30"
 #SBATCH -d "${dependmerge}"
 if [ ! -f "${touchfile2}" ]
@@ -269,8 +269,8 @@ jid5=`sbatch <<- HIC0 | egrep -o -e "\b[0-9]+$"
 #SBATCH -t 1440
 #SBATCH -c 1
 #SBATCH --ntasks=1
-#SBATCH -o $outDir/hic0-%j.out
-#SBATCH -e $outDir/hic0-%j.err
+#SBATCH -o $logdir/hic0-%j.out
+#SBATCH -e $logdir/hic0-%j.err
 #SBATCH -J "${groupname}_hic0"
 #SBATCH -d "${dependinter0}"
 #SBATCH --mem-per-cpu=32G
@@ -304,8 +304,8 @@ jid6=`sbatch <<- HIC30 | egrep -o -e "\b[0-9]+$"
 #SBATCH -t 1440
 #SBATCH -c 1
 #SBATCH --ntasks=1
-#SBATCH -o $outDir/hic30-%j.out
-#SBATCH -e $outDir/hic30-%j.err
+#SBATCH -o $logdir/hic30-%j.out
+#SBATCH -e $logdir/hic30-%j.err
 #SBATCH -J "${groupname}_hic30"
 #SBATCH -d "${dependinter30}"
 #SBATCH --mem-per-cpu=32G
@@ -342,8 +342,8 @@ jid7=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
 #SBATCH --ntasks=1
 #SBATCH --mem-per-cpu=4G 
 #SBATCH --gres=gpu:kepler:1
-#SBATCH -o $outDir/hiccups-%j.out
-#SBATCH -e $outDir/hiccups-%j.err
+#SBATCH -o $logdir/hiccups-%j.out
+#SBATCH -e $logdir/hiccups-%j.err
 #SBATCH -J "${groupname}_hiccups"
 #SBATCH -d "${dependhic30only}"
 #source $usePath
@@ -361,15 +361,15 @@ dependhiccups="afterok:$jid7"
 
 touchfile8=${megadir}/touch8
 # Create domain lists for MQ > 30
-jid8=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
+jid8=`sbatch <<- ARROWHEAD | egrep -o -e "\b[0-9]+$"
 #!/bin/bash -l
 #SBATCH -p ${long_queue}
 #SBATCH -t 1440
 #SBATCH -c 2
 #SBATCH --ntasks=1
 #SBATCH --mem-per-cpu=4G 
-#SBATCH -o $outDir/arrowhead-%j.out
-#SBATCH -e $outDir/arrowhead-%j.err
+#SBATCH -o $logdir/arrowhead-%j.out
+#SBATCH -e $logdir/arrowhead-%j.err
 #SBATCH -J "${groupname}_arrowhead"
 #SBATCH -d "${dependhic30only}"
 #source $usePath
@@ -379,9 +379,9 @@ then
    echo "***! HIC maps q=30 job failed."
    exit 100;
 fi
-${juiceDir}/scripts/juicer_arrows.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic
+${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic
 touch $touchfile8
-ARROWS`
+ARROWHEAD`
 dependarrows="${dependhic0}:$jid8"
 dependarrowsonly="afterok:$jid8"
 
@@ -392,8 +392,8 @@ jid9=`sbatch <<- FINAL | egrep -o -e "\b[0-9]+$"
 #SBATCH -t 100
 #SBATCH -c 1
 #SBATCH --ntasks=1
-#SBATCH -o $outDir/done-%j.out
-#SBATCH -e $outDir/done-%j.err
+#SBATCH -o $logdir/done-%j.out
+#SBATCH -e $logdir/done-%j.err
 #SBATCH -J "${groupname}_done"
 #SBATCH -d "${dependarrows}"
 
