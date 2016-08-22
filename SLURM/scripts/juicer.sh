@@ -913,7 +913,7 @@ fi
 HICCUPS`
         dependhiccups="afterok:$jid"
 
-	jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
+	jid=`sbatch <<- ARROWHEAD | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
@@ -925,9 +925,9 @@ HICCUPS`
 	${sbatch_wait}
 	${load_java}
 	date
-	${juiceDir}/scripts/juicer_arrows.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic
+	${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic
 	date
-ARROWS`
+ARROWHEAD`
         dependarrows="${dependhiccups}:$jid"
 
 	jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
