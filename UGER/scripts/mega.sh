@@ -49,15 +49,16 @@ groupname="a$(date +%s)"
 # top level directory, can also be set in options
 topDir=$(pwd)
 # restriction enzyme, can also be set in options
-site="DpnII"
+site="MboI"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-hx]"
+usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-r resolutions] [-hx]"
 genomeHelp="   genomeID must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \"$genomeID\")"
 dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged_nodups files underneath it"
 siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
+resolutionsHelp="   [resolutions] is a comma-delimited list of resolutions, such as 10000,5000,1000,5f (default is 2.5M,1M,500K,250K,100K,50K,25K,10K,5K in base pair and 500f,250f,100f,50f,25f,10f,5f,2f,1f)"
 excludeHelp="   -x: exclude fragment-delimited maps from Hi-C mega map (will run much faster)"
 helpHelp="   -h: print this help and exit"
 
@@ -66,18 +67,20 @@ printHelpAndExit() {
     echo "$genomeHelp"
     echo "$dirHelp"
     echo "$siteHelp"
+    echo "$resolutionsHelps"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hxs:" opt; do
+while getopts "d:g:r:hxs:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
 	x) exclude=1 ;;
+  r) resolutions=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -126,8 +129,27 @@ then
 	exit 100
 fi
 
-merged_names=$(find -L ${topDir} | grep merged_nodups.txt | tr '\n' ' ')
+merged_names1=$(find -L ${topDir} | grep merged_nodups.txt)
+merged_names=$(echo $merged_names1 | tr '\n' ' ')
 inter_names=$(find -L ${topDir} | grep inter.txt | tr '\n' ' ')
+
+if [[ $merged_names == *".txt.gz"* ]]
+then
+    gzipped=1
+    echo "***! Mega map of gzipped files not yet supported, please unzip before running."
+    exit 100
+    # we need to unzip here
+    for i in $merged_names1
+    do
+	if [[ $i != *".txt.gz"* ]]
+	then
+	    echo "***! Mixture of gzipped and unzipped merged_nodups files"
+	    echo "Ensure that the merged_nodups are all either unzipped or gzipped then rerun"
+	    echo "Files: $merged_names"
+	    exit 100
+	fi
+    done
+fi
 
 ## Create output directory, exit if already exists
 if [[ -d "${outputdir}" ]] 
@@ -150,13 +172,22 @@ if [ ! -d "$logdir" ]; then
     chmod 777 $logdir
 fi
 
+if [ -n "$resolutions" ]; then
+    resolutions="-r $resolutions"
+fi
+
 ## Arguments have been checked and directories created. Now begins
 ## the real work of the pipeline
+qsub -o ${logdir}/header.out -j y -q short -r y -N ${groupname}cmd -cwd <<-EOF
+  date
+  echo "Juicer version:$juicer_version"
+  echo "$0 $@"
+EOF
 
 source $usePath
 $load_cluster
 touchfile1=${megadir}/touch1
-jid1=`qsub -terse -o ${logdir}/stats.out -e ${logdir}/stats.err -q short -r y -N ${groupname}_topstats <<-TOPSTATS
+jid1=`qsub -terse -o ${logdir}/topstats.out -e ${logdir}/topstats.err -q short -r y -N ${groupname}_topstats <<-TOPSTATS
 export LC_ALL=en_US.UTF-8
 if ! awk -f ${juiceDir}/scripts/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
 then  
@@ -172,15 +203,21 @@ TOPSTATS`
 touchfile2=${megadir}/touch2
 # Merge all merged_nodups.txt files found under current dir
 jid2=`qsub -terse -o ${logdir}/merge.out -e ${logdir}/merge.err -q long -r y -N ${groupname}_merge -l m_mem_free=16g -hold_jid ${groupname}_topstats <<- MRGSRT
-if [ ! -f "${touchfile1}" ]
-then
-   echo "***! Top stats job failed, type qacct -j $jid1 to see what happened."
-   exit 100;
-fi
-if ! sort -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
+if [ -n "$gzipped" ]
 then 
-echo "***! Some problems occurred somewhere in creating sorted merged_nodups files."
+  # This code didn't work, doesn't sort appropriately unfortunately.
+  if ! gunzip -c $merged_names | sort -T ${tmpdir} -m -k2,2d -k6,6d > ${outputdir}/merged_nodups.txt 
+  then
+    echo "***! Some problems occurred somewhere in merging sorted merged_nodups files."
     exit 100
+  else
+    echo "(-: Finished sorting all merged_nodups files into a single merge."
+    rm -r ${tmpdir}
+  fi
+elif ! sort -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
+then 
+  echo "***! Some problems occurred somewhere in merging sorted merged_nodups files."
+  exit 100
 else
   echo "(-: Finished sorting all merged_nodups files into a single merge."
   rm -r ${tmpdir}
@@ -189,10 +226,15 @@ touch $touchfile2
 MRGSRT`
 
 touchfile3=${megadir}/touch3
-holdjobs1="-hold_jid ${groupname}_merge";    
+holdjobs1="-hold_jid ${groupname}_merge,${groupname}_topstats";    
 
 # Create statistics files for MQ > 0
 jid3=`qsub -terse -o ${logdir}/inter0.out -e ${logdir}/inter0.err -q long -r y -N ${groupname}_inter0 $holdjobs1 <<- INTER0
+if [ ! -f "${touchfile1}" ]
+then
+   echo "***! Top stats job failed, type qacct -j $jid1 to see what happened."
+   exit 100;
+fi
 if [ ! -f "${touchfile2}" ]
 then
    echo "***! Sort job failed, type qacct -j $jid2 to see what happened."
@@ -207,7 +249,12 @@ touchfile4=${megadir}/touch4
 holdjobs2="-hold_jid ${groupname}_inter0";    
 
 # Create statistics files for MQ > 30
-jid4=`qsub -terse -o ${logdir}/inter30.out -e ${megadir}/inter30.err -q long -r y -N ${groupname}_inter30 $holdjobs1 <<- INTER30
+jid4=`qsub -terse -o ${logdir}/inter30.out -e ${logdir}/inter30.err -q long -r y -N ${groupname}_inter30 $holdjobs1 <<- INTER30
+if [ ! -f "${touchfile1}" ]
+then
+   echo "***! Top stats job failed, type qacct -j $jid1 to see what happened."
+   exit 100;
+fi
 if [ ! -f "${touchfile2}" ]
 then
    echo "***! Sort job failed, type qacct -j $jid2 to see what happened."
@@ -229,18 +276,18 @@ then
    echo "***! Statistics q=1 job failed, type qacct -j $jid3 to see what happened."
    exit 100;
 fi
-exitcode=-999
+myexitcode=1
 if [ -z "$exclude" ]
 then
-    echo "Launching ${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
-    ${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
-    exitcode=\$?
+    echo "Launching ${juiceDir}/scripts/juicebox pre $resolutions -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
+    ${juiceDir}/scripts/juicebox pre $resolutions -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+    myexitcode=\$?
 else
-    echo "Launching ${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
-    ${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
-    exitcode=\$?
+    echo "Launching ${juiceDir}/scripts/juicebox pre $resolutions -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
+    ${juiceDir}/scripts/juicebox pre $resolutions -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+    myexitcode=\$?
 fi
-if [ "\${exitcode}" -eq 0 ]
+if [ "\${myexitcode}" -eq 0 ]
 then
     touch $touchfile5
 fi
@@ -256,18 +303,18 @@ then
    echo "***! Statistics q=30 job failed, type qacct -j $jid4 to see what happened."
    exit 100;
 fi
-exitcode=-999
+myexitcode=1
 if [ -z "${exclude}" ]
 then
-    echo "Launching ${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
-    ${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
-   exitcode=\$?
+    echo "Launching ${juiceDir}/scripts/juicebox pre $resolutions -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
+    ${juiceDir}/scripts/juicebox pre $resolutions -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+    myexitcode=\$?
 else
-    echo "Launching ${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
-    ${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
-   exitcode=\$?
+    echo "Launching ${juiceDir}/scripts/juicebox pre $resolutions -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
+    ${juiceDir}/scripts/juicebox pre $resolutions -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+    myexitcode=\$?
 fi
-if [ "\${exitcode}" -eq 0 ]
+if [ "\${myexitcode}" -eq 0 ]
 then
     touch $touchfile6
 fi
