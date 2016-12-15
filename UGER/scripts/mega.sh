@@ -38,9 +38,11 @@ juicer_version="1.5"
 ## use cluster load commands:
 usePath=/broad/software/scripts/useuse
 load_java="use Java-1.7"
-load_cluser="use UGER"
+load_cluster="use UGER"
 # Juicer directory, contains scripts/ and restriction_sites/
 juiceDir="/broad/aidenlab"
+#default queue
+queue="long"
 # unique name for jobs in this run
 groupname="a$(date +%s)"
 
@@ -67,7 +69,7 @@ printHelpAndExit() {
     echo "$genomeHelp"
     echo "$dirHelp"
     echo "$siteHelp"
-    echo "$resolutionsHelps"
+    echo "$resolutionsHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
@@ -80,7 +82,7 @@ while getopts "d:g:r:hxs:" opt; do
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
 	x) exclude=1 ;;
-  r) resolutions=$OPTARG ;;
+	r) resolutions=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -116,7 +118,6 @@ outputdir=${megadir}"/aligned"
 tmpdir=${megadir}"/HIC_tmp"
 # set global tmpdir so no problems with /var/tmp
 export TMPDIR=${tmpdir}
-outfile=${megadir}/log.out
 #output messages
 logdir=${megadir}/debug
 
@@ -178,7 +179,7 @@ fi
 
 ## Arguments have been checked and directories created. Now begins
 ## the real work of the pipeline
-qsub -o ${logdir}/header.out -j y -q short -r y -N ${groupname}cmd -cwd <<-EOF
+qsub -o ${logdir}/header.out -j y -r y -N ${groupname}cmd -cwd <<-EOF
   date
   echo "Juicer version:$juicer_version"
   echo "$0 $@"
@@ -187,7 +188,7 @@ EOF
 source $usePath
 $load_cluster
 touchfile1=${megadir}/touch1
-jid1=`qsub -terse -o ${logdir}/topstats.out -e ${logdir}/topstats.err -q short -r y -N ${groupname}_topstats <<-TOPSTATS
+jid1=`qsub -terse -o ${logdir}/topstats.out -e ${logdir}/topstats.err -r y -N ${groupname}_topstats <<-TOPSTATS
 export LC_ALL=en_US.UTF-8
 if ! awk -f ${juiceDir}/scripts/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
 then  
@@ -202,7 +203,7 @@ TOPSTATS`
 
 touchfile2=${megadir}/touch2
 # Merge all merged_nodups.txt files found under current dir
-jid2=`qsub -terse -o ${logdir}/merge.out -e ${logdir}/merge.err -q long -r y -N ${groupname}_merge -l m_mem_free=16g -hold_jid ${groupname}_topstats <<- MRGSRT
+jid2=`qsub -terse -o ${logdir}/merge.out -e ${logdir}/merge.err -q ${queue} -r y -N ${groupname}_merge -l m_mem_free=16g -hold_jid ${groupname}_topstats <<- MRGSRT
 if [ -n "$gzipped" ]
 then 
   # This code didn't work, doesn't sort appropriately unfortunately.
@@ -229,7 +230,7 @@ touchfile3=${megadir}/touch3
 holdjobs1="-hold_jid ${groupname}_merge,${groupname}_topstats";    
 
 # Create statistics files for MQ > 0
-jid3=`qsub -terse -o ${logdir}/inter0.out -e ${logdir}/inter0.err -q long -r y -N ${groupname}_inter0 $holdjobs1 <<- INTER0
+jid3=`qsub -terse -o ${logdir}/inter0.out -e ${logdir}/inter0.err -q ${queue} -r y -N ${groupname}_inter0 $holdjobs1 <<- INTER0
 if [ ! -f "${touchfile1}" ]
 then
    echo "***! Top stats job failed, type qacct -j $jid1 to see what happened."
@@ -249,7 +250,7 @@ touchfile4=${megadir}/touch4
 holdjobs2="-hold_jid ${groupname}_inter0";    
 
 # Create statistics files for MQ > 30
-jid4=`qsub -terse -o ${logdir}/inter30.out -e ${logdir}/inter30.err -q long -r y -N ${groupname}_inter30 $holdjobs1 <<- INTER30
+jid4=`qsub -terse -o ${logdir}/inter30.out -e ${logdir}/inter30.err -q ${queue} -r y -N ${groupname}_inter30 $holdjobs1 <<- INTER30
 if [ ! -f "${touchfile1}" ]
 then
    echo "***! Top stats job failed, type qacct -j $jid1 to see what happened."
@@ -268,7 +269,7 @@ holdjobs3="-hold_jid ${groupname}_inter30";
 touchfile5=${megadir}/touch5
 
 # Create HIC maps file for MQ > 0
-jid5=`qsub -terse -o ${logdir}/hic0.out -e ${logdir}/hic0.err -q long -r y -N ${groupname}_hic0  -l m_mem_free=16g $holdjobs2 <<- HIC0
+jid5=`qsub -terse -o ${logdir}/hic0.out -e ${logdir}/hic0.err -q ${queue} -r y -N ${groupname}_hic0  -l m_mem_free=16g $holdjobs2 <<- HIC0
 source $usePath
 $load_java
 if [ ! -f "${touchfile3}" ]
@@ -295,7 +296,7 @@ HIC0`
 
 touchfile6=${megadir}/touch6
 # Create HIC maps file for MQ > 30
-jid6=`qsub -terse -o ${logdir}/hic30.out -e ${logdir}/hic30.err -q long -r y -N ${groupname}_hic30 -l m_mem_free=16g $holdjobs3 <<- HIC30
+jid6=`qsub -terse -o ${logdir}/hic30.out -e ${logdir}/hic30.err -q ${queue} -r y -N ${groupname}_hic30 -l m_mem_free=16g $holdjobs3 <<- HIC30
 source $usePath
 $load_java	
 if [ ! -f "${touchfile4}" ]
@@ -321,7 +322,7 @@ fi
 HIC30`
 
 touchfile7=${megadir}/touch7
-jid7=`qsub -terse -o ${logdir}/hiccups.out -e ${logdir}/hiccups.err -q long -r y -N ${groupname}_hiccups  -l m_mem_free=16g -hold_jid ${groupname}_hic30 <<- HICCUPS
+jid7=`qsub -terse -o ${logdir}/hiccups.out -e ${logdir}/hiccups.err -q ${queue} -r y -N ${groupname}_hiccups  -l m_mem_free=16g -hold_jid ${groupname}_hic30 <<- HICCUPS
 source $usePath;
 $load_java;
 export _JAVA_OPTIONS=-Xmx16384m;
@@ -336,7 +337,7 @@ touch $touchfile7
 HICCUPS`
 
 touchfile8=${megadir}/touch8
-jid8=`qsub -terse -o ${logdir}/arrowhead.out -e ${logdir}/arrowhead.err -q long -r y -N ${groupname}_arrowhead  -l m_mem_free=4g -hold_jid ${groupname}_hic30 <<- ARROWHEAD
+jid8=`qsub -terse -o ${logdir}/arrowhead.out -e ${logdir}/arrowhead.err -q ${queue} -r y -N ${groupname}_arrowhead  -l m_mem_free=4g -hold_jid ${groupname}_hic30 <<- ARROWHEAD
 source $usePath;
 $load_java;
 export _JAVA_OPTIONS=-Xmx16384m;
@@ -352,7 +353,7 @@ ARROWHEAD`
 
 holdjobs="-hold_jid ${groupname}_hic0,${groupname}_hic30,${groupname}_hiccups,${groupname}_arrowhead";
 
-qsub -o ${logdir}/done.out -e ${logdir}/done.err -q short -r y -N ${groupname}_done $holdjobs <<- FINAL
+qsub -o ${logdir}/done.out -e ${logdir}/done.err -r y -N ${groupname}_done $holdjobs <<- FINAL
 if [ ! -f "${touchfile5}" ]
 then
    echo "***! Failed to make inter.hic, type qacct -j $jid5 to see what happened."   
