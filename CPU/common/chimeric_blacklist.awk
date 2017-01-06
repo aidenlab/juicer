@@ -508,6 +508,6 @@ END{
       count_unmapped++;
     }
   }
-  
-  printf("%d %d %d %d %d\n", tottot, count_unmapped, count_reg, count_norm, count_abnorm) >> fname1".res.txt";
+  resfile=fname1".res.txt";
+  printf("%d %d %d %d %d\n", tottot, count_unmapped, count_reg, count_norm, count_abnorm) >> resfile;
 }
