@@ -65,12 +65,6 @@ if [ ! -e "${hic_file_path}" ]; then
     exit 100;
 fi
 
-## Check that bed folder exists    
-if [ ! -e "${bed_file_dir}" ]; then
-    echo "***! Can't find folder ${bed_file_dir}";
-    exit 100;
-fi
-
 echo -e "${juiceboxpath} is post-processing Hi-C for ${genomeID}\nData read from ${hic_file_path}.\nMotifs read from ${bed_file_dir}\n"
 echo -e "ARROWHEAD:\n"
 ${juiceboxpath} arrowhead ${hic_file_path} ${hic_file_path%.*}"_contact_domains.txt"
@@ -94,8 +88,14 @@ if [ -f ${hic_file_path%.*}"_loops.txt" ]
 then
     echo -e "\nAPA:\n"
     ${juiceboxpath} apa ${hic_file_path} ${hic_file_path%.*}"_loops.txt" "apa_results"
-    echo -e "\nMOTIF FINDER:\n"
-    ${juiceboxpath} motifs ${genomeID} ${bed_file_dir} ${hic_file_path%.*}"_loops.txt"
+    ## Check that bed folder exists    
+    if [ ! -e "${bed_file_dir}" ]; then
+       echo "***! Can't find folder ${bed_file_dir}";
+       echo "***! WARNING: Not running motif finder";
+    else
+	echo -e "\nMOTIF FINDER:\n"
+	${juiceboxpath} motifs ${genomeID} ${bed_file_dir} ${hic_file_path%.*}"_loops.txt"
+    fi
     echo -e "\n(-: Feature annotation successfully completed (-:"
 else
   # if loop lists do not exist but Juicebox didn't return an error, likely 
