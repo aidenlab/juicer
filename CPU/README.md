@@ -2,6 +2,6 @@
 
 **BETA VERSION** 
 
-Report bugs using the Issues tab. This script has not been thoroughly tested.
+Report bugs using the Issues tab. 
 
-Make sure you've installed BWA and Java-1.7 before proceeding.
+Follow the documentation on [the wiki](https://github.com/theaidenlab/juicer/wiki/Running-Juicer-on-a-cluster) for dependencies, directory structure, and usage.
