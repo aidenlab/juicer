@@ -1,7 +1,7 @@
 #Quick Start
 
 Extensive instructions, including how to create and launch an instance, are 
-available at <http://aidenlab.org/juicer/aws.html>
+available [on the wiki](https://github.com/theaidenlab/juicer/wiki/Running-Juicer-on-Amazon-Web-Services)
 
 Below is the set of instructions we gave to reviewers. You can obtain the 
 MBR19 test data set at  
