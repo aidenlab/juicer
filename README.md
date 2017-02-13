@@ -14,7 +14,7 @@ hesitate to contact us (theaidenlab@gmail.com)
 Neva C. Durand, Muhammad S. Shamim, Ido Machol, Suhas S. P. Rao, Miriam H. Huntley, Eric S. Lander, and Erez Lieberman Aiden. "Juicer provides a one-click system for analyzing loop-resolution Hi-C experiments." Cell Systems 3(1), 2016.**
 
 # Documentation
-We will be updating the documentation in the wiki shortly.  See below for general usage 
+Much of this documentation is also available on [the wiki](https://github.com/theaidenlab/juicer/wiki/Running-Juicer-on-a-cluster).  See below for general usage 
 and each folder's README for more specific usage.
 
 ------------
@@ -113,7 +113,7 @@ Juicer currently works with the following resource management software:
 - SLURM (http://slurm.schedmd.com/download.html)
 - GridEngine (Univa, etc. any flavor)
 
-###Command line tool requirements
+###Juicer tools requirements
 
 The minimum software requirement to run Juicer is a working Java installation
 (version >= 1.7) on Windows, Linux, and Mac OSX.  We recommend using the
@@ -154,7 +154,7 @@ institution.
 
 ###Building new jars
 
-See the Juicebox documentation at <https://github.com/theaidenlab/Juicebox> for details on building new jars of the juicebox_tools.
+See the Juicebox documentation at <https://github.com/theaidenlab/Juicebox> for details on building new jars of the juicer_tools.
 
 ------------
 Juicer Usage
@@ -171,22 +171,22 @@ Juicer Usage
 ------------------------
 Command Line Tools Usage
 ------------------------
-Detailed documentation about the command line tools can be found on the Juicebox wiki:
+Detailed documentation about the command line tools can be found on the  wiki:
 
-* [Annotating features with Arrowhead, HiCCUPS, APA, eigenvector, and MotifFinder](https://github.com/theaidenlab/juicebox/wiki/Feature-annotation-with-Arrowhead,-HiCCUPS,-APA,-and-MotifFinder)
-* [Creating .hic with juicebox pre](https://github.com/theaidenlab/juicebox/wiki/Creating-.hic-files-with-pre)
-* [Extracting data from .hic files with dump](https://github.com/theaidenlab/juicebox/wiki/Extracting-data-from-.hic-files-with-dump)
+* [Annotating features with Arrowhead, HiCCUPS, APA, eigenvector, and MotifFinder](https://github.com/theaidenlab/juicer/wiki/Feature-Annotation)
+* [Creating .hic with juicebox pre](https://github.com/theaidenlab/juicer/wiki/Pre)
+* [Extracting data from .hic files with dump](https://github.com/theaidenlab/juicer/wiki/Data-Extraction)
 
 To launch the command line tools, use the shell script “juicebox” on Unix/MacOS
 or type
 ```
-java -jar juicebox_tools.jar (command...) [flags...] <parameters...>`
+java -jar juicer_tools.jar (command...) [flags...] <parameters...>`
 ```
-There are different flavors of juicebox_tools that depend on the CUDA version.  If you do not use GPUs, these versions are equivalent. Otherwise, juicebox_tools.X.X.jar uses CUDA version X.X 
+There are different flavors of juicer_tools that depend on the CUDA version.  If you do not use GPUs, these versions are equivalent. Otherwise, juicer_tools.X.X.jar uses CUDA version X.X 
 
 For HiCCUPS loop calling without the shell or bat script, you will need to
 call:
-		`java -Xms512m -Xmx2048m -Djava.library.path=path/to/natives/ -jar juicebox_tools.jar hiccups [flags...] <parameters...>`
+		`java -Xms512m -Xmx2048m -Djava.library.path=path/to/natives/ -jar juicer_tools.jar hiccups [flags...] <parameters...>`
    where path/to/natives is the path to the native libraries used for Jcuda
    By default, these are located in the lib/jcuda folder.
 
@@ -198,4 +198,4 @@ In the command line tools, there are several analysis functions:
 		`eigenvector` for calculating the eigenvector (first PC) of the Pearson's
 
 The `juicebox` (Unix/MacOS) script can be used in place of the unwieldy
-		`java -Djava.library.path=path/to/natives/ -jar juicebox_tools.jar`
+		`java -Djava.library.path=path/to/natives/ -jar juicer_tools.jar`
