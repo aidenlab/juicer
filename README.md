@@ -42,7 +42,7 @@ Juicer is a pipeline optimized for parallel computation on a cluster. Juicer
 consists of two parts: the pipeline that creates Hi-C files from raw data,
 and the post-processing command line tools.
 
-###Cluster requirements:
+### Cluster requirements:
 
 Juicer requires the use of a cluster, with ideally >= 4 cores (min 1 core)
 and >= 64 GB RAM (min 16 GB RAM)
@@ -53,7 +53,7 @@ Juicer currently works with the following resource management software:
 - SLURM (http://slurm.schedmd.com/download.html)
 - GridEngine (Univa, etc. any flavor)
 
-###Juicer tools requirements
+### Juicer tools requirements
 
 The minimum software requirement to run Juicer is a working Java installation
 (version >= 1.7) on Windows, Linux, and Mac OSX.  We recommend using the
@@ -65,17 +65,17 @@ To download and install the latest Java Runtime Environment (JRE), please go
 to http://www.java.com/download
 
 
-###GNU CoreUtils
+### GNU CoreUtils
 
 The latest version of GNU coreutils can be downloaded from
 https://www.gnu.org/software/coreutils/manual/
 
-###Burrows-Wheeler Aligner (BWA)
+### Burrows-Wheeler Aligner (BWA)
 
 The latest version of BWA should be installed from
 http://bio-bwa.sourceforge.net/
 
-###CUDA (for HiCCUPS peak calling)
+### CUDA (for HiCCUPS peak calling)
 
 You must have an NVIDIA GPU to install CUDA
 Instructions for installing the latest version of CUDA can be found
@@ -92,7 +92,7 @@ For best performance, use a dedicated GPU. You may also be able to obtain
 access to GPU clusters through Amazon Web Services or a local research
 institution.
 
-###Building new jars
+### Building new jars
 
 See the Juicebox documentation at <https://github.com/theaidenlab/Juicebox> for details on building new jars of the juicer_tools.
 
