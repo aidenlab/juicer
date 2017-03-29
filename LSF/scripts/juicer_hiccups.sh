@@ -84,7 +84,7 @@ then
     ${juicer_tools_path} motifs ${genomeID} ${bed_file_dir} ${hic_file_path%.*}"_loops.txt"
     echo -e "\n(-: Feature annotation successfully completed (-:"
 else
-    # if loop lists do not exist but Juicer Tools didn't return an error, likely 
+    # if loop lists do not exist but Juicer tools didn't return an error, likely 
     # too sparse
     echo -e "\n(-: Postprocessing successfully completed, maps too sparse to annotate (-:"
 fi

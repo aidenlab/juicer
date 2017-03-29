@@ -56,19 +56,13 @@ done
 ## Check that juicer_tools exists 
 if [ ! -e "${juicer_tools_path}" ]; then
     echo "***! Can't find juicer tools in ${juicer_tools_path}";
-    exit 100;
+    exit 1
 fi
 
 ## Check that hic file exists    
 if [ ! -e "${hic_file_path}" ]; then
     echo "***! Can't find inter.hic in ${hic_file_path}";
-    exit 100;
-fi
-
-## Check that bed folder exists    
-if [ ! -e "${bed_file_dir}" ]; then
-    echo "***! Can't find folder ${bed_file_dir}";
-    exit 100;
+    exit 1
 fi
 
 echo -e "${juicer_tools_path} is post-processing Hi-C for ${genomeID}\nData read from ${hic_file_path}.\nMotifs read from ${bed_file_dir}\n"
@@ -76,7 +70,7 @@ echo -e "ARROWHEAD:\n"
 ${juicer_tools_path} arrowhead ${hic_file_path} ${hic_file_path%.*}"_contact_domains.txt"
 if [ $? -ne 0 ]; then
     echo "***! Problem while running Arrowhead";
-    exit 100
+    exit 1
 fi
 echo -e "\nHiCCUPS:\n"
 if hash nvcc 2>/dev/null 
@@ -84,7 +78,7 @@ then
     ${juicer_tools_path} hiccups ${hic_file_path} ${hic_file_path%.*}"_loops.txt"
     if [ $? -ne 0 ]; then
 	echo "***! Problem while running HiCCUPS";
-	exit 100
+	exit 1
     fi
 else 
     echo "GPUs are not installed so HiCCUPs cannot be run";
@@ -94,8 +88,14 @@ if [ -f ${hic_file_path%.*}"_loops.txt" ]
 then
     echo -e "\nAPA:\n"
     ${juicer_tools_path} apa ${hic_file_path} ${hic_file_path%.*}"_loops.txt" "apa_results"
-    echo -e "\nMOTIF FINDER:\n"
-    ${juicer_tools_path} motifs ${genomeID} ${bed_file_dir} ${hic_file_path%.*}"_loops.txt"
+    ## Check that bed folder exists    
+    if [ ! -e "${bed_file_dir}" ]; then
+	echo "***! Can't find folder ${bed_file_dir}";
+	echo "***! Not running motif finder";
+    else
+	echo -e "\nMOTIF FINDER:\n"
+	${juicer_tools_path} motifs ${genomeID} ${bed_file_dir} ${hic_file_path%.*}"_loops.txt"
+    fi
     echo -e "\n(-: Feature annotation successfully completed (-:"
 else
   # if loop lists do not exist but Juicer Tools didn't return an error, likely 

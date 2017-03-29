@@ -425,7 +425,7 @@ SPLITEND
         then
             usegzip=1
         fi
-        qsub -o ${topDir}/uger.out -j y -q ${queue} -r y -N ${groupname}${jname}countligations -v ARG1=${usegzip},name=${name},name1=${name1},name2=${name2},ext=${ext},ligation=${ligation} ${juiceDir}/scripts/countligations.sh
+        qsub -o ${topDir}/uger.out -j y -q ${queue} -r y -N ${groupname}${jname}countligations -v usegzip=${usegzip},name=${name},name1=${name1},name2=${name2},ext=${ext},ligation=${ligation} ${juiceDir}/scripts/countligations.sh
         # align read1 fastq
         if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
         then

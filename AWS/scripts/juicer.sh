@@ -456,7 +456,7 @@ SPLITMV
         #BSUB -W $queue_time
 	#BSUB -o $topDir/lsf.out
 	#BSUB -J "${groupname}${jname}_Count_Ligation"
-	export ARG1=${usegzip};export name=${name}; export name1=${name1}; export name2=${name2}; export ext=${ext}; export ligation=${ligation}; ${juiceDir}/scripts/countligations.sh
+	export usegzip=${usegzip}; export name=${name}; export name1=${name1}; export name2=${name2}; export ext=${ext}; export ligation=${ligation}; ${juiceDir}/scripts/countligations.sh
 CNTLIG
 
 	# align read1 fastq

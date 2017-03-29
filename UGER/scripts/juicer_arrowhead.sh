@@ -47,7 +47,7 @@ while getopts "h:j:i:" opt; do
     esac
 done
 
-## Check that juicer_tools exists 
+## Check that juicer tools exists 
 if [ ! -e "${juicer_tools_path}" ]; then
   echo "***! Can't find juicer tools in ${juicer_tools_path}";
   exit 100;
