@@ -852,9 +852,9 @@ then
 	date
 	if [ -n "$nofrag" ]
 	then 
-	    ${juiceDir}/scripts/juicebox48g pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath 
+	    ${juiceDir}/scripts/juicer_tools48g pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath 
 	else 
-	    ${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
+	    ${juiceDir}/scripts/juicer_tools48g pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
 	fi
 	date
 HIC`
@@ -877,9 +877,9 @@ HIC`
 	date
 	if [ -n "$nofrag" ]
 	then 
-	    ${juiceDir}/scripts/juicebox48g pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath 
+	    ${juiceDir}/scripts/juicer_tools48g pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath 
 	else 
-	    ${juiceDir}/scripts/juicebox48g pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
+	    ${juiceDir}/scripts/juicer_tools48g pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
 	fi
 	date
 HIC30`
@@ -908,7 +908,7 @@ fi
 	${load_java}
 	${load_gpu}
 	date
-	${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
+	${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
 	date
 HICCUPS`
         dependhiccups="afterok:$jid"
@@ -925,7 +925,7 @@ HICCUPS`
 	${sbatch_wait}
 	${load_java}
 	date
-	${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic
+	${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic
 	date
 ARROWHEAD`
         dependarrows="${dependhiccups}:$jid"

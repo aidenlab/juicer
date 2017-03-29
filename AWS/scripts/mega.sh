@@ -265,12 +265,12 @@ fi
 myexitcode=1
 if [ -z "$exclude" ]
 then
-  echo "Launching ${juiceDir}/scripts/juicebox pre $resolutions -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
-  ${juiceDir}/scripts/juicebox pre $resolutions -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+  echo "Launching ${juiceDir}/scripts/juicer_tools pre $resolutions -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
+  ${juiceDir}/scripts/juicer_tools pre $resolutions -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
   myexitcode=\$?
 else
-  echo "Launching ${juiceDir}/scripts/juicebox pre $resolutions -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
-  ${juiceDir}/scripts/juicebox pre $resolutions -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+  echo "Launching ${juiceDir}/scripts/juicer_tools pre $resolutions -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
+  ${juiceDir}/scripts/juicer_tools pre $resolutions -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
   myexitcode=\$?
 fi
 if [ "\${myexitcode}" -eq 0 ]
@@ -290,12 +290,12 @@ fi
 myexitcode=1
 if [ -z "${exclude}" ]
 then
-    echo "Launching ${juiceDir}/scripts/juicebox pre $resolutions -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
-    ${juiceDir}/scripts/juicebox pre $resolutions -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+    echo "Launching ${juiceDir}/scripts/juicer_tools pre $resolutions -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
+    ${juiceDir}/scripts/juicer_tools pre $resolutions -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
    myexitcode=\$?
 else
-   echo "Launching ${juiceDir}/scripts/juicebox pre $resolutions -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
-   ${juiceDir}/scripts/juicebox pre $resolutions -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+   echo "Launching ${juiceDir}/scripts/juicer_tools pre $resolutions -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
+   ${juiceDir}/scripts/juicer_tools pre $resolutions -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
    myexitcode=\$?
 fi
 if [ "\${myexitcode}" -eq 0 ]
@@ -314,7 +314,7 @@ then
    echo "***! Failed to make inter_30.hic, type bjobs -l $jid6 to see what happened."
    exit 100;
 fi
-${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicebox -i ${outputdir}/inter_30.hic -m ${juiceDir}/references/motif -g ${genomeID}
+${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools -i ${outputdir}/inter_30.hic -m ${juiceDir}/references/motif -g ${genomeID}
 touch $touchfile7
 HICCUPS`
 
@@ -327,7 +327,7 @@ then
    echo "***! Failed to make inter_30.hic, type bjobs -l $jid6 to see what happened."
    exit 100;
 fi
-${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicebox -i ${outputdir}/inter_30.hic
+${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicer_tools -i ${outputdir}/inter_30.hic
 touch $touchfile8
 ARROWHEAD`
 

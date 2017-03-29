@@ -152,7 +152,7 @@ qsub -hold_jid ${groupname}splitdiploid -o diploid.out -cwd -j y -N ${groupname}
   source $usePath
   $load_java
   sort -k2,2d -m maternal.txt maternal_both.txt | awk '{split(\$11,a,"/"); print a[1], \$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,"100","100"}' > mat.txt 
-  ${juiceDir}/juicebox pre mat.txt maternal.hic $genomeID
+  ${juiceDir}/juicer_tools pre mat.txt maternal.hic $genomeID
 EOF
 qsub -hold_jid ${groupname}splitdiploid -o diploid.out -cwd -j y -N ${groupname}paternal -r y <<-EOF 
   if [ ! -e split.done ]
@@ -163,7 +163,7 @@ qsub -hold_jid ${groupname}splitdiploid -o diploid.out -cwd -j y -N ${groupname}
   source $usePath
   $load_java
   sort -k2,2d -m paternal.txt paternal_both.txt | awk '{split(\$11,a,"/"); print a[1], \$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,"100","100"}' > pat.txt 
-  ${juiceDir}/juicebox pre pat.txt paternal.hic $genomeID
+  ${juiceDir}/juicer_tools pre pat.txt paternal.hic $genomeID
 EOF
 
 qsub -hold_jid ${groupname}paternal,${groupname}maternal -o diploid.out -cwd -j y -r y <<-EOF

@@ -82,8 +82,8 @@ Instructions for installing the latest version of CUDA can be found
 on the NVIDIA Developer site:
    https://developer.nvidia.com/cuda-downloads
 
-The native libraries included with Juicer are compiled for CUDA 7 or CUDA 7.5
-(AWS/scripts/juicebox_tools.7.0.jar) or (UGER/scripts/juicebox_tools.7.5.jar)
+The native libraries included with Juicer are compiled for CUDA 7 or CUDA 7.5.
+See the [download page for Juicer Tools](https://github.com/theaidenlab/juicer/wiki/Download)
 Other versions of CUDA can be used, but you will need to download the
 respective native libraries from
    http://www.jcuda.org/downloads/downloads.html
@@ -171,10 +171,10 @@ Command Line Tools Usage
 Detailed documentation about the command line tools can be found on the  wiki:
 
 * [Annotating features with Arrowhead, HiCCUPS, MotifFinder, APA, Eigenvector, and Pearsons](https://github.com/theaidenlab/juicer/wiki/Feature-Annotation)
-* [Creating .hic with juicebox pre](https://github.com/theaidenlab/juicer/wiki/Pre)
+* [Creating .hic with Pre](https://github.com/theaidenlab/juicer/wiki/Pre)
 * [Extracting data from .hic files with dump](https://github.com/theaidenlab/juicer/wiki/Data-Extraction)
 
-To launch the command line tools, use the shell script “juicebox” on Unix/MacOS
+To launch the command line tools, use the shell script “juicer_tools” on Unix/MacOS
 or type
 ```
 java -jar juicer_tools.jar (command...) [flags...] <parameters...>`
@@ -195,5 +195,5 @@ In the command line tools, there are several analysis functions:
 		`eigenvector` for calculating the eigenvector (first PC) of the Pearson's
 		`pearsons` for calculating the Pearson's
 
-The `juicebox` (Unix/MacOS) script can be used in place of the unwieldy
+The `juicer_tools` (Unix/MacOS) script can be used in place of the unwieldy
 		`java -Djava.library.path=path/to/natives/ -jar juicer_tools.jar`

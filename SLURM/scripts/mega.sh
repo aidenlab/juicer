@@ -283,10 +283,10 @@ then
 fi
 if [ -z "$exclude" ]
 then
-	${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+	${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
     exitcode=\$?
 else
-	${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+	${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
     exitcode=\$?
 fi
 if [ "\${exitcode}" -eq 0 ]
@@ -318,10 +318,10 @@ then
 fi
 if [ -z "${exclude}" ]
 then
-	${juiceDir}/scripts/juicebox pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+	${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
    exitcode=\$?
 else
-	${juiceDir}/scripts/juicebox pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+	${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
    exitcode=\$?
 fi
 if [ "\${exitcode}" -eq 0 ]
@@ -354,7 +354,7 @@ then
    exit 100;
 fi
 ${load_gpu}
-${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
+${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
 touch $touchfile7
 HICCUPS`
 dependhiccups="afterok:$jid7"
@@ -379,7 +379,7 @@ then
    echo "***! HIC maps q=30 job failed."
    exit 100;
 fi
-${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicebox -i $outputdir/inter_30.hic
+${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic
 touch $touchfile8
 ARROWHEAD`
 dependarrows="${dependhic0}:$jid8"

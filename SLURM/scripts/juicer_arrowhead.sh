@@ -26,7 +26,7 @@
 # This will find contact domains with Arrowhead.
 
 ## Read arguments
-usageHelp="Usage: ${0} [-h] -j <juicebox_file_path> -i <hic_file_path>"
+usageHelp="Usage: ${0} [-h] -j <juicer_tools_file_path> -i <hic_file_path>"
 
 printHelpAndExit() {
     echo "$usageHelp"
@@ -36,20 +36,20 @@ printHelpAndExit() {
 #set defaults
 genomeID="hg19"
 hic_file_path="$(pwd)/aligned/inter_30.hic"
-juiceboxpath="/poscratch/aidenlab/juicer/scripts/juicebox48g"
+juicer_tools_path="/poscratch/aidenlab/juicer/scripts/juicer_tools48g"
 
 while getopts "h:j:i:" opt; do
     case $opt in
 	h) printHelpAndExit 0;;
-	j) juiceboxpath=$OPTARG ;;
+	j) juicer_tools_path=$OPTARG ;;
 	i) hic_file_path=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
 
-## Check that juicebox exists 
-if [ ! -e "${juiceboxpath}" ]; then
-  echo "***! Can't find juicebox in ${juiceboxpath}";
+## Check that juicer_tools exists 
+if [ ! -e "${juicer_tools_path}" ]; then
+  echo "***! Can't find juicer tools in ${juicer_tools_path}";
   exit 100;
 fi
 
@@ -59,9 +59,9 @@ if [ ! -e "${hic_file_path}" ]; then
   exit 100;
 fi
 
-echo -e "${juiceboxpath} is post-processing Hi-C for ${genomeID}\nData read from ${hic_file_path}.\nMotifs read from ${bed_file_dir}\n"
+echo -e "${juicer_tools_path} is post-processing Hi-C for ${genomeID}\nData read from ${hic_file_path}.\nMotifs read from ${bed_file_dir}\n"
 echo -e "ARROWHEAD:\n"
-${juiceboxpath} arrowhead ${hic_file_path} ${hic_file_path%.*}"_contact_domains.txt"
+${juicer_tools_path} arrowhead ${hic_file_path} ${hic_file_path%.*}"_contact_domains.txt"
 if [ $? -ne 0 ]; then
     echo "***! Problem while running Arrowhead";
     exit 100
