@@ -28,7 +28,7 @@ then
 elif [ "$CALLEDBY" = "UGER" ]
 then
     echo "UGER"
-    java -Djava.awt.headless=true  -Xmx16000m  -jar `dirname $0`/juicebox_tools.7.5.jar  $*
+    java -Djava.awt.headless=true  -Xmx16000m  -jar `dirname $0`/juicer_tools.7.5.jar  $*
 elif [ "$CALLEDBY" = "SLURM" ]
 then
     echo "SLURM"
