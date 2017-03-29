@@ -39,7 +39,7 @@ printHelpAndExit() {
 #set defaults
 genomeID="hg19"
 hic_file_path="$(pwd)/aligned/inter_30.hic"
-juiceboxpath="/opt/juicer/scripts/juicebox"
+juiceboxpath="/opt/juicer/scripts/juicer_tools"
 bed_file_dir="/opt/juicer/references/motif"
 
 while getopts "h:g:j:i:m:" opt; do
@@ -55,7 +55,7 @@ done
 
 ## Check that juicebox exists 
 if [ ! -e "${juiceboxpath}" ]; then
-    echo "***! Can't find juicebox in ${juiceboxpath}";
+    echo "***! Can't find juicer_tools in ${juiceboxpath}";
     exit 100;
 fi
 
