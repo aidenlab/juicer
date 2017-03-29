@@ -220,7 +220,7 @@ then
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ] && [ "$site" != "none" ]
+if [ ! -e "$site_file" ] && [ "$nofrag" -ne 1 ]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
     exit 100
