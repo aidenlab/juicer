@@ -36,7 +36,7 @@ printHelpAndExit() {
 #set defaults
 genomeID="hg19"
 hic_file_path="$(pwd)/aligned/inter_30.hic"
-juiceboxpath="/opt/juicer/scripts/juicebox"
+juiceboxpath="/opt/juicer/scripts/juicer_tools"
 
 while getopts "h:j:i:" opt; do
     case $opt in
