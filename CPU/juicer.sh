@@ -83,6 +83,7 @@ genomeID="hg19"
 shortreadend=0
 # description, default empty
 about=""
+nofrag=0
 
 ## Read arguments                                                     
 usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] [-R end]\n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-r] [-h] [-x]"
