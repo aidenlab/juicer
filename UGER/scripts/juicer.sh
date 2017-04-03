@@ -112,6 +112,7 @@ genomeID="hg19"
 shortreadend=0
 # description, default empty                                          
 about=""
+nofrag=0
 
 ## Read arguments                                                     
 usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-R end] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-r] [-h] [-x]"
@@ -262,7 +263,7 @@ then
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ] && [ "$site" != "none" ]
+if [ ! -e "$site_file" ] && [ "$nofrag" -ne 1 ]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
     exit 100
