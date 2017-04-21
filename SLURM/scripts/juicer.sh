@@ -555,7 +555,7 @@ ALGNR2`
 		#SBATCH -e $outDir/merge-%j.err
 		#SBATCH --mem-per-cpu=2G
 		#SBATCH -t 1440
-		#SBATCH -c 1 
+		#SBATCH -c 8 
 		#SBATCH --ntasks=1
 		#SBATCH -d $dependalign
 		#SBATCH -J "${groupname}_merge_${jname}"
