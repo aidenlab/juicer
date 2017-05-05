@@ -644,10 +644,10 @@ then
 	#SBATCH -o $outDir/fragmerge-%j.out
 	#SBATCH -e $outDir/fragmerge-%j.err
 	#SBATCH -t 1440
-	#SBATCH -c 1
+	#SBATCH -c 8
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_fragmerge"
-	$sbatch_wait
+	${sbatch_wait}
 	export LC_COLLATE=C
 	date
 	#Set to 3600 minutes, but should be set to ~4 minutes per split file.
