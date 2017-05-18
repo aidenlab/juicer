@@ -124,7 +124,7 @@ for i in ${chromosomes[*]}
         holdname="${holdname},${groupname}diploid${i}"
         catname="${catname} diploid_${i}.txt "
     fi
-    qsub -N ${groupname}diploid${i} -l m_mem_free=8g -o diploid.out -cwd -j y -r y $holdname1 <<-EOF
+    qsub -N ${groupname}diploid${i} -l h_vmem=8g -o diploid.out -cwd -j y -r y $holdname1 <<-EOF
 awk -v chr=$i '\$2==chr && \$6==chr && \$9 >= 10 && \$12 >= 10' merged_nodups.txt | ${juiceDir}/scripts/diploid.pl -s ${stem}${i}_chr_pos.txt -o ${stem}${i}_paternal_maternal.txt > diploid_${i}.txt
 EOF
 done

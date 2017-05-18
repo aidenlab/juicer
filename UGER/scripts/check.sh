@@ -61,7 +61,12 @@ then
     exit 1
 fi
 
-if [ -f ${outputdir}/inter.hic ] && [ -s ${outputdir}/inter.hic ] && [ -f ${outputdir}/inter_30.hic ] && [ -s ${outputdir}/inter_30.hic ]
+if [ -n "$early" ]
+then
+    echo "(-: Pipeline successfully completed (-:";
+    echo "Run cleanup.sh to remove the splits directory";
+    echo "Check ${outputdir} for results"
+elif [ -f ${outputdir}/inter.hic ] && [ -s ${outputdir}/inter.hic ] && [ -f ${outputdir}/inter_30.hic ] && [ -s ${outputdir}/inter_30.hic ]
 then
     echo "(-: Pipeline successfully completed (-:";
     echo "Run cleanup.sh to remove the splits directory";
