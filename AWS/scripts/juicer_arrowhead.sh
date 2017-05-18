@@ -24,6 +24,7 @@
 ##########
 # Juicer postprocessing script.
 # This will find contact domains with Arrowhead.
+# Juicer 1.5
 
 ## Read arguments
 usageHelp="Usage: ${0} [-h] -j <juicer_tools_file_path> -i <hic_file_path>"

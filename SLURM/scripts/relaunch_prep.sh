@@ -43,15 +43,6 @@ if [ "$(ls -A not_done)" ]
             mv splits done_splits
         fi
         mv not_done splits
-
-        if [ -d done_debug ]
-        then
-            mv debug/* done_debug/.
-            rmdir debug
-        else
-            mv debug done_debug
-        fi
-
 else
     rmdir not_done
     echo "Fastqs are aligned, run juicer.sh with -S merge flag";

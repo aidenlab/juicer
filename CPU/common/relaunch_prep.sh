@@ -22,8 +22,9 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
-# Helper script for finding what files successfully aligned and preparing the 
-# directory for rerunning juicer.sh
+
+# Helper script for finding what files successfully aligned and preparing the directory for
+# rerunning juicer.sh
 # Juicer version 1.5
 ls -l splits > ls_splits
 
@@ -42,8 +43,6 @@ if [ "$(ls -A not_done)" ]
             mv splits done_splits
         fi
         mv not_done splits
-        cat uger.out >> done_uger.out
-        rm uger.out
 else
     rmdir not_done
     echo "Fastqs are aligned, run juicer.sh with -S merge flag";

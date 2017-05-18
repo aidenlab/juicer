@@ -577,10 +577,10 @@ MRGALL
             exit 100                                                     
         fi  
 
- 		    # if any normal reads were written, find what fragment they correspond to and store that
- 		    if [ -e "$name${ext}_norm.txt" ] && [ "$site" != "none" ] 
- 		    then  
- 			      ${juiceDir}/scripts/fragment.pl $name${ext}_norm.txt $site_file > $name${ext}.frag.txt
+ 	# if any normal reads were written, find what fragment they correspond to and store that
+ 	if [ -e "${name}${ext}_norm.txt" ] && [ "$site" != "none" ] 
+ 	then  
+            ${juiceDir}/scripts/fragment.pl ${name}${ext}_norm.txt ${name}${ext}.frag.txt $site_file
         elif [ "$site" == "none" ]
         then
             awk '{printf("%s %s %s %d %s %s %s %d", \$1, \$2, \$3, 0, \$4, \$5, \$6, 1); for (i=7; i<=NF; i++) {printf(" %s",\$i);}printf("\n");}' $name${ext}_norm.txt > $name${ext}.frag.txt 

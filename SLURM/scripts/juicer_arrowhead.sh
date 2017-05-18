@@ -24,6 +24,7 @@
 ##########
 # Juicer postprocessing script.
 # This will find contact domains with Arrowhead.
+# Juicer 1.5
 
 ## Read arguments
 usageHelp="Usage: ${0} [-h] -j <juicer_tools_file_path> -i <hic_file_path>"
@@ -47,7 +48,7 @@ while getopts "h:j:i:" opt; do
     esac
 done
 
-## Check that juicer_tools exists 
+## Check that juicer tools exists 
 if [ ! -e "${juicer_tools_path}" ]; then
   echo "***! Can't find juicer tools in ${juicer_tools_path}";
   exit 100;

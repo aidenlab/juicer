@@ -32,6 +32,7 @@
 # each line, the sorted locations of the enzyme restriction sites.
 #
 # Usage:  fragment.pl <infile>
+# Juicer 1.5
 
 use POSIX;
 

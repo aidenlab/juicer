@@ -44,7 +44,8 @@
 # restriction enzyme site.
 #
 # Usage:	statistics.pl [infile or stream]
-# Juicer version 1.5
+# Juicer 1.5
+
 use File::Basename;
 use POSIX;
 use List::Util qw[min max];

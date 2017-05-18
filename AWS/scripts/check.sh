@@ -55,8 +55,6 @@ fi
 
 wctotal=`cat ${splitdir}/*_linecount.txt | awk '{sum+=$1}END{print sum/4}'`
 check2=`cat ${splitdir}/*norm*res* | awk '{s2+=$2;}END{print s2}'`
-# the below, check4, is still buggy and needs to be corrected
-check4=`cat ${splitdir}/*norm*res* | awk '{s+=$3+$4+$5+$6;}END{print s}'`
  
 if [ -z $ARG1 ] 
 then
@@ -66,19 +64,6 @@ then
         echo "Reads don't add up.  Check ${outputdir} for results"
         exit 100
     fi
-else
-   # Alternate aligner check
-   unmapamb=`awk 'NR%4==1{split($1,a,"_");split(a[1],b,"@"); c[b[2]]++}END{print length(c)}' ${splitdir}/*.fq`
-   calctotal=`expr $check4 + $unmapamb`
-   if [ $wctotal -ne $calctotal ]
-   then
-        echo "***! Error! The number of reads in the fastqs (${wctotal}) is not the same as the number of alignable reads reported in the stats (${check4}) plus unmapped/ambiguous (${unmapamb}), likely due to a failure during alignment. Run relaunch_prep.sh"
-        echo "Reads don't add up.  Check ${outputdir} for results"
-        exit 100
-   else
-       echo "Total: $wctotal"
-       echo "Unalignable: $unmapamb"
-   fi
 fi
 
 if [ -f ${outputdir}/inter.hic ] && [ -s ${outputdir}/inter.hic ] && [ -f ${outputdir}/inter_30.hic ] && [ -s ${outputdir}/inter_30.hic ]

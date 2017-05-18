@@ -22,6 +22,7 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
+
 # Perl script to convert to fragment map from infile. The infile should be the
 # "intermediate" form: no duplicates, 10 fields, laid out as:
 #
@@ -31,30 +32,32 @@
 # each line, the sorted locations of the enzyme restriction sites.
 #
 # Usage:  fragment.pl <infile>
-# Juicer version 1.5
+# Juicer 1.5
+
 use POSIX;
 
-$site_file = "/broad/aidenlab/restriction_sites/hg19_DpnII.txt";
+$site_file = "/opt/juicer/restriction_sites/hg19_DpnII.txt";
 # Check arguments
-if (scalar(@ARGV) == 1) {
-  ($infile) = @ARGV;
+if (scalar(@ARGV) == 2) {
+  ($infile,$outfile) = @ARGV;
 }
-elsif (scalar(@ARGV) == 2) {
-  ($infile,$site_file) = @ARGV;
+elsif (scalar(@ARGV) == 3) {
+  ($infile,$outfile,$site_file) = @ARGV;
 }
 else {
-  print "Usage: fragment.pl <infile> [site file]\n";
+  print "Usage: fragment.pl <infile> <outfile> [site file]\n";
   print " <infile>: file in intermediate format to calculate statistics on\n";
+  print " <outfile>: output, results of fragment search\n";  
   print " [site file]: list of restriction sites, one line per chromosome (default DpnII hg19)\n";
   exit;
 }
-
 # Global variables for calculating statistics
 my %chromosomes;
 my %hindIII;
 
 # read in restriction site file and store as multidimensional array
 open FILE, $site_file or die $!;
+
 while (<FILE>) {
   my @locs = split;
   my $key = shift(@locs);
@@ -68,20 +71,23 @@ while (<FILE>) {
 close(FILE);
 
 # read in infile and calculate statistics
-open FILE, $infile or die $!;
-while (<FILE>) {
+open INFILE, $infile or die $!;
+open OUTFILE,">", $outfile or die $!;
+
+while (<INFILE>) {
   my @record = split;
 
   # find upper index of position in sites array via binary search
   my $index1 = &bsearch($record[2],$chromosomes{$record[1]});
   my $index2 = &bsearch($record[5],$chromosomes{$record[4]});
-  print $record[0] . " " . $record[1] . " " . $record[2] . " " . $index1 . " " . $record[3] . " " . $record[4] . " " . $record[5] . " " . $index2 . " ";
+  print OUTFILE $record[0] . " " . $record[1] . " " . $record[2] . " " . $index1 . " " . $record[3] . " " . $record[4] . " " . $record[5] . " " . $index2 . " ";
 	for (my $i=6; $i < scalar(@record); $i++){
-		print $record[$i] . " ";
+		print OUTFILE $record[$i] . " ";
 	}
-	print "\n";
+	print OUTFILE "\n";
 }
-close(FILE);
+close(INFILE);
+close(OUTFILE);
 
 # Binary search, array passed by reference
 # search array of integers a for given integer x
