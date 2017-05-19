@@ -203,7 +203,7 @@ TOPSTATS`
 
 touchfile2=${megadir}/touch2
 # Merge all merged_nodups.txt files found under current dir
-jid2=`qsub -terse -o ${logdir}/merge.out -e ${logdir}/merge.err -q ${queue} -r y -N ${groupname}_merge -l m_mem_free=16g -hold_jid ${groupname}_topstats <<- MRGSRT
+jid2=`qsub -terse -o ${logdir}/merge.out -e ${logdir}/merge.err -q ${queue} -r y -N ${groupname}_merge -l h_vmem=16g -hold_jid ${groupname}_topstats <<- MRGSRT
 if [ -n "$gzipped" ]
 then 
   # This code didn't work, doesn't sort appropriately unfortunately.
@@ -269,7 +269,7 @@ holdjobs3="-hold_jid ${groupname}_inter30";
 touchfile5=${megadir}/touch5
 
 # Create HIC maps file for MQ > 0
-jid5=`qsub -terse -o ${logdir}/hic0.out -e ${logdir}/hic0.err -q ${queue} -r y -N ${groupname}_hic0  -l m_mem_free=16g $holdjobs2 <<- HIC0
+jid5=`qsub -terse -o ${logdir}/hic0.out -e ${logdir}/hic0.err -q ${queue} -r y -N ${groupname}_hic0  -l h_vmem=16g $holdjobs2 <<- HIC0
 source $usePath
 $load_java
 if [ ! -f "${touchfile3}" ]
@@ -296,7 +296,7 @@ HIC0`
 
 touchfile6=${megadir}/touch6
 # Create HIC maps file for MQ > 30
-jid6=`qsub -terse -o ${logdir}/hic30.out -e ${logdir}/hic30.err -q ${queue} -r y -N ${groupname}_hic30 -l m_mem_free=16g $holdjobs3 <<- HIC30
+jid6=`qsub -terse -o ${logdir}/hic30.out -e ${logdir}/hic30.err -q ${queue} -r y -N ${groupname}_hic30 -l h_vmem=16g $holdjobs3 <<- HIC30
 source $usePath
 $load_java	
 if [ ! -f "${touchfile4}" ]
@@ -322,7 +322,7 @@ fi
 HIC30`
 
 touchfile7=${megadir}/touch7
-jid7=`qsub -terse -o ${logdir}/hiccups.out -e ${logdir}/hiccups.err -q ${queue} -r y -N ${groupname}_hiccups  -l m_mem_free=16g -hold_jid ${groupname}_hic30 <<- HICCUPS
+jid7=`qsub -terse -o ${logdir}/hiccups.out -e ${logdir}/hiccups.err -q ${queue} -r y -N ${groupname}_hiccups  -l h_vmem=16g -hold_jid ${groupname}_hic30 <<- HICCUPS
 source $usePath;
 $load_java;
 export _JAVA_OPTIONS=-Xmx16384m;
@@ -337,7 +337,7 @@ touch $touchfile7
 HICCUPS`
 
 touchfile8=${megadir}/touch8
-jid8=`qsub -terse -o ${logdir}/arrowhead.out -e ${logdir}/arrowhead.err -q ${queue} -r y -N ${groupname}_arrowhead  -l m_mem_free=4g -hold_jid ${groupname}_hic30 <<- ARROWHEAD
+jid8=`qsub -terse -o ${logdir}/arrowhead.out -e ${logdir}/arrowhead.err -q ${queue} -r y -N ${groupname}_arrowhead  -l h_vmem=4g -hold_jid ${groupname}_hic30 <<- ARROWHEAD
 source $usePath;
 $load_java;
 export _JAVA_OPTIONS=-Xmx16384m;
