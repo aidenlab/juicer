@@ -50,8 +50,8 @@ and >= 64 GB RAM (min 16 GB RAM)
 
 Juicer currently works with the following resource management software:
 - OpenLava (http://www.openlava.org/)
-- LSF (http://www-03.ibm.com/systems/services/platformcomputing/lsf.html)
-- SLURM (http://slurm.schedmd.com/download.html)
+- LSF (https://www-03.ibm.com/systems/services/platformcomputing/lsf.html)
+- SLURM (https://slurm.schedmd.com/download.html)
 - GridEngine (Univa, etc. any flavor)
 
 ### Juicer tools requirements
@@ -60,10 +60,10 @@ The minimum software requirement to run Juicer is a working Java installation
 (version >= 1.7) on Windows, Linux, and Mac OSX.  We recommend using the
 latest Java version available, but please do not use the Java Beta Version.
 Minimum system requirements for running Java can be found at
-http://java.com/en/download/help/sysreq.xml
+https://java.com/en/download/help/sysreq.xml
 
 To download and install the latest Java Runtime Environment (JRE), please go
-to http://www.java.com/download
+to https://www.java.com/download
 
 
 ### GNU CoreUtils
