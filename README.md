@@ -95,7 +95,8 @@ institution.
 
 ### Building new jars
 
-See the Juicebox documentation at <https://github.com/theaidenlab/Juicebox> for details on building new jars of the juicer_tools.
+See the Juicebox documentation at <https://github.com/theaidenlab/Juicebox> for
+details on building new jars of the juicer_tools.
 
 ------------
 Quick Start
@@ -180,7 +181,9 @@ or type
 ```
 java -jar juicer_tools.jar (command...) [flags...] <parameters...>`
 ```
-There are different flavors of juicer_tools that depend on the CUDA version.  If you do not use GPUs, these versions are equivalent. Otherwise, juicer_tools.X.X.jar uses CUDA version X.X
+There are different flavors of juicer_tools that depend on the CUDA version.
+If you do not use GPUs, these versions are equivalent. Otherwise,
+juicer_tools.X.X.jar uses CUDA version X.X
 
 For HiCCUPS loop calling without the shell or bat script, you will need to
 call:
