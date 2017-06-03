@@ -49,9 +49,9 @@ Juicer requires the use of a cluster, with ideally >= 4 cores (min 1 core)
 and >= 64 GB RAM (min 16 GB RAM)
 
 Juicer currently works with the following resource management software:
-- OpenLava (http://www.openlava.org/)
-- LSF (https://www.ibm.com/systems/spectrum-computing/products/lsf)
-- SLURM (https://slurm.schedmd.com/download.html)
+- [OpenLava](http://www.openlava.org/)
+- [LSF](https://www.ibm.com/systems/spectrum-computing/products/lsf)
+- [SLURM](https://slurm.schedmd.com/download.html)
 - GridEngine (Univa, etc. any flavor)
 
 ### Juicer tools requirements
