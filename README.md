@@ -188,12 +188,13 @@ call:
    By default, these are located in the lib/jcuda folder.
 
 In the command line tools, there are several analysis functions:
-		`apa` for conducting aggregate peak analysis  
-		`hiccups` for annotating loops  
-		`motifs` for finding CTCF motifs  
-		`arrowhead` for annotating contact domains  
-		`eigenvector` for calculating the eigenvector (first PC) of the Pearson's
-		`pearsons` for calculating the Pearson's
+
+1.  `apa` for conducting aggregate peak analysis
+1.  `hiccups` for annotating loops
+1.  `motifs` for finding CTCF motifs
+1.  `arrowhead` for annotating contact domains
+1.  `eigenvector` for calculating the eigenvector (first PC) of the Pearson's
+1.  `pearsons` for calculating the Pearson's
 
 The `juicer_tools` (Unix/MacOS) script can be used in place of the unwieldy
 		`java -Djava.library.path=path/to/natives/ -jar juicer_tools.jar`
