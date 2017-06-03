@@ -78,16 +78,18 @@ http://bio-bwa.sourceforge.net/
 
 ### CUDA (for HiCCUPS peak calling)
 
-You must have an NVIDIA GPU to install CUDA
-Instructions for installing the latest version of CUDA can be found
-on the NVIDIA Developer site:
-   https://developer.nvidia.com/cuda-downloads
+You must have an NVIDIA GPU to install CUDA.
+
+Instructions for installing the latest version of CUDA can be found on the
+[NVIDIA Developer site](https://developer.nvidia.com/cuda-downloads).
 
 The native libraries included with Juicer are compiled for CUDA 7 or CUDA 7.5.
-See the [download page for Juicer Tools](https://github.com/theaidenlab/juicer/wiki/Download)
+See the [download page for Juicer
+Tools](https://github.com/theaidenlab/juicer/wiki/Download).
+
 Other versions of CUDA can be used, but you will need to download the
 respective native libraries from
-   http://www.jcuda.org/downloads/downloads.html
+[JCuda](http://www.jcuda.org/downloads/downloads.html).
 
 For best performance, use a dedicated GPU. You may also be able to obtain
 access to GPU clusters through Amazon Web Services or a local research
