@@ -1,20 +1,21 @@
 # Juicer
 
-Juicer is a platform for analyzing kilobase resolution Hi-C data. In this 
-distribution, we include the pipeline for generating Hi-C maps from fastq raw 
+Juicer is a platform for analyzing kilobase resolution Hi-C data. In this
+distribution, we include the pipeline for generating Hi-C maps from fastq raw
 data files and command line tools for feature annotation on the Hi-C maps.
 
 Juicer is currently in its beta release, Juicer version 1.5.
-For general questions, please use 
-[the Google Group](https://groups.google.com/forum/#!forum/3d-genomics).  
-If you have further difficulties using Juicer, please do not 
+For general questions, please use
+[the Google Group](https://groups.google.com/forum/#!forum/3d-genomics).
+
+If you have further difficulties using Juicer, please do not
 hesitate to contact us (theaidenlab@gmail.com)
 
 **If you use Juicer in your research, please cite:
 Neva C. Durand, Muhammad S. Shamim, Ido Machol, Suhas S. P. Rao, Miriam H. Huntley, Eric S. Lander, and Erez Lieberman Aiden. "Juicer provides a one-click system for analyzing loop-resolution Hi-C experiments." Cell Systems 3(1), 2016.**
 
 # Documentation
-Please see [the wiki](https://github.com/theaidenlab/juicer/wiki) for extensive documentation.  
+Please see [the wiki](https://github.com/theaidenlab/juicer/wiki) for extensive documentation.
 
 ------------
 Distribution
@@ -23,7 +24,7 @@ Distribution
 In this repository, we include the scripts for running Juicer on AWS, LSF,
 Univa Grid Engine, SLURM, and a single CPU
 
-/AWS - scripts for running pipeline and postprocessing on AWS 
+/AWS - scripts for running pipeline and postprocessing on AWS
 
 /UGER - scripts for running pipeline and postprocessing on UGER (Univa)
 
@@ -107,7 +108,7 @@ Usage: juicer.sh [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]
                  [-y restriction site file] [-z reference genome file]
                  [-C chunk size] [-D Juicer scripts directory]
                  [-Q queue time limit] [-L long queue time limit] [-r] [-h] [-x]
-* [genomeID] must be defined in the script, e.g. "hg19" or "mm10" (default 
+* [genomeID] must be defined in the script, e.g. "hg19" or "mm10" (default
   "hg19"); alternatively, it can be defined using the -z command
 * [topDir] is the top level directory (default
   "/Users/nchernia/Downloads/neva-muck/UGER")
@@ -117,12 +118,12 @@ Usage: juicer.sh [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]
 * [queue] is the queue for running alignments (default "short")
 * [long queue] is the queue for running longer jobs such as the hic file
   creation (default "long")
-* [site] must be defined in the script, e.g.  "HindIII" or "MboI" 
+* [site] must be defined in the script, e.g.  "HindIII" or "MboI"
   (default "MboI")
 * [about]: enter description of experiment, enclosed in single quotes
 * -r: use the short read version of the aligner, bwa aln
   (default: long read, bwa mem)
-* [end]: use the short read aligner on read end, must be one of 1 or 2 
+* [end]: use the short read aligner on read end, must be one of 1 or 2
 * [stage]: must be one of "merge", "dedup", "final", "postproc", or "early".
     -Use "merge" when alignment has finished but the merged_sort file has not
      yet been created.
@@ -156,10 +157,10 @@ Usage: juicer.sh [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]
 ------------
 Juicer Usage
 ------------
-- **Running Juicer with no arguments** will run it with genomeID hg19 and site MboI 
+- **Running Juicer with no arguments** will run it with genomeID hg19 and site MboI
 - **Providing a genome ID**: if not defined in the script, you can either directly modify the script or provide the script with the files needed. You would provide the script with the files needed via "-z reference_sequence_path" (needs to have the BWA index files in same directory), "-p chrom_sizes_path" (these are the chromosomes you want included in .hic file), and "-s site_file" (this is the listing of all the restriction site locations, one line per chromosome). Note that ligation junction won't be defined in this case.  The script (misc/generate_site_positions.py) can help you generate the file
 - **Providing a restriction enzyme**: if not defined in the script, you can either directly modify the script or provide the files needed via the "-s site_file" flag, as above.  Alternatively, if you don't want to do any fragment-level analysis (as with a DNAse experiment), you should assign the site "none", as in `juicer.sh -s none`
-- **Directory structure**: Juicer expects the fastq files to be stored in a directory underneath the top-level directory. E.g. HIC001/fastq.  By default, the top-level directory is the directory where you are when you launch Juicer; you can change this via the -d flag. Fastqs can be zipped. [topDir]/splits will be created to contain the temporary split files and should be deleted once your run is completed.  [topDir]/aligned will be created for the final files, including the hic files, the statistics, the valid pairs (merged_nodups), the collisions, and the feature annotations. 
+- **Directory structure**: Juicer expects the fastq files to be stored in a directory underneath the top-level directory. E.g. HIC001/fastq.  By default, the top-level directory is the directory where you are when you launch Juicer; you can change this via the -d flag. Fastqs can be zipped. [topDir]/splits will be created to contain the temporary split files and should be deleted once your run is completed.  [topDir]/aligned will be created for the final files, including the hic files, the statistics, the valid pairs (merged_nodups), the collisions, and the feature annotations.
 - **Queues** are complicated and it's likely that you'll have to modify the script for your system, though we did our best to avoid this.  By default there's a short queue and a long queue.  We also allow you to pass in wait times for those queues; this is currently ignored by the UGER and SLURM versions.  The short queue should be able to complete alignment of one split file.  The long queue is for jobs that we expect to take a while, like writing out the merged_sort file
 - **Chunk size** is intimitely associated with your queues; a smaller chunk size means more alignment jobs that complete in a faster time.  If you have a hard limit on the number of jobs, you don't want too small of a chunk size.  If your short queue has a very limited runtime ceiling, you don't want too big of a chunk size.  Run time for alignment will also depend on the particulars of your cluster.  We launch ~5 jobs per chunk.  Chunk size must be a multiple of 4.
 -  **Relaunch** via the same script. Type `juicer.sh [options] -S stage` where "stage" is one of merge, dedup, final, postproc, or early. "merge" is for when alignment has finished but merged_sort hasn't been created; "dedup" is for when merged_sort is there but not merged_nodups (this will relaunch all dedup jobs); "final" is for when merged_nodups is there and you want the stats and hic files; "postproc" is for when you have the hic files and just want feature annotations; and "early" is for early exit, before hic file creation. If your jobs failed at the alignment stage, run `relaunch_prep.sh` and then run juicer.sh.
@@ -179,7 +180,7 @@ or type
 ```
 java -jar juicer_tools.jar (command...) [flags...] <parameters...>`
 ```
-There are different flavors of juicer_tools that depend on the CUDA version.  If you do not use GPUs, these versions are equivalent. Otherwise, juicer_tools.X.X.jar uses CUDA version X.X 
+There are different flavors of juicer_tools that depend on the CUDA version.  If you do not use GPUs, these versions are equivalent. Otherwise, juicer_tools.X.X.jar uses CUDA version X.X
 
 For HiCCUPS loop calling without the shell or bat script, you will need to
 call:
