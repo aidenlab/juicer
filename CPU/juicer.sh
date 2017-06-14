@@ -519,4 +519,5 @@ then
     ${juiceDir}/scripts/common/juicer_postprocessing.sh -j ${juiceDir}/scripts/common/juicer_tools -i ${outputdir}/inter_30.hic -m ${juiceDir}/references/motif -g ${genomeID}
 fi
 #CHECK THAT PIPELINE WAS SUCCESSFUL
+export early=$earlyexit
 source ${juiceDir}/scripts/common/check.sh
