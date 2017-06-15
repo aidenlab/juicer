@@ -37,5 +37,5 @@ elif [ "$CALLEDBY" = "LSF" ]
 then
     java -Djava.awt.headless=true -Djava.library.path=`dirname $0`/lib64 -Xmx16000m -Xms16000m -Xgcthreads1 -jar `dirname $0`/juicer_tools.7.0.jar $*
 else # default, don't use temp directory or gpus, use CUDA 7.0
-    java -Djava.awt.headless=true  -Xmx16000m  -jar `dirname $0`/juicer_tools.7.0.jar  $*
+    java -Djava.awt.headless=true  -Xmx16000m  -jar `dirname $0`/juicer_tools.jar  $*
 fi
