@@ -851,7 +851,7 @@ then
 	${load_java}
 	export IBM_JAVA_OPTIONS="-Xmx48192m -Xgcthreads1"
 	date
-	if [ -n "$nofrag" ]
+	if [ "$nofrag" -eq 1 ]
 	then 
 	    ${juiceDir}/scripts/juicer_tools48g pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath 
 	else 
@@ -876,7 +876,7 @@ HIC`
 	${load_java}
 	export IBM_JAVA_OPTIONS="-Xmx48192m -Xgcthreads1"
 	date
-	if [ -n "$nofrag" ]
+	if [ "$nofrag" -eq 1 ]
 	then 
 	    ${juiceDir}/scripts/juicer_tools48g pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath 
 	else 

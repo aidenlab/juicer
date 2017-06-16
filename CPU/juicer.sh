@@ -498,7 +498,7 @@ then
         cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam
         cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam
         awk -f ${juiceDir}/scripts/common/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
-        if [ -n "$nofrag" ]
+        if [ "$nofrag" -eq 1 ]
         then 
             ${juiceDir}/scripts/common/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
         else 
@@ -508,7 +508,7 @@ then
         cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter_30.txt
         java -cp ${juiceDir}/scripts/common/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt
         ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt
-        if [ -n "$nofrag" ]
+        if [ "$nofrag" -eq 1 ]
         then 
             ${juiceDir}/scripts/common/juicer_tools pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath 
         else 
