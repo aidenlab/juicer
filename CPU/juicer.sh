@@ -474,7 +474,11 @@ fi
 #REMOVE DUPLICATES
 if [ -z $final ] && [ -z $postproc ]
 then
+    touch ${outputdir}/dups.txt
+    touch ${outputdir}/optdups.txt
+    touch ${outputdir}/merged_nodups.txt
     awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ ${outputdir}/merged_sort.txt
+    mv ${outputdir}/optdups.txt ${outputdir}/opt_dups.txt # for consistency with cluster naming in split_rmdups
 fi
 if [ -z "$genomePath" ]
 then
