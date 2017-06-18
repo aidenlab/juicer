@@ -86,7 +86,7 @@ about=""
 nofrag=0
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] [-R end]\n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-r] [-h] [-x]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] [-R end]\n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-r] [-h] [-x]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" \n  (default \"$site\")"
@@ -98,6 +98,8 @@ pathHelp="* [chrom.sizes path]: enter path for chrom.sizes file"
 siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
 scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
 refSeqHelp="* [reference genome file]: enter path for reference sequence file, BWA index\n  files must be in same directory"
+ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
+threadsHelp="* [threads]: number of threads when running BWA alignment"
 excludeHelp="* -x: exclude fragment-delimited maps from hic file creation"
 helpHelp="* -h: print this help and exit"
 
@@ -114,6 +116,8 @@ printHelpAndExit() {
     echo -e "$siteFileHelp"
     echo -e "$refSeqHelp"
     echo -e "$scriptDirHelp"
+    echo -e "$ligationHelp"
+    echo -e "$threadsHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
@@ -134,8 +138,10 @@ while getopts "d:g:R:a:hrs:p:y:z:S:D:x" opt; do
 	S) stage=$OPTARG ;;
 	D) juiceDir=$OPTARG ;;
 	x) nofrag=1 ;; #no fragment maps
+	b) ligation=$OPTARG ;;
+        t) threads=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
-	esac
+    esac
 done
 
 if [ ! -z "$stage" ]
@@ -160,44 +166,47 @@ then
 	mm10) refSeq="${juiceDir}/references/Mus_musculus_assembly10.fasta";;
 	hg38) refSeq="${juiceDir}/references/hg38.fa";;
 	hg19) refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
-
-    *)  echo "$usageHelp"
-        echo "$genomeHelp"
-        exit 1
+	
+	*)  echo "$usageHelp"
+            echo "$genomeHelp"
+            exit 1
     esac
 else
     # Reference sequence passed in, so genomePath must be set for the .hic file
     # to be properly created
     if [ -z "$genomePath" ]
-        then
+    then
         echo "***! You must define a chrom.sizes file via the \"-p\" flag that delineates the lengths of the chromosomes in the genome at $refSeq";
-        exit 100;
+        exit 1;
     fi
 fi
 
 ## Check that refSeq exists 
 if [ ! -e "$refSeq" ]; then
     echo "***! Reference sequence $refSeq does not exist";
-    exit 100;
+    exit 1;
 fi
 
 ## Check that index for refSeq exists
 if [ ! -e "${refSeq}.bwt" ]; then
     echo "***! Reference sequence $refSeq does not appear to have been indexed. Please run bwa index on this file before running juicer.";
-    exit 100;
+    exit 1;
 fi
 
 ## Set ligation junction based on restriction enzyme
-case $site in
-    HindIII) ligation="AAGCTAGCTT";;
-    DpnII) ligation="GATCGATC";;
-    MboI) ligation="GATCGATC";;
-    NcoI) ligation="CCATGCATGG";;
-    none) ligation="XXXX";;
-    *)  ligation="XXXX"
-	echo "$site not listed as recognized enzyme. Using $site_file as site file"
-	echo "Ligation junction is undefined"
-esac
+if [ -z "$ligation" ]
+then
+    case $site in
+	HindIII) ligation="AAGCTAGCTT";;
+	DpnII) ligation="GATCGATC";;
+	MboI) ligation="GATCGATC";;
+	NcoI) ligation="CCATGCATGG";;
+	none) ligation="XXXX";;
+	*)  ligation="XXXX"
+	    echo "$site not listed as recognized enzyme. Using $site_file as site file"
+	    echo "Ligation junction is undefined"
+    esac
+fi
 
 ## If DNAse-type experiment, no fragment maps
 if [ "$site" == "none" ]
@@ -212,7 +221,7 @@ case $shortreadend in
     2) ;;
     *)	echo "$usageHelp"
 	echo "$shortHelp2"
-	exit 100
+	exit 1
 esac
 
 if [ -z "$site_file" ]
@@ -224,7 +233,16 @@ fi
 if [ ! -e "$site_file" ] && [ "$nofrag" -ne 1 ]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
-    exit 100
+    exit 1
+fi
+
+## Set threads for sending appropriate parameters to cluster and string for BWA call
+if [ ! -z "$threads" ]
+then
+    threadstring="-t $threads"
+else
+    threads="$(getconf _NPROCESSORS_ONLN)"
+    threadstring="-t $threads"
 fi
 
 ## Directories to be created and regex strings for listing files
@@ -239,7 +257,7 @@ if [ ! -d "$topDir/fastq" ]; then
     echo "Directory \"$topDir/fastq\" does not exist."
     echo "Create \"$topDir/fastq\" and put fastq files to be aligned there."
     echo "Type \"juicer.sh -h\" for help"
-    exit 100
+    exit 1
 else 
     if stat -t ${fastqdir} >/dev/null 2>&1
     then
@@ -248,7 +266,7 @@ else
 	if [ ! -d "$splitdir" ]; then 
 	    echo "***! Failed to find any files matching ${fastqdir}"
 	    echo "***! Type \"juicer.sh -h \" for help"
-	    exit 100		
+	    exit 1		
 	fi
     fi
 fi
@@ -258,10 +276,10 @@ if [[ -d "$outputdir" && -z "$final" && -z "$merge" && -z "$dedup" && -z "$postp
 then
     echo "***! Move or remove directory \"$outputdir\" before proceeding."
     echo "***! Type \"juicer.sh -h \" for help"
-    exit 100			
+    exit 1			
 else
     if [[ -z "$final" && -z "$dedup" && -z "$merge" && -z "$postproc" ]]; then
-        mkdir "$outputdir" || { echo "***! Unable to create ${outputdir}, check permissions." ; exit 100; } 
+        mkdir "$outputdir" || { echo "***! Unable to create ${outputdir}, check permissions." ; exit 1; } 
     fi
 fi
 
@@ -269,7 +287,7 @@ fi
 if [ -d "$splitdir" ]; then
     splitdirexists=1
 else
-    mkdir "$splitdir" || { echo "***! Unable to create ${splitdir}, check permissions." ; exit 100; }
+    mkdir "$splitdir" || { echo "***! Unable to create ${splitdir}, check permissions." ; exit 1; }
 fi
 
 ## Create temporary directory, used for sort later
@@ -281,7 +299,7 @@ fi
 ## Arguments have been checked and directories created. Now begins
 ## the real work of the pipeline
 
-threads="-t $(getconf _NPROCESSORS_ONLN)"
+
 testname=$(ls -l ${fastqdir} | awk 'NR==1{print $9}')
 if [ "${testname: -3}" == ".gz" ]
 then
@@ -327,29 +345,29 @@ then
         then
             usegzip=1
         fi
-	      source ${juiceDir}/scripts/common/countligations.sh
+	source ${juiceDir}/scripts/common/countligations.sh
 
         # Align read1 
         if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
-	      then
-	          echo "Running command bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam"
-	          bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam 
+	then
+	    echo "Running command bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam"
+	    bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam 
             if [ $? -ne 0 ]
             then
                 echo "***! Alignment of $name1$ext failed."
-		            exit 100
+		exit 1
             else
                 echo "(-: Short align of $name1$ext.sam done successfully"
             fi
         else
-            echo "Running command bwa mem $threads $refSeq $name1$ext > $name1$ext.sam" 
-            bwa mem $threads $refSeq $name1$ext > $name1$ext.sam
+            echo "Running command bwa mem $threadstring $refSeq $name1$ext > $name1$ext.sam" 
+            bwa mem $threadstring $refSeq $name1$ext > $name1$ext.sam
             if [ $? -ne 0 ]
             then
                 echo "***! Alignment of $name1$ext failed."
-                exit 100
+                exit 1
             else                                                            
-		            echo "(-:  Align of $name1$ext.sam done successfully"
+		echo "(-:  Align of $name1$ext.sam done successfully"
             fi                                    
         fi                                                              
         # Align read2
@@ -359,29 +377,29 @@ then
             bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam 
             if [ $? -ne 0 ]
             then
-		            echo "***! Alignment of $name2$ext failed."
-		            exit 100
+		echo "***! Alignment of $name2$ext failed."
+		exit 1
             else
-		            echo "(-: Short align of $name2$ext.sam done successfully"
+		echo "(-: Short align of $name2$ext.sam done successfully"
             fi
         else
-            echo "Running command bwa mem $threads $refSeq $name2$ext > $name2$ext.sam"
-            bwa mem $threads $refSeq $name2$ext > $name2$ext.sam 
+            echo "Running command bwa mem $threadstring $refSeq $name2$ext > $name2$ext.sam"
+            bwa mem $threadstring $refSeq $name2$ext > $name2$ext.sam 
             if [ $? -ne 0 ]
             then
-		            echo "***! Alignment of $name2$ext failed."
-		            exit 100
+		echo "***! Alignment of $name2$ext failed."
+		exit 1
             else
-		            echo "(-: Mem align of $name2$ext.sam done successfully"
+		echo "(-: Mem align of $name2$ext.sam done successfully"
             fi
-	      fi
+	fi
     done
     # sort read 1 aligned file by readname
     sort -T $tmpdir -k1,1 $name1$ext.sam > $name1${ext}_sort.sam
-   if [ $? -ne 0 ]
+    if [ $? -ne 0 ]
     then
         echo "***! Error while sorting $name1$ext.sam"
-        exit 100
+        exit 1
     else
         echo "(-: Sort read 1 aligned file by readname completed."
     fi
@@ -390,42 +408,34 @@ then
     if [ $? -ne 0 ]
     then
         echo "***! Error while sorting $name2$ext.sam"
-        exit 100
+        exit 1
     else
         echo "(-: Sort read 2 aligned file by readname completed."
     fi                           
     # add read end indicator to readname
     awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/1"; print}' $name1${ext}_sort.sam > $name1${ext}_sort1.sam
     awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/2"; print}' $name2${ext}_sort.sam > $name2${ext}_sort1.sam
-#awk 'BEGIN{OFS="\t"}$0 !~ /^@[A-Z][A-Z](\t[A-Za-z][A-Za-z0-9]:[ -~]+)+$/ && $0 !~ /^@CO\t.*/{$1=$1"/1"; print}' $name1${ext}_sort.sam > $name1${ext}_sort1.sam
-#awk 'BEGIN{OFS="\t"}$0 !~ /^@[A-Z][A-Z](\t[A-Za-z][A-Za-z0-9]:[ -~]+)+$/ &&$0 !~ /^@CO\t.*/{$1=$1"/2"; print}' $name2${ext}_sort.sam > $name2${ext}_sort1.sam
-
-    # merge the two sorted read end files
-    # samtools commands are simply to get header correctly
-#    samtools view -bh $name1${ext}_sort.sam > $name1${ext}_sort.bam
-#    samtools view -bh $name2${ext}_sort.sam > $name2${ext}_sort.bam
-#    samtools merge -n $name$ext.bam $name1${ext}_sort.bam $name2${ext}_sort.bam
-#    samtools view -H $name$ext.bam > $name$ext.header.sam  
     
     sort -T $tmpdir -k1,1 -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > ${name}${ext}.sam
     
     if [ $? -ne 0 ]
     then
         echo "***! Failure during merge of read files"
-        exit 100
+        exit 1
     else
         rm $name1$ext*.sa* $name2$ext*.sa* 
         echo "(-: $name$ext.sam created successfully."
     fi
-
+    
     export LC_ALL=C
     # call chimeric_blacklist.awk to deal with chimeric reads; 
     # sorted file is sorted by read name at this point
+    touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam
     awk -v "fname1"=$name${ext}_norm.txt -v "fname2"=$name${ext}_abnorm.sam -v "fname3"=$name${ext}_unmapped.sam -f ${juiceDir}/scripts/common/chimeric_blacklist.awk $name$ext.sam
     if [ $? -ne 0 ]
     then
         echo "***! Failure during chimera handling of $name${ext}"
-        exit 100
+        exit 1
     fi
     # if any normal reads were written, find what fragment they correspond to 
     # and store that
@@ -437,19 +447,19 @@ then
         awk '{printf("%s %s %s %d %s %s %s %d", $1, $2, $3, 0, $4, $5, $6, 1); for (i=7; i<=NF; i++) {printf(" %s",$i);}printf("\n");}' $name${ext}_norm.txt > $name${ext}.frag.txt
     else                                                                    
         echo "***! No $name${ext}_norm.txt file created"
-        exit 100
+        exit 1
     fi                                                                      
     if [ $? -ne 0 ]
     then
         echo "***! Failure during fragment assignment of $name${ext}"
-        exit 100
+        exit 1
     fi                              
      # sort by chromosome, fragment, strand, and position                    
     sort -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $name${ext}.frag.txt > $name${ext}.sort.txt
     if [ $? -ne 0 ]
     then
         echo "***! Failure during sort of $name${ext}"
-        exit 100
+        exit 1
     else
         rm $name${ext}_norm.txt $name${ext}.frag.txt
     fi
@@ -465,7 +475,7 @@ then
     if ! sort -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
     then 
         echo "***! Some problems occurred somewhere in creating sorted align files."
-        exit 100
+        exit 1
     else
         echo "(-: Finished sorting all sorted files into a single merge."
         rm -r ${tmpdir}
