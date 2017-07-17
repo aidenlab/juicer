@@ -207,7 +207,7 @@ then
         mm10) refSeq="${juiceDir}/references/Mus_musculus_assembly10.fasta";;
         hg38) refSeq="${juiceDir}/references/Homo_sapiens_assembly38.fasta";;
         hg19) refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
-	      *)  echo "$usageHelp"
+	*)  echo "$usageHelp"
             echo "$genomeHelp"
             exit 1
     esac
@@ -281,6 +281,13 @@ then
     threadstring="-t $threads"
 else
     threads=1
+fi
+
+alloc_mem=$(($threads * 5000))
+
+if [ $alloc_mem -gt 40000 ]
+then
+    alloc_mem=40000
 fi
 
 ## Directories to be created and regex strings for listing files
@@ -498,7 +505,7 @@ SPLITEND
         echo "Count ligations $jname job $myjid" >> ${debugdir}/jobs-${groupname}.out
         # align read1 fastq
         touchfile1=${tmpdir}/${jname}1
-        jid1=$(qsub -terse -o ${debugdir}/alignR1-${groupname}-${jname}.out -e ${debugdir}/alignR1-${groupname}-${jname}.err -q ${queue} -r y -N ${groupname}_align1${jname} -l h_vmem=16g -pe smp ${threads} -binding linear:${threads}  <<- ALGNR1
+        jid1=$(qsub -terse -o ${debugdir}/alignR1-${groupname}-${jname}.out -e ${debugdir}/alignR1-${groupname}-${jname}.err -q ${queue} -r y -N ${groupname}_align1${jname} -l h_vmem=${alloc_mem} -pe smp ${threads} -binding linear:${threads}  <<- ALGNR1
         #!/bin/bash 
         source $usePath
         $load_bwa
@@ -507,64 +514,64 @@ SPLITEND
         then		
             echo 'Running command bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam'
             bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam
-  	        if [ \$? -ne 0 ]
-  	        then
+  	    if [ \$? -ne 0 ]
+  	    then
                 echo "***! Error, failed to align $name1$ext" 
                 touch $errorfile
-  	            exit 1
-  	        else
+  	        exit 1
+  	    else
                 touch $touchfile1
-  		          echo "(-: Short align of $name1$ext.sam done successfully"
-  	        fi		
+  		echo "(-: Short align of $name1$ext.sam done successfully"
+  	    fi		
         else
             echo 'Running command bwa mem $threadstring $refSeq $name1$ext > $name1$ext.sam '
             bwa mem $threadstring $refSeq $name1$ext > $name1$ext.sam
-  	        if [ \$? -ne 0 ]
-  	        then 
+  	    if [ \$? -ne 0 ]
+  	    then 
                 echo "***! Error, failed to align $name1$ext" 
                 touch $errorfile
-  	            exit 1
-  	        else
+  	        exit 1
+  	    else
                 touch $touchfile1
-  		          echo "(-: Mem align of $name1$ext.sam done successfully"
-  	        fi		
+  		echo "(-: Mem align of $name1$ext.sam done successfully"
+  	    fi		
         fi
 ALGNR1
 )
         echo "Align read1 $jname job $jid1" >> ${debugdir}/jobs-${groupname}.out
         touchfile2=${tmpdir}/${jname}2
- 	      # align read2 fastq
-	jid2=$(qsub -terse -o ${debugdir}/alignR2-${groupname}-${jname}.out -e ${debugdir}/alignR2-${groupname}-${jname}.err -q ${queue} -r y -N ${groupname}_align2${jname} -l h_vmem=16g -pe smp ${threads} -binding linear:${threads}  <<- ALGNR2
+ 	# align read2 fastq
+	jid2=$(qsub -terse -o ${debugdir}/alignR2-${groupname}-${jname}.out -e ${debugdir}/alignR2-${groupname}-${jname}.err -q ${queue} -r y -N ${groupname}_align2${jname} -l h_vmem=${alloc_mem} -pe smp ${threads} -binding linear:${threads}  <<- ALGNR2
  	#!/bin/bash 
         source $usePath
         $load_bwa
-        	# Align read2
+        # Align read2
         if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
- 	      then		
+ 	then		
             echo 'Running command bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam '
- 	          bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam
- 	          if [ \$? -ne 0 ]
- 	          then 
+ 	    bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam
+ 	    if [ \$? -ne 0 ]
+ 	    then 
                 echo "***! Error, failed to align $name2$ext" 
                 touch $errorfile
- 		            exit 1
- 	          else
+ 		exit 1
+ 	    else
                 touch $touchfile2
- 		            echo "(-: Short align of $name2$ext.sam done successfully"
- 	          fi				
- 	      else	
+ 		echo "(-: Short align of $name2$ext.sam done successfully"
+ 	    fi				
+ 	else	
             echo 'Running command bwa mem $threadstring $refSeq $name2$ext > $name2$ext.sam'
- 	          bwa mem $threadstring $refSeq $name2$ext > $name2$ext.sam
- 	          if [ \$? -ne 0 ]
- 	          then 
+ 	    bwa mem $threadstring $refSeq $name2$ext > $name2$ext.sam
+ 	    if [ \$? -ne 0 ]
+ 	    then 
                 echo "***! Error, failed to align $name2$ext" 
                 touch $errorfile
- 		            exit 1
- 	          else
+ 		exit 1
+ 	    else
                 touch $touchfile2
- 		            echo "(-: Mem align of $name2$ext.sam done successfully"
- 	          fi		
- 	      fi		
+ 		echo "(-: Mem align of $name2$ext.sam done successfully"
+ 	    fi		
+ 	fi		
 ALGNR2
 );
         echo "Align read2 $jname job $jid2" >> ${debugdir}/jobs-${groupname}.out
