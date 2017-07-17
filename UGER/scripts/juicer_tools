@@ -23,4 +23,4 @@
 #  THE SOFTWARE.
 ##########
 # Juicer 1.5
-java -Djava.awt.headless=true  -Xmx16000m  -jar `dirname $0`/juicer_tools.7.5.jar  $*
+java -Djava.awt.headless=true  -Xmx16000m  -jar `dirname $0`/juicer_tools.jar  $*

@@ -54,37 +54,43 @@ done
 ## Check that juicer_tools exists 
 if [ ! -e "${juicer_tools_path}" ]; then
   echo "***! Can't find juicer tools in ${juicer_tools_path}";
-  exit 100;
+  exit 1;
 fi
 
 ## Check that hic file exists    
 if [ ! -e "${hic_file_path}" ]; then
-  echo "***! Can't find inter.hic in ${hic_file_path}";
-  exit 100;
-fi
-
-## Check that bed folder exists    
-if [ ! -e "${bed_file_dir}" ]; then
-  echo "***! Can't find folder ${bed_file_dir}";
-  exit 100;
+  echo "***! Can't find inter_30.hic in ${hic_file_path}";
+  exit 1;
 fi
 
 echo -e "\nHiCCUPS:\n"
-${juicer_tools_path} hiccups ${hic_file_path} ${hic_file_path%.*}"_loops.txt"
-if [ $? -ne 0 ]; then
-    echo "***! Problem while running HiCCUPS";
-    exit 100
+if hash nvcc 2>/dev/null 
+then 
+    ${juicer_tools_path} hiccups ${hic_file_path} ${hic_file_path%.*}"_loops"
+    if [ $? -ne 0 ]; then
+	echo "***! Problem while running HiCCUPS";
+	exit 1
+    fi
+else 
+    echo "GPUs are not installed so HiCCUPs cannot be run";
 fi
 
-if [ -f ${hic_file_path%.*}"_loops.txt" ]
+if [ -e ${hic_file_path%.*}"_loops" ]
 then
     echo -e "\nAPA:\n"
-    ${juicer_tools_path} apa ${hic_file_path} ${hic_file_path%.*}"_loops.txt" "apa_results"
-    echo -e "\nMOTIF FINDER:\n"
-    ${juicer_tools_path} motifs ${genomeID} ${bed_file_dir} ${hic_file_path%.*}"_loops.txt"
+    ${juicer_tools_path} apa ${hic_file_path} ${hic_file_path%.*}"_loops" "apa_results"
+    ## Check that bed folder exists    
+    if [ ! -e "${bed_file_dir}" ]; then
+	echo "***! Can't find folder ${bed_file_dir}";
+	echo "***! Not running motif finder";
+    else
+	echo -e "\nMOTIF FINDER:\n"
+	${juicer_tools_path} motifs ${genomeID} ${bed_file_dir} ${hic_file_path%.*}"_loops"
+    fi
     echo -e "\n(-: Feature annotation successfully completed (-:"
 else
-    # if loop lists do not exist but Juicer tools didn't return an error, likely 
-    # too sparse
-    echo -e "\n(-: Postprocessing successfully completed, maps too sparse to annotate (-:"
+  # if loop lists do not exist but Juicer Tools didn't return an error, likely 
+  # too sparse
+    echo -e "\n(-: Postprocessing successfully completed, maps too sparse to annotate or GPUs unavailable (-:"
 fi
+

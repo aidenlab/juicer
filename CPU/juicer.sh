@@ -59,7 +59,7 @@
 #             match any files with the read1str.   
 set -e
 shopt -s extglob
-juicer_version="1.5" 
+juicer_version="1.5.6" 
 ### LOAD BWA AND SAMTOOLS
 
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
@@ -164,7 +164,7 @@ then
     case $genomeID in
 	mm9) refSeq="${juiceDir}/references/Mus_musculus_assembly9_norandom.fasta";;
 	mm10) refSeq="${juiceDir}/references/Mus_musculus_assembly10.fasta";;
-	hg38) refSeq="${juiceDir}/references/hg38.fa";;
+	hg38) refSeq="${juiceDir}/references/Homo_sapiens_assembly38.fasta";;
 	hg19) refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
 	
 	*)  echo "$usageHelp"
@@ -299,7 +299,6 @@ fi
 ## Arguments have been checked and directories created. Now begins
 ## the real work of the pipeline
 
-
 testname=$(ls -l ${fastqdir} | awk 'NR==1{print $9}')
 if [ "${testname: -3}" == ".gz" ]
 then
@@ -309,9 +308,23 @@ else
     read1=${splitdir}"/*${read1str}*.fastq"
 fi
 
-date 
-echo "Juicer version:$juicer_version"
-echo "$0 $@" 
+headfile=${outputdir}/header
+date > $headfile
+# Experiment description
+if [ -n "${about}" ]
+then
+    echo -ne 'Experiment description: ${about}; ' >> $headfile
+else
+    echo -ne 'Experiment description: ' >> $headfile
+fi
+
+# Get version numbers of all software
+echo -ne "Juicer version $juicer_version;" >> $headfile
+bwa 2>&1 | awk '\$1=="Version:"{printf(" BWA %s; ", \$2)}' >> $headfile 
+echo -ne "$threads threads; " >> $headfile
+java -version 2>&1 | awk 'NR==1{printf("%s; ", \$0);}' >> $headfile 
+${juiceDir}/scripts/juicer_tools -V 2>&1 | awk '\$1=="Juicer" && \$2=="Tools"{printf("%s; ", \$0);}' >> $headfile
+echo "$0 $@" >> $headfile
 
 ## ALIGN FASTQ AS SINGLE END, SORT BY READNAME, HANDLE CHIMERIC READS
  
@@ -488,7 +501,8 @@ then
     touch ${outputdir}/optdups.txt
     touch ${outputdir}/merged_nodups.txt
     awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ ${outputdir}/merged_sort.txt
-    mv ${outputdir}/optdups.txt ${outputdir}/opt_dups.txt # for consistency with cluster naming in split_rmdups
+    # for consistency with cluster naming in split_rmdups
+    mv ${outputdir}/optdups.txt ${outputdir}/opt_dups.txt 
 fi
 if [ -z "$genomePath" ]
 then
@@ -504,7 +518,7 @@ then
     then        
         export _JAVA_OPTIONS=-Xmx16384m
         export LC_ALL=en_US.UTF-8 
-        echo -e "Experiment description: $about" > $outputdir/inter.txt
+	tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt;
         ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt
         cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
         java -cp ${juiceDir}/scripts/common/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
@@ -518,7 +532,7 @@ then
         else 
             ${juiceDir}/scripts/common/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath 
         fi 
-        echo -e "Experiment description: $about" > $outputdir/inter_30.txt 
+	tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter_30.txt;
         cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter_30.txt
         java -cp ${juiceDir}/scripts/common/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt
         ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt
