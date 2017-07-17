@@ -331,7 +331,7 @@ echo "$0 $@" >> $headfile
 ## Not in merge, dedup, final, or postproc stage, i.e. need to align files.
 if [ -z $merge ] && [ -z $final ] && [ -z $dedup ] && [ -z $postproc ]
 then
-    echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with site file $site_file"
+    echo -e "(-: Aligning files matching $fastqdir\n to genome $genomeID with site file $site_file"
     if [ ! $splitdirexists ]
     then
         echo "(-: Created $splitdir and $outputdir."
