@@ -331,7 +331,7 @@ echo "$0 $@" >> $headfile
 ## Not in merge, dedup, final, or postproc stage, i.e. need to align files.
 if [ -z $merge ] && [ -z $final ] && [ -z $dedup ] && [ -z $postproc ]
 then
-    echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with site file $site_file"
+    echo -e "(-: Aligning files matching $fastqdir\n to genome $genomeID with site file $site_file"
     if [ ! $splitdirexists ]
     then
         echo "(-: Created $splitdir and $outputdir."
@@ -406,76 +406,76 @@ then
 		echo "(-: Mem align of $name2$ext.sam done successfully"
             fi
 	fi
+        # sort read 1 aligned file by readname
+	sort -T $tmpdir -k1,1 $name1$ext.sam > $name1${ext}_sort.sam
+	if [ $? -ne 0 ]
+	then
+            echo "***! Error while sorting $name1$ext.sam"
+            exit 1
+	else
+            echo "(-: Sort read 1 aligned file by readname completed."
+	fi
+        # sort read 2 aligned file by readname
+	sort -T $tmpdir -k1,1 $name2$ext.sam > $name2${ext}_sort.sam
+	if [ $? -ne 0 ]
+	then
+            echo "***! Error while sorting $name2$ext.sam"
+            exit 1
+	else
+            echo "(-: Sort read 2 aligned file by readname completed."
+	fi                           
+        # add read end indicator to readname
+	awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/1"; print}' $name1${ext}_sort.sam > $name1${ext}_sort1.sam
+	awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/2"; print}' $name2${ext}_sort.sam > $name2${ext}_sort1.sam
+    
+	sort -T $tmpdir -k1,1 -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > ${name}${ext}.sam
+    
+	if [ $? -ne 0 ]
+	then
+            echo "***! Failure during merge of read files"
+            exit 1
+	else
+            rm $name1$ext*.sa* $name2$ext*.sa* 
+            echo "(-: $name$ext.sam created successfully."
+	fi
+    
+	export LC_ALL=C
+        # call chimeric_blacklist.awk to deal with chimeric reads; 
+        # sorted file is sorted by read name at this point
+	touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam
+	awk -v "fname1"=$name${ext}_norm.txt -v "fname2"=$name${ext}_abnorm.sam -v "fname3"=$name${ext}_unmapped.sam -f ${juiceDir}/scripts/common/chimeric_blacklist.awk $name$ext.sam
+	if [ $? -ne 0 ]
+	then
+            echo "***! Failure during chimera handling of $name${ext}"
+            exit 1
+	fi
+        # if any normal reads were written, find what fragment they correspond to 
+        # and store that
+	if [ -e "$name${ext}_norm.txt" ] && [ "$site" != "none" ]
+	then
+            ${juiceDir}/scripts/common/fragment.pl $name${ext}_norm.txt $name${ext}.frag.txt $site_file                                                                
+	elif [ "$site" == "none" ]
+	then
+            awk '{printf("%s %s %s %d %s %s %s %d", $1, $2, $3, 0, $4, $5, $6, 1); for (i=7; i<=NF; i++) {printf(" %s",$i);}printf("\n");}' $name${ext}_norm.txt > $name${ext}.frag.txt
+	else                                                                    
+            echo "***! No $name${ext}_norm.txt file created"
+            exit 1
+	fi                                                                      
+	if [ $? -ne 0 ]
+	then
+            echo "***! Failure during fragment assignment of $name${ext}"
+            exit 1
+	fi                              
+        # sort by chromosome, fragment, strand, and position                    
+	sort -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $name${ext}.frag.txt > $name${ext}.sort.txt
+	if [ $? -ne 0 ]
+	then
+            echo "***! Failure during sort of $name${ext}"
+            exit 1
+	else
+            rm $name${ext}_norm.txt $name${ext}.frag.txt
+	fi
     done
-    # sort read 1 aligned file by readname
-    sort -T $tmpdir -k1,1 $name1$ext.sam > $name1${ext}_sort.sam
-    if [ $? -ne 0 ]
-    then
-        echo "***! Error while sorting $name1$ext.sam"
-        exit 1
-    else
-        echo "(-: Sort read 1 aligned file by readname completed."
-    fi
-    # sort read 2 aligned file by readname
-    sort -T $tmpdir -k1,1 $name2$ext.sam > $name2${ext}_sort.sam
-    if [ $? -ne 0 ]
-    then
-        echo "***! Error while sorting $name2$ext.sam"
-        exit 1
-    else
-        echo "(-: Sort read 2 aligned file by readname completed."
-    fi                           
-    # add read end indicator to readname
-    awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/1"; print}' $name1${ext}_sort.sam > $name1${ext}_sort1.sam
-    awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/2"; print}' $name2${ext}_sort.sam > $name2${ext}_sort1.sam
-    
-    sort -T $tmpdir -k1,1 -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > ${name}${ext}.sam
-    
-    if [ $? -ne 0 ]
-    then
-        echo "***! Failure during merge of read files"
-        exit 1
-    else
-        rm $name1$ext*.sa* $name2$ext*.sa* 
-        echo "(-: $name$ext.sam created successfully."
-    fi
-    
-    export LC_ALL=C
-    # call chimeric_blacklist.awk to deal with chimeric reads; 
-    # sorted file is sorted by read name at this point
-    touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam
-    awk -v "fname1"=$name${ext}_norm.txt -v "fname2"=$name${ext}_abnorm.sam -v "fname3"=$name${ext}_unmapped.sam -f ${juiceDir}/scripts/common/chimeric_blacklist.awk $name$ext.sam
-    if [ $? -ne 0 ]
-    then
-        echo "***! Failure during chimera handling of $name${ext}"
-        exit 1
-    fi
-    # if any normal reads were written, find what fragment they correspond to 
-    # and store that
-    if [ -e "$name${ext}_norm.txt" ] && [ "$site" != "none" ]
-    then
-        ${juiceDir}/scripts/common/fragment.pl $name${ext}_norm.txt $name${ext}.frag.txt $site_file                                                                
-    elif [ "$site" == "none" ]
-    then
-        awk '{printf("%s %s %s %d %s %s %s %d", $1, $2, $3, 0, $4, $5, $6, 1); for (i=7; i<=NF; i++) {printf(" %s",$i);}printf("\n");}' $name${ext}_norm.txt > $name${ext}.frag.txt
-    else                                                                    
-        echo "***! No $name${ext}_norm.txt file created"
-        exit 1
-    fi                                                                      
-    if [ $? -ne 0 ]
-    then
-        echo "***! Failure during fragment assignment of $name${ext}"
-        exit 1
-    fi                              
-     # sort by chromosome, fragment, strand, and position                    
-    sort -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $name${ext}.frag.txt > $name${ext}.sort.txt
-    if [ $? -ne 0 ]
-    then
-        echo "***! Failure during sort of $name${ext}"
-        exit 1
-    else
-        rm $name${ext}_norm.txt $name${ext}.frag.txt
-    fi
 fi
 
 #MERGE SORTED AND ALIGNED FILES
