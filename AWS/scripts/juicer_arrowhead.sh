@@ -51,21 +51,21 @@ done
 ## Check that juicer tools exists 
 if [ ! -e "${juicer_tools_path}" ]; then
   echo "***! Can't find juicer tools in ${juicer_tools_path}";
-  exit 100;
+  exit 1;
 fi
 
 ## Check that hic file exists    
 if [ ! -e "${hic_file_path}" ]; then
-  echo "***! Can't find inter.hic in ${hic_file_path}";
-  exit 100;
+  echo "***! Can't find inter_30.hic in ${hic_file_path}";
+  exit 1;
 fi
 
-echo -e "${juicer_tools_path} is post-processing Hi-C for ${genomeID}\nData read from ${hic_file_path}.\nMotifs read from ${bed_file_dir}\n"
+echo -e "${juicer_tools_path} is post-processing Hi-C for ${genomeID}\nData read from ${hic_file_path}.\n"
 echo -e "ARROWHEAD:\n"
-${juicer_tools_path} arrowhead ${hic_file_path} ${hic_file_path%.*}"_contact_domains.txt"
+${juicer_tools_path} arrowhead ${hic_file_path} ${hic_file_path%.*}"_contact_domains"
 if [ $? -ne 0 ]; then
     echo "***! Problem while running Arrowhead";
-    exit 100
+    exit 1
 else
     echo -e "\n(-: Arrowhead Postprocessing successfully completed (-:"
 fi
