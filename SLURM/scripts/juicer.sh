@@ -91,7 +91,7 @@ elif [ $isBCM -eq 1 ]
 then    
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
-    juiceDir="/storage/aiden/juicer/BioScripts/SLURM"
+    juiceDir="/storage/aiden/juicer/"
     # default queue, can also be set in options via -q
     queue="mhgcp"
     queue_time="1200"
@@ -100,13 +100,12 @@ then
     long_queue_time="3600"
 else
     isVoltron=1
-    #source activate /gpfs0/biobuild/biobuilds-2016.04
+
     export PATH=/gpfs0/biobuild/biobuilds-2016.11/bin:$PATH 
-#    export PATH=$PATH:/usr/local/cuda/bin/ 
     unset MALLOC_ARENA_MAX 
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
-    juiceDir="/gpfs0/juicer/BioScripts/SLURM/"
+    juiceDir="/gpfs0/juicer/"
     # default queue, can also be set in options
     queue="commons"
     # default long queue, can also be set in options
@@ -833,13 +832,22 @@ then
     
     # merge the sorted files into one giant file that is also sorted.      jid=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
     
+    if [ $isVoltron -eq 1 ]
+    then  
+	sbatch_time="#SBATCH -t 10080"
+    else
+	sbatch_time="#SBATCH -t 1440"
+    fi
+
+
+
     jid=`sbatch <<- EOF
 		#!/usr/bin/bash
 		#SBATCH -o $debugdir/fragmerge-%j.out
 		#SBATCH -e $debugdir/fragmerge-%j.err
 		#SBATCH --mem 256000
-		#SBATCH -t 1440
-		#SBATCH -p $queue
+		${sbatch_time}
+		#SBATCH -p $long_queue
 		#SBATCH -c 8
 		#SBATCH -J "${groupname}_fragmerge"
 		${sbatch_wait}
@@ -1125,13 +1133,13 @@ HIC30`
 	echo "load: $load_gpu"
 	${load_java}
 	date
-	nvcc
+	nvcc -V
         if [ -f "${errorfile}" ]
         then 
             echo "***! Found errorfile. Exiting." 
             exit 1 
         fi 
-	source ${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
+	${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
 	date
 HICCUPS`
             dependhiccups="afterok:$jid"
