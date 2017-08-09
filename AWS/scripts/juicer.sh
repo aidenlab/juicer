@@ -269,12 +269,14 @@ then
 fi
 
 ## Set threads for sending appropriate parameters to cluster and string for BWA call
-if [ ! -z "$threads" ]
+if [ -z "$threads" ]
 then
-    threadstring="-t $threads"
-else
-    threads=16
+    threads="$(getconf _NPROCESSORS_ONLN)"
 fi
+
+threadstring="-t $threads"
+#alloc_mem=$(($threads * 5000))
+alloc_mem=12000
 
 ## Directories to be created and regex strings for listing files
 splitdir=${topDir}"/splits"
@@ -359,22 +361,23 @@ else
 fi
 
 bsub -o ${debugdir}/head-${groupname}.out -q "$queue" -W "$queue_time" -J "${groupname}_cmd" <<EOF
+	#!/bin/bash
 	date
 	# Experiment description
 	if [ -n "${about}" ]
 	then
-		echo -ne 'Experiment description: ${about}; '
+		printf 'Experiment description: ${about}; '
 	else
-		echo -ne 'Experiment description: '
+		printf 'Experiment description: '
 	fi
 
 	# Get version numbers of all software
-	echo -ne "Juicer version $juicer_version;"
+	printf "Juicer version $juicer_version;"
 	bwa 2>&1 | awk '\$1=="Version:"{printf(" BWA %s; ", \$2)}' 
-	echo -ne "$threads threads; "
+	printf "$threads threads; "
 	if [ -n "$splitme" ]
 	then
-		echo -ne "splitsize $splitsize; "
+		printf "splitsize $splitsize; "
 	fi  
 	java -version 2>&1 | awk 'NR==1{printf("%s; ", \$0);}' 
 	${juiceDir}/scripts/juicer_tools -V 2>&1 | awk '\$1=="Juicer" && \$2=="Tools"{printf("%s; ", \$0);}' 
@@ -540,11 +543,12 @@ CNTLIG
 	bsub <<- ALGNR1
 	#!/bin/bash
 	#BSUB -q Align
+	#BSUB -W $queue_time
 	#BSUB -o ${debugdir}/alignR1-${groupname}-${jname}.out
 	#BSUB -e ${debugdir}/alignR1-${groupname}-${jname}.err
-	#BSUB -W $queue_time
-	#BSUB -R "rusage[mem=$alloc_mem]"
 	#BSUB -J "${groupname}_align1${jname}"
+	#BSUB -R "rusage[mem=${alloc_mem}]"
+
 	# Align read1 
 	if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
 	then		
@@ -579,7 +583,7 @@ ALGNR1
 	#BSUB -o ${debugdir}/alignR2-${groupname}-${jname}.out
 	#BSUB -e ${debugdir}/alignR2-${groupname}-${jname}.err
         #BSUB -W $queue_time	
-	#BSUB -R "rusage[mem=$alloc_mem]"
+	#BSUB -R "rusage[mem=${alloc_mem}]"
 	#BSUB -J "${groupname}_align2${jname}"
 	# Align read2
 	if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
@@ -736,6 +740,7 @@ CHIMERIC
 	#BSUB -w " ${ARRAY[i]} "
 	#BSUB -J "cleanup_${groupname}_${i}"
 	bkill -q Align 0
+	echo 
 CLNFAIL
     done
 
@@ -751,6 +756,7 @@ CLNFAIL
     #BSUB -w " done(${groupname}_chimeric*) " 
     #BSUB -J "${groupname}_fragmerge1"
     bkill -q Clean2 0
+    echo
 FNLKILL
 fi
 
@@ -790,6 +796,8 @@ MRGSRT
     #BSUB -J "${groupname}_clean1"
     #BSUB -w " exit(${groupname}_fragmerge) "
     bkill -q Merge 0
+    echo
+
 CLNDIE
 fi
 		
@@ -828,6 +836,7 @@ KILLCLNUP
     #BSUB -J "${groupname}_clean2"
     #BSUB -w " exit(${groupname}_osplit) "
     bkill -q Clean3 0
+    echo
 DIECLNRLNCH
 fi
 
@@ -863,9 +872,10 @@ then
         #BSUB -J "${groupname}_launch"
         echo "(-: Alignment and merge done, launching other jobs."
         $execstring
-        bsub -o ${debugdir}/stats-${groupname}.out -e ${debugdir}/stats-${groupname}.err -q $long_queue -W $long_queue_time -R "rusage[mem=16000]" $waitstring22 -J "${groupname}_stats" "df -h;_JAVA_OPTIONS=-Xmx16384m; export LC_ALL=en_US.UTF-8; tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt; ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt; cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt; java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt; ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt; cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam; cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam; awk -f ${juiceDir}/scripts/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt"
+        bsub -o ${debugdir}/stats-${groupname}.out -e ${debugdir}/stats-${groupname}.err -q $long_queue -W $long_queue_time -R "rusage[mem=16000]" $waitstring22 -J "${groupname}_stats" "df -h;_JAVA_OPTIONS=-Xmx16384m; export LC_ALL=en_US.UTF-8; tail -n1 ${headfile} | awk '{printf\"%-1000s\n\", \\\$0}' > $outputdir/inter.txt; ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt; cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt; java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt; ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt; cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam; cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam; awk -f ${juiceDir}/scripts/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt"
         bsub -o ${debugdir}/hic-${groupname}.out -e ${debugdir}/hic-${groupname}.err -q $long_queue -W $long_queue_time -R "rusage[mem=16000]" -w "done(${groupname}_stats)" -J "${groupname}_hic" "df -h;export _JAVA_OPTIONS=-Xmx16384m; if [ \"$nofrag\" -eq 1 ]; then ${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath; else ${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath; fi ;"
-        bsub -o ${debugdir}/stats30hic30-${groupname}.out -e ${debugdir}/stats30hic30-${groupname}.err -q $long_queue -W $long_queue_time -R "rusage[mem=16000]" $waitstring22 -J "${groupname}_hic30" "df -h;export _JAVA_OPTIONS=-Xmx16384m; export LC_ALL=en_US.UTF-8; tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter_30.txt; cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter_30.txt; java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt; ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt; export _JAVA_OPTIONS=-Xmx8192m; if [ \"$nofrag\" -eq 1 ]; then ${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath; else ${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath; fi"
+        bsub -o ${debugdir}/stats30hic30-${groupname}.out -e ${debugdir}/stats30hic30-${groupname}.err -q $long_queue -W $long_queue_time -R "rusage[mem=16000]" $waitstring22 -J "${groupname}_hic30" "df -h;export _JAVA_OPTIONS=-Xmx16384m; export LC_ALL=en_US.UTF-8; tail -n1 $headfile | awk '{printf\"%-1000s\n\", \\\$0}' > $outputdir/inter_30.txt; cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter_30.txt; java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt; ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt; export _JAVA_OPTIONS=-Xmx8192m; if [ \"$nofrag\" -eq 1 ]; then ${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath; else ${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath; fi"
+	echo
 DOSTAT
 	waitstring3="#BSUB -w \" done(${groupname}_launch) \""
 	waitstring4="-w \"done(${groupname}_hic30)\""
@@ -881,7 +891,8 @@ DOSTAT
     #BSUB -e ${debugdir}/postproc-${groupname}.err 
     ${waitstring3}
     #BSUB -J "${groupname}_postproc_wrap"
-    bsub -o ${debugdir}/postproc-${groupname}.out -e ${debugdir}/postproc-${groupname}.err  -q $long_queue -W $long_queue_time -R "rusage[mem=16000]" $waitstring4 -J "${groupname}_postproc" "${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicer_tools -i ${outputdir}/inter_30.hic -m ${juiceDir}/references/motif -g ${genomeID}"
+    bsub -o ${debugdir}/postproc-${groupname}.out -e ${debugdir}/postproc-${groupname}.err  -q $long_queue -W $long_queue_time -R "rusage[mem=12000]" $waitstring4 -J "${groupname}_postproc" "${juiceDir}/scripts/juicer_postprocessing.sh -j ${juiceDir}/scripts/juicer_tools -i ${outputdir}/inter_30.hic -m ${juiceDir}/references/motif -g ${genomeID}"
+    echo
 POSTPROC
     ## LSF users change queue below to $queue
     bsub <<- FINCLN1
@@ -893,6 +904,7 @@ POSTPROC
     #BSUB -J "${groupname}_prep_done"
     #BSUB -w " done(${groupname}_postproc_wrap) "
     bsub -o ${debugdir}/finalcheck-${groupname}.out -e ${debugdir}/finalcheck-${groupname}.err -q $queue -W $queue_time $waitstring5 -J "${groupname}_done" "bkill -J ${groupname}_clean3; export splitdir=${splitdir}; export outputdir=${outputdir}; ${juiceDir}/scripts/check.sh;"
+    echo
 FINCLN1
     # if it dies, cleanup 
     ## LSF users change queue below to $queue
@@ -905,6 +917,7 @@ FINCLN1
     #BSUB -e ${debugdir}/finalclean-${groupname}.err
     $waitstring3
     bsub -o ${debugdir}/finalclean-${groupname}.out -e ${debugdir}/finalclean-${groupname}.err -q $queue -W $queue_time $diefinal -J "${groupname}_clean3" "bkill -q $long_queue 0; bkill -q CleanFnl 0; bkill -q $queue 0;"
+    echo
 DIEFINAL
 else
     ## LSF users change queue below to $queue
@@ -916,6 +929,7 @@ else
     #BSUB -J "${groupname}_prep_done"
     #BSUB -w " done(${groupname}_launch) "
     bsub -o ${debugdir}/finalclean-${groupname}.out -e ${debugdir}/finalclean-${groupname}.err -q $queue -W $queue_time -w "done(${groupname}_clean2)" -J "${groupname}_done" "export splitdir=${splitdir}; export outputdir=${outputdir}; ${juiceDir}/scripts/check.sh"
+    echo
 FINCLN1
 fi
 echo "(-: Finished adding all jobs... please wait while processing."
