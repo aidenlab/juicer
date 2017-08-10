@@ -100,9 +100,9 @@ then
     long_queue_time="3600"
 else
     isVoltron=1
-
     export PATH=/gpfs0/biobuild/biobuilds-2016.11/bin:$PATH 
-    unset MALLOC_ARENA_MAX 
+    unset MALLOC_ARENA_MAX
+    load_gpu="CUDA_VISIBLE_DEVICES=0,1,2,3" 
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
     juiceDir="/gpfs0/juicer/"
@@ -1023,6 +1023,7 @@ DUPCHECK`
 			echo "***! Found errorfile. Exiting." 
 			exit 1 
 		fi 
+		${load_java}
 		export IBM_JAVA_OPTIONS="-Xmx16384m -Xgcthreads1"
 		tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt 
 

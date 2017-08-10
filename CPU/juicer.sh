@@ -320,10 +320,10 @@ fi
 
 # Get version numbers of all software
 echo -ne "Juicer version $juicer_version;" >> $headfile
-bwa 2>&1 | awk '\$1=="Version:"{printf(" BWA %s; ", \$2)}' >> $headfile 
+bwa 2>&1 | awk '$1=="Version:"{printf(" BWA %s; ", $2)}' >> $headfile 
 echo -ne "$threads threads; " >> $headfile
-java -version 2>&1 | awk 'NR==1{printf("%s; ", \$0);}' >> $headfile 
-${juiceDir}/scripts/juicer_tools -V 2>&1 | awk '\$1=="Juicer" && \$2=="Tools"{printf("%s; ", \$0);}' >> $headfile
+java -version 2>&1 | awk 'NR==1{printf("%s; ", $0);}' >> $headfile 
+${juiceDir}/scripts/juicer_tools -V 2>&1 | awk '$1=="Juicer" && $2=="Tools"{printf("%s; ", $0);}' >> $headfile
 echo "$0 $@" >> $headfile
 
 ## ALIGN FASTQ AS SINGLE END, SORT BY READNAME, HANDLE CHIMERIC READS
