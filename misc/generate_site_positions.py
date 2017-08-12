@@ -21,7 +21,9 @@ else:
 	sys.exit(1)
 
 genome=sys.argv[2]
-if genome == 'hg19':
+if len(sys.argv) == 4:
+  filename=sys.argv[3]
+elif genome == 'hg19':
   filename='/seq/references/Homo_sapiens_assembly19.fasta'
 elif genome == 'mm9':
   filename='/seq/references/Mus_musculus_assembly9.fasta'
@@ -29,8 +31,6 @@ elif genome == 'mm10':
   filename='/seq/references/Mus_musculus_assembly10.fasta'
 elif genome == 'hg18':
   filename='/seq/references/Homo_sapiens_assembly18.fasta'
-elif len(sys.argv) == 4:
-  filename=sys.argv[3]
 else:
   print 'Usage: %s <restriction enzyme> <genome> [location]' % (sys.argv[0])
   print '<genome> not found and [location] not defined'
