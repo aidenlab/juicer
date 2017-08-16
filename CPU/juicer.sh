@@ -57,10 +57,11 @@
 #             script will not work. The error will often manifest itself
 #             through a "*" in the name because the wildcard was not able to
 #             match any files with the read1str.   
-set -e
+#set -e ## This is causing problems; need better error detection
 shopt -s extglob
 juicer_version="1.5.6" 
 ### LOAD BWA AND SAMTOOLS
+
 
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
 # if your fastq files look different, change this value
@@ -337,7 +338,7 @@ then
         echo "(-: Created $splitdir and $outputdir."
         filename=$(basename "$i")
         filename=${filename%.*}
-	      ln -s ${fastqdir} ${splitdir}/.
+	ln -s ${fastqdir} ${splitdir}/.
     else
         echo -e "---  Using already created files in $splitdir\n"
     fi
@@ -350,7 +351,7 @@ then
         ext=${i#*$read1str}
         name=${i%$read1str*}
         # these names have to be right or it'll break                     
-	      name1=${name}${read1str}
+	name1=${name}${read1str}
         name2=${name}${read2str}
         jname=$(basename $name)${ext}
         usegzip=0
@@ -358,6 +359,7 @@ then
         then
             usegzip=1
         fi
+
 	source ${juiceDir}/scripts/common/countligations.sh
 
         # Align read1 
@@ -407,7 +409,7 @@ then
             fi
 	fi
         # sort read 1 aligned file by readname
-	sort -T $tmpdir -k1,1 $name1$ext.sam > $name1${ext}_sort.sam
+	sort -T $tmpdir -k1,1f $name1$ext.sam > $name1${ext}_sort.sam
 	if [ $? -ne 0 ]
 	then
             echo "***! Error while sorting $name1$ext.sam"
@@ -416,7 +418,7 @@ then
             echo "(-: Sort read 1 aligned file by readname completed."
 	fi
         # sort read 2 aligned file by readname
-	sort -T $tmpdir -k1,1 $name2$ext.sam > $name2${ext}_sort.sam
+	sort -T $tmpdir -k1,1f $name2$ext.sam > $name2${ext}_sort.sam
 	if [ $? -ne 0 ]
 	then
             echo "***! Error while sorting $name2$ext.sam"
@@ -428,7 +430,7 @@ then
 	awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/1"; print}' $name1${ext}_sort.sam > $name1${ext}_sort1.sam
 	awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/2"; print}' $name2${ext}_sort.sam > $name2${ext}_sort1.sam
     
-	sort -T $tmpdir -k1,1 -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > ${name}${ext}.sam
+	sort -T $tmpdir -k1,1f -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > ${name}${ext}.sam
     
 	if [ $? -ne 0 ]
 	then
