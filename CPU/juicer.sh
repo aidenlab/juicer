@@ -27,8 +27,7 @@
 #
 # Alignment script. Sets the reference genome and genome ID based on the input
 # arguments (default human, MboI). Optional arguments are description for 
-# stats file, using the short read aligner, read end (to align one read end 
-# using short read aligner), stage to relaunch at, paths to various files if 
+# stats file, stage to relaunch at, paths to various files if 
 # needed, path to scripts directory, and the top-level directory (default 
 # current directory). In lieu of setting the genome ID, you can instead set the
 # reference sequence and the chrom.sizes file path, but the directory 
@@ -61,8 +60,8 @@
 shopt -s extglob
 juicer_version="1.5.6" 
 ### LOAD BWA AND SAMTOOLS
-
-
+bwa_cmd="/home/neva/smalltest/bwa-0.7.15-1142-dirty/bwa"
+#bwa_cmd="bwa"
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
 # if your fastq files look different, change this value
 read1str="_R1" 
@@ -92,8 +91,6 @@ genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" \n  (default \"$site\")"
 aboutHelp="* [about]: enter description of experiment, enclosed in single quotes"
-shortHelp="* -r: use the short read version of the aligner, bwa aln\n  (default: long read, bwa mem)"
-shortHelp2="* [end]: use the short read aligner on read end, must be one of 1 or 2 "
 stageHelp="* [stage]: must be one of \"merge\", \"dedup\", \"final\", \"postproc\", or \"early\".\n    -Use \"merge\" when alignment has finished but the merged_sort file has not\n     yet been created.\n    -Use \"dedup\" when the files have been merged into merged_sort but\n     merged_nodups has not yet been created.\n    -Use \"final\" when the reads have been deduped into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
 pathHelp="* [chrom.sizes path]: enter path for chrom.sizes file"
 siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
@@ -110,8 +107,6 @@ printHelpAndExit() {
     echo -e "$dirHelp"
     echo -e "$siteHelp"
     echo -e "$aboutHelp"
-    echo -e "$shortHelp"
-    echo -e "$shortHelp2"
     echo -e "$stageHelp"
     echo -e "$pathHelp"
     echo -e "$siteFileHelp"
@@ -124,14 +119,12 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:R:a:hrs:p:y:z:S:D:xt:b:" opt; do
+while getopts "d:g:a:hs:p:y:z:S:D:xt:b:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
-	R) shortreadend=$OPTARG ;;
-	r) shortread=1 ;;  #use short read aligner
 	a) about=$OPTARG ;;
 	p) genomePath=$OPTARG ;;  
 	y) site_file=$OPTARG ;;
@@ -214,16 +207,6 @@ if [ "$site" == "none" ]
 then
     nofrag=1;
 fi
-
-## If short read end is set, make sure it is 1 or 2
-case $shortreadend in
-    0) ;;
-    1) ;;
-    2) ;;
-    *)	echo "$usageHelp"
-	echo "$shortHelp2"
-	exit 1
-esac
 
 if [ -z "$site_file" ]
 then
@@ -321,7 +304,7 @@ fi
 
 # Get version numbers of all software
 echo -ne "Juicer version $juicer_version;" >> $headfile
-bwa 2>&1 | awk '$1=="Version:"{printf(" BWA %s; ", $2)}' >> $headfile 
+$bwa_cmd 2>&1 | awk '$1=="Version:"{printf(" BWA %s; ", $2)}' >> $headfile 
 echo -ne "$threads threads; " >> $headfile
 java -version 2>&1 | awk 'NR==1{printf("%s; ", $0);}' >> $headfile 
 ${juiceDir}/scripts/juicer_tools -V 2>&1 | awk '$1=="Juicer" && $2=="Tools"{printf("%s; ", $0);}' >> $headfile
@@ -362,52 +345,31 @@ then
 
 	source ${juiceDir}/scripts/common/countligations.sh
 
-        # Align read1 
-        if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
-	then
-	    echo "Running command bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam"
-	    bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam 
-            if [ $? -ne 0 ]
-            then
-                echo "***! Alignment of $name1$ext failed."
-		exit 1
-            else
-                echo "(-: Short align of $name1$ext.sam done successfully"
-            fi
-        else
-            echo "Running command bwa mem $threadstring $refSeq $name1$ext > $name1$ext.sam" 
-            bwa mem $threadstring $refSeq $name1$ext > $name1$ext.sam
-            if [ $? -ne 0 ]
-            then
-                echo "***! Alignment of $name1$ext failed."
-                exit 1
-            else                                                            
-		echo "(-:  Align of $name1$ext.sam done successfully"
-            fi                                    
-        fi                                                              
-        # Align read2
-        if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
+        # Align reads
+        echo "Running command $bwa_cmd mem $threadstring $refSeq $name1$ext $name2ext > $name$ext.sam" 
+        $bwa_cmd mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam
+        if [ $? -ne 0 ]
         then
-            echo "Running command bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam "
-            bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam 
-            if [ $? -ne 0 ]
-            then
-		echo "***! Alignment of $name2$ext failed."
-		exit 1
-            else
-		echo "(-: Short align of $name2$ext.sam done successfully"
-            fi
-        else
-            echo "Running command bwa mem $threadstring $refSeq $name2$ext > $name2$ext.sam"
-            bwa mem $threadstring $refSeq $name2$ext > $name2$ext.sam 
-            if [ $? -ne 0 ]
-            then
-		echo "***! Alignment of $name2$ext failed."
-		exit 1
-            else
-		echo "(-: Mem align of $name2$ext.sam done successfully"
-            fi
-	fi
+            echo "***! Alignment of $name1$ext $name2$ext failed."
+            exit 1
+        else                                                            
+	    echo "(-:  Align of $name$ext.sam done successfully"
+        fi                                                                      
+#	samtools view -hb $name$ext.sam > $name$ext.bam
+	export LC_ALL=C
+        # call chimeric_blacklist.awk to deal with chimeric reads; 
+        # sorted file is sorted by read name at this point
+	touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam
+	awk -v "fname1"=$name${ext}_norm.sam -v "fname2"=$name${ext}_abnorm.sam -v "fname3"=$name${ext}_unmapped.sam -v "fname4"=$name${ext}_mapq.sam -f ${juiceDir}/scripts/common/chimeric_blacklist.awk $name$ext.sam
+	if [ $? -ne 0 ]
+	then
+            echo "***! Failure during chimera handling of $name${ext}"
+            exit 1
+	fi	
+/aidenlab/scripts/fragment.pl norm tmp.frag.txt /aidenlab/restriction_sites/hg19_MboI.txt
+sort -S 2G -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n tmp.frag.txt > tmp.sort.txt
+#samtools fixmate tmp_se.bam tmp_se_fixmate.bam
+
         # sort read 1 aligned file by readname
 	sort -T $tmpdir -k1,1f $name1$ext.sam > $name1${ext}_sort.sam
 	if [ $? -ne 0 ]
@@ -441,16 +403,7 @@ then
             echo "(-: $name$ext.sam created successfully."
 	fi
     
-	export LC_ALL=C
-        # call chimeric_blacklist.awk to deal with chimeric reads; 
-        # sorted file is sorted by read name at this point
-	touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam
-	awk -v "fname1"=$name${ext}_norm.txt -v "fname2"=$name${ext}_abnorm.sam -v "fname3"=$name${ext}_unmapped.sam -f ${juiceDir}/scripts/common/chimeric_blacklist.awk $name$ext.sam
-	if [ $? -ne 0 ]
-	then
-            echo "***! Failure during chimera handling of $name${ext}"
-            exit 1
-	fi
+
         # if any normal reads were written, find what fragment they correspond to 
         # and store that
 	if [ -e "$name${ext}_norm.txt" ] && [ "$site" != "none" ]
