@@ -326,9 +326,7 @@ then
         echo -e "---  Using already created files in $splitdir\n"
     fi
 
-    ## Loop over all read1 fastq files and create jobs for aligning read1,
-    ## aligning read2, and merging the two. Keep track of merge names for final
-    ## merge. When merge jobs successfully finish, can launch final merge job.
+    ## Loop over all fastq files and align; then handle chimeric reads
     for i in ${read1}
     do
         ext=${i#*$read1str}
@@ -346,7 +344,7 @@ then
 	source ${juiceDir}/scripts/common/countligations.sh
 
         # Align reads
-        echo "Running command $bwa_cmd mem $threadstring $refSeq $name1$ext $name2ext > $name$ext.sam" 
+        echo "Running command $bwa_cmd mem $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam" 
         $bwa_cmd mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam
         if [ $? -ne 0 ]
         then
@@ -354,74 +352,67 @@ then
             exit 1
         else                                                            
 	    echo "(-:  Align of $name$ext.sam done successfully"
-        fi                                                                      
+        fi
 #	samtools view -hb $name$ext.sam > $name$ext.bam
 	export LC_ALL=C
         # call chimeric_blacklist.awk to deal with chimeric reads; 
         # sorted file is sorted by read name at this point
-	touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam
-	awk -v "fname1"=$name${ext}_norm.sam -v "fname2"=$name${ext}_abnorm.sam -v "fname3"=$name${ext}_unmapped.sam -v "fname4"=$name${ext}_mapq.sam -f ${juiceDir}/scripts/common/chimeric_blacklist.awk $name$ext.sam
+	touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam $name${ext}_mapq0.sam
+	# chimeric takes in $name$ext
+	awk -v "fname"=$name${ext} -f ${juiceDir}/scripts/common/chimeric_blacklist.awk $name$ext.sam
 	if [ $? -ne 0 ]
 	then
             echo "***! Failure during chimera handling of $name${ext}"
             exit 1
 	fi	
-/aidenlab/scripts/fragment.pl norm tmp.frag.txt /aidenlab/restriction_sites/hg19_MboI.txt
-sort -S 2G -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n tmp.frag.txt > tmp.sort.txt
-#samtools fixmate tmp_se.bam tmp_se_fixmate.bam
-
-        # sort read 1 aligned file by readname
-	sort -T $tmpdir -k1,1f $name1$ext.sam > $name1${ext}_sort.sam
-	if [ $? -ne 0 ]
-	then
-            echo "***! Error while sorting $name1$ext.sam"
-            exit 1
-	else
-            echo "(-: Sort read 1 aligned file by readname completed."
-	fi
-        # sort read 2 aligned file by readname
-	sort -T $tmpdir -k1,1f $name2$ext.sam > $name2${ext}_sort.sam
-	if [ $? -ne 0 ]
-	then
-            echo "***! Error while sorting $name2$ext.sam"
-            exit 1
-	else
-            echo "(-: Sort read 2 aligned file by readname completed."
-	fi                           
-        # add read end indicator to readname
-	awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/1"; print}' $name1${ext}_sort.sam > $name1${ext}_sort1.sam
-	awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/2"; print}' $name2${ext}_sort.sam > $name2${ext}_sort1.sam
-    
-	sort -T $tmpdir -k1,1f -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > ${name}${ext}.sam
-    
-	if [ $? -ne 0 ]
-	then
-            echo "***! Failure during merge of read files"
-            exit 1
-	else
-            rm $name1$ext*.sa* $name2$ext*.sa* 
-            echo "(-: $name$ext.sam created successfully."
-	fi
-    
-
-        # if any normal reads were written, find what fragment they correspond to 
-        # and store that
+	#samtools fixmate tmp_se.bam tmp_se_fixmate.bam
+        # if any normal reads were written, find what fragment they correspond
+	# to  and store that
 	if [ -e "$name${ext}_norm.txt" ] && [ "$site" != "none" ]
 	then
-            ${juiceDir}/scripts/common/fragment.pl $name${ext}_norm.txt $name${ext}.frag.txt $site_file                                                                
+            ${juiceDir}/scripts/common/fragment.pl $name${ext}_norm.txt $name${ext}.frag.txt $site_file    
 	elif [ "$site" == "none" ]
 	then
             awk '{printf("%s %s %s %d %s %s %s %d", $1, $2, $3, 0, $4, $5, $6, 1); for (i=7; i<=NF; i++) {printf(" %s",$i);}printf("\n");}' $name${ext}_norm.txt > $name${ext}.frag.txt
-	else                                                                    
+	else
             echo "***! No $name${ext}_norm.txt file created"
             exit 1
-	fi                                                                      
+	fi
 	if [ $? -ne 0 ]
 	then
             echo "***! Failure during fragment assignment of $name${ext}"
             exit 1
 	fi                              
-        # sort by chromosome, fragment, strand, and position                    
+
+	# convert sams to bams and delete the sams
+	samtools view -hb $name${ext}_abnorm.sam > $name${ext}_abnorm.bam
+	if [ $? -ne 0 ]
+	then
+            echo "***! Failure during bam write of $name${ext}_abnorm.sam"
+            exit 1
+	fi	
+	samtools view -hb $name${ext}_unmapped.sam > $name${ext}_unmapped.bam
+	if [ $? -ne 0 ]
+	then
+            echo "***! Failure during bam write of $name${ext}_unmapped.sam"
+            exit 1
+	fi	
+	samtools view -hb $name${ext}_mapq0.sam > $name${ext}_mapq0.bam
+	if [ $? -ne 0 ]
+	then
+            echo "***! Failure during bam write of $name${ext}_mapq0.sam"
+            exit 1
+	fi	
+	samtools view -hb $name${ext}_alignable.sam > $name${ext}_alignable.bam
+	if [ $? -ne 0 ]
+	then
+            echo "***! Failure during bam write of $name${ext}_alignable.sam"
+            exit 1
+	fi	
+	# remove all sams EXCEPT alignable, which we need for deduping
+	rm $name${ext}_abnorm.sam $name${ext}_unmapped.sam $name${ext}_mapq0.sam
+
+        # sort by chromosome, fragment, strand, and position
 	sort -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $name${ext}.frag.txt > $name${ext}.sort.txt
 	if [ $? -ne 0 ]
 	then
@@ -458,16 +449,37 @@ then
     awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ ${outputdir}/merged_sort.txt
     # for consistency with cluster naming in split_rmdups
     mv ${outputdir}/optdups.txt ${outputdir}/opt_dups.txt 
+    # dedup alignable
+    # go through merged_nodups.
+    # last two fields are filename + line numbers, inclusive
+    # grab line numbers, pipe to filename + "dedup"
+    awk '{split($(NF-1), a, "$"); split($NF, b, "$"); print a[3],b[3] > a[2]"_dedup"}' $outputdir/merged_nodups.txt
+    for i in $splitdir/*_dedup
+    do
+	j="${i%_dedup*}"
+	# this could end up being computationally expensive memory-wise
+	# could also consider sed solution, no hashtable required
+	# could rewrite this to not need readname mod, but need filename
+	awk 'FNR==NR{a[$1];next}$0 ~ /^@/{print}(FNR in a){print}' "${i}" "${j}_alignable.sam" > "${j}_alignable_dedup.sam"
+	samtools view -hb "${j}_alignable_dedup.sam" > "${j}_alignable_dedup.bam"
+    done
+    if [ `ls -1 "$splitdir/*_alignable_dedup.bam" 2>/dev/null | wc -l ` -gt 1 ]
+    then
+	samtools merge -n "${outputdir}/merged_nodups.bam" "${splitdir}/*_alignable_dedup.bam"
+    else
+	cp ${splitdir}/*_alignable_dedup.bam ${outputdir}/merged_nodups.bam
+    fi
 fi
-if [ -z "$genomePath" ]
-then
-    #If no path to genome is give, use genome ID as default.
-    genomePath=$genomeID
-fi
+
 #CREATE HIC FILES
 # if early exit, we stop here, once the merged_nodups.txt file is created.
 if [ -z "$earlyexit" ]
 then
+    if [ -z "$genomePath" ]
+    then
+	#If no path to genome is give, use genome ID as default.
+	genomePath=$genomeID
+    fi
     #Skip if post-processing only is required
     if [ -z $postproc ]
     then        
@@ -478,9 +490,22 @@ then
         cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
         java -cp ${juiceDir}/scripts/common/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
         ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt 
-        cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam
-        cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam
-        awk -f ${juiceDir}/scripts/common/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
+
+	# combine bams
+	if [ `ls -1 "$splitdir/*_abnorm.bam" 2>/dev/null | wc -l ` -gt 1 ]
+	then
+	    samtools merge -n $outputdir/abnormal.bam $splitdir/*_abnorm.bam 
+	    samtools merge -n $outputdir/unmapped.bam $splitdir/*_unmapped.bam 
+	    samtools merge -n $outputdir/mapq0.bam $splitdir/*_mapq0.bam
+	    samtools merge -n $outputdir/alignable.bam $splitdir/*_alignable.bam
+	else
+	    cp $splitdir/*_abnorm.bam $outputdir/abnormal.bam
+	    cp $splitdir/*_unmapped.bam $outputdir/unmapped.bam
+	    cp $splitdir/*_mapq0.bam $outputdir/mapq0.bam
+	    cp $splitdir/*_alignable.bam $outputdir/alignable.bam
+	fi
+        samtools view $outputdir/abnormal.bam | awk -f ${juiceDir}/scripts/common/collisions.awk  > $outputdir/collisions.txt
+
         if [ "$nofrag" -eq 1 ]
         then 
             ${juiceDir}/scripts/common/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
