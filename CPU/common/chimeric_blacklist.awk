@@ -119,6 +119,7 @@ $0 !~ /^@/{
 	mapped[j] = and(tmp[2],4) == 0;
 	sum_mapped = sum_mapped+mapped[j];
     }
+
     if (sum_mapped < 2) {
       # unmapped
       for (j=1; j <= count; j++) {
@@ -360,7 +361,7 @@ END{
 	}
       }
       if (minmapq == 0) {
-	  count_mapq0++;
+	count_mapq0++;
         for (j=1; j <= count; j++) {
           print c[j] >> mapq0;
 	}
@@ -378,7 +379,6 @@ END{
         # (chimeric pair, depends on where the ends are)
         # 4 will be chimeric paired or abnormal
         # (chimeric pair, depends on where the ends are) 
-        sum_mapped=0;
 	for (j=1; j <= count; j++) {
           split(c[j], tmp);
 	  # first in pair: 64
@@ -476,7 +476,7 @@ END{
 	      }
 	      count_abnorm++;
 	    }
-	  } 
+	  }
 	  else { # count 4, not close together
 	      # abnormal
 	      for (j=1; j <= count; j++) {

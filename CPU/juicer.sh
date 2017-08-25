@@ -145,7 +145,8 @@ then
         dedup) dedup=1 ;;
         early) earlyexit=1 ;;
         final) final=1 ;;
-	postproc) postproc=1 ;; 
+	postproc) postproc=1 ;;
+	alignonly) alignonly=1 ;;
         *)  echo "$usageHelp"
 	    echo "$stageHelp"
 	    exit 1
@@ -422,6 +423,11 @@ then
             rm $name${ext}_norm.txt $name${ext}.frag.txt
 	fi
     done
+fi
+
+if [ -n "$alignonly" ]
+then
+    exit 0
 fi
 
 #MERGE SORTED AND ALIGNED FILES
