@@ -60,7 +60,7 @@
 shopt -s extglob
 juicer_version="1.5.6" 
 ### LOAD BWA AND SAMTOOLS
-bwa_cmd="/home/neva/smalltest/bwa-0.7.15-1142-dirty/bwa"
+bwa_cmd="/home/neva/smalltest/bwa/bwa"
 #bwa_cmd="bwa"
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
 # if your fastq files look different, change this value
@@ -256,14 +256,14 @@ else
     fi
 fi
 
-## Create output directory, only if not in merge, dedup, final, or postproc stages
-if [[ -d "$outputdir" && -z "$final" && -z "$merge" && -z "$dedup" && -z "$postproc" ]] 
+## Create output directory, only if not in dedup, final, or postproc stages
+if [[ -d "$outputdir" && -z "$final" && -z "$dedup" && -z "$postproc" ]] 
 then
     echo "***! Move or remove directory \"$outputdir\" before proceeding."
     echo "***! Type \"juicer.sh -h \" for help"
     exit 1			
 else
-    if [[ -z "$final" && -z "$dedup" && -z "$merge" && -z "$postproc" ]]; then
+    if [[ -z "$final" && -z "$dedup" && -z "$postproc" ]]; then
         mkdir "$outputdir" || { echo "***! Unable to create ${outputdir}, check permissions." ; exit 1; } 
     fi
 fi
@@ -469,12 +469,26 @@ then
 	awk 'FNR==NR{a[$1];next}$0 ~ /^@/{print}(FNR in a){print}' "${i}" "${j}_alignable.sam" > "${j}_alignable_dedup.sam"
 	samtools view -hb "${j}_alignable_dedup.sam" > "${j}_alignable_dedup.bam"
     done
-    if [ `ls -1 "$splitdir/*_alignable_dedup.bam" 2>/dev/null | wc -l ` -gt 1 ]
+    if [ `ls -1 $splitdir/*_alignable_dedup.bam 2>/dev/null | wc -l ` -gt 1 ]
     then
-	samtools merge -n "${outputdir}/merged_nodups.bam" "${splitdir}/*_alignable_dedup.bam"
+	samtools merge -n ${outputdir}/merged_nodups.bam ${splitdir}/*_alignable_dedup.bam
     else
-	cp ${splitdir}/*_alignable_dedup.bam ${outputdir}/merged_nodups.bam
+	cat ${splitdir}/*_alignable_dedup.bam > ${outputdir}/merged_nodups.bam
     fi
+    # combine bams
+    if [ `ls -1 $splitdir/*_abnorm.bam 2>/dev/null | wc -l ` -gt 1 ]
+    then
+	samtools merge -n $outputdir/abnormal.bam $splitdir/*_abnorm.bam 
+	samtools merge -n $outputdir/unmapped.bam $splitdir/*_unmapped.bam 
+	samtools merge -n $outputdir/mapq0.bam $splitdir/*_mapq0.bam
+	samtools merge -n $outputdir/alignable.bam $splitdir/*_alignable.bam
+    else
+	cat $splitdir/*_abnorm.bam > $outputdir/abnormal.bam
+	cat $splitdir/*_unmapped.bam > $outputdir/unmapped.bam
+	cat $splitdir/*_mapq0.bam > $outputdir/mapq0.bam
+	cat $splitdir/*_alignable.bam > $outputdir/alignable.bam
+    fi
+    samtools view $outputdir/abnormal.bam | awk -f ${juiceDir}/scripts/common/collisions.awk  > $outputdir/collisions.txt
 fi
 
 #CREATE HIC FILES
@@ -496,21 +510,6 @@ then
         cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
         java -cp ${juiceDir}/scripts/common/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
         ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt 
-
-	# combine bams
-	if [ `ls -1 "$splitdir/*_abnorm.bam" 2>/dev/null | wc -l ` -gt 1 ]
-	then
-	    samtools merge -n $outputdir/abnormal.bam $splitdir/*_abnorm.bam 
-	    samtools merge -n $outputdir/unmapped.bam $splitdir/*_unmapped.bam 
-	    samtools merge -n $outputdir/mapq0.bam $splitdir/*_mapq0.bam
-	    samtools merge -n $outputdir/alignable.bam $splitdir/*_alignable.bam
-	else
-	    cp $splitdir/*_abnorm.bam $outputdir/abnormal.bam
-	    cp $splitdir/*_unmapped.bam $outputdir/unmapped.bam
-	    cp $splitdir/*_mapq0.bam $outputdir/mapq0.bam
-	    cp $splitdir/*_alignable.bam $outputdir/alignable.bam
-	fi
-        samtools view $outputdir/abnormal.bam | awk -f ${juiceDir}/scripts/common/collisions.awk  > $outputdir/collisions.txt
 
         if [ "$nofrag" -eq 1 ]
         then 

@@ -123,31 +123,36 @@ $0 !~ /^@/{
     if (sum_mapped < 2) {
       # unmapped
       for (j=1; j <= count; j++) {
-	print c[j] >> unmapped;
+	print c[j] > unmapped;
       }
       # otherwise first time through will count extra unmapped read
       count_unmapped++;
     }
     else {
       # find minimum mapq; if it's 0, send to mapq0 file
-      minmapq=100;
+      sum_mapq=0;
+      minmapq=1;
       for (j=1; j <= count; j++) {
         split(c[j],tmp);
-	if (tmp[5] < minmapq) {
-          minmapq=tmp[5];
+	if (tmp[5] > 0) {
+          sum_mapq=sum_mapq+1;
 	}
+	else minmapq=0;
       }
-      if (minmapq == 0) {
-	  count_mapq0++;
+      if (sum_mapq < 2) {
+#      if (sum_mapq < 2 || minmapq==0) {
+	count_mapq0++;
         for (j=1; j <= count; j++) {
-          print c[j] >> mapq0;
+          print c[j] > mapq0;
 	}
       }
       else if ((count > 4) || (count == 1)) {
         # count==1 shouldn't happen; occurs with alternate aligners at times
 	for (j=1; j <= count; j++) {
-          print c[j] >> abnorm;
+          print c[j] > abnorm;
 	}
+	count_abnorm++;
+	
       }
       else {
         # count is 2,3,4.
@@ -220,18 +225,17 @@ $0 !~ /^@/{
 	    }
 	  } # else if str[j]==16
 	} # end for loop, now have all info about each read end
-
-	if (sum_mapped == 2) {
-	  # take these as the reads
-	  read1=0;
-	  read2=0;
+	read1=0;
+	read2=0;
+	if (sum_mapq == 2) {
+	  # take the mapq positive as the reads
 	  for (j=1; j <= count; j++) {
-	    if (mapped[j] && !read1) read1=j;
-	    else if (mapped[j] && read1) read2=j;
+	    if (m[j]>0 && !read1) read1=j;
+	    else if (m[j]>0 && read1) read2=j;
 	  }
 	  normal=1;
 	}
-	else if (sum_mapped == 4) {
+	else if (sum_mapq == 4) {
 	  # looking for A/B...A/B
 	  # will always be first in pair, second in pair
 	  if (read[1] == read[2] && read[3] == read[4] && read[1] != read[3]) {
@@ -249,78 +253,97 @@ $0 !~ /^@/{
 	    else {
 	      # abnormal
 	      for (j=1; j <= count; j++) {
-		print c[j] >> abnorm;
+		print c[j] > abnorm;
 	      }
 	      count_abnorm++;
+	
 	    }
 	  }
 	  else { # count 4, not close together
 	    # abnormal
 	    for (j=1; j <= count; j++) {
-	      print c[j] >> abnorm;
+	      print c[j] > abnorm;
 	    }
 	    count_abnorm++;
+	
 	  }
-	} # if sum_mapped == 4
-	else { # sum_mapped == 3
-          dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
-	  dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
-	  dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
+	} # if sum_mapq == 4
+	else { # sum_mapq == 3
+	  r1=0; r2=0; r3=0;
+	  for (j=1; j <= count; j++) {
+	    if (m[j]>0 && !r1 && !r2) r1=j;
+	    else if (m[j]>0 && r1 && !r2) r2=j;
+	    else if (m[j]>0 && r1 && r2) r3=j;
+	  }
+          dist[12] = abs(chr[r1]-chr[r2])*10000000 + abs(pos[r1]-pos[r2]);
+	  dist[23] = abs(chr[r2]-chr[r3])*10000000 + abs(pos[r2]-pos[r3]);
+	  dist[13] = abs(chr[r1]-chr[r3])*10000000 + abs(pos[r1]-pos[r3]);
     
 	  if (min(dist[12],min(dist[23],dist[13])) < 1000) {
 	    # The paired ends look like A/B...B. Make sure we take A and B
-	    if (read[1] == read[2]) {
+	    if (read[r1] == read[r2]) {
 	      # take the unique one "B" for sure
-	      read2 = 3;
+	      read2 = r3;
 	      # take the end of "A/B" that isn't close to "B"
-	      read1 = dist[13] > dist[23] ? 1:2;
+	      read1 = dist[13] > dist[23] ? r1:r2;
 	    }
-	    else if (read[1] == read[3]) { # but this shouldn't happen
-	      read2 = 2;
-	      read1 = dist[12] > dist[23] ? 1:3;
-	      print "This shouldn't happen",name[read2] > "neva_err"
+	    else if (read[r1] == read[r3]) { # but this shouldn't happen
+	      read2 = r2;
+	      read1 = dist[12] > dist[23] ? r1:r3;
+	      print "This shouldn't happen",name[read2] 
 	    }
-	    else if (read[2] == read[3]) {
-	      read2 = 1;
-	      read1 = dist[12] > dist[13] ? 2:3;
+	    else if (read[r2] == read[r3]) {
+	      read2 = r1;
+	      read1 = dist[12] > dist[13] ? r2:r3;
 	    }
 	    else {
-	      printf("reads strange\n") > "/dev/stderr"
-	      exit 1
+	      print "This shouldn't happen"
 	    }
 	    normal = 1;
 	  }
 	  else {
 	    # chimeric read with the 3 ends > 1KB apart
 	    count_abnorm++;
-	    for (i in c) {
-	      print c[i] > abnorm;
+	
+	    for (j=1; j <= count; j++) {
+	      print c[j] > abnorm;
 	    }
 	  }
-	} # sum_mapped == 3
+	} # sum_mapq == 3
 	if (normal) {
-	  if (sum_mapped == 2 && count==2) {
-	    count_reg++;
-	  }
-	  else count_norm++;
-	  # or do we want to print the whole read group including chimeric?
-	  #print c[read1] >> alignable;
-	  #linenum++;
-	  #print c[read2] >> alignable;
-	  #linenum++;
-	  prevlinenum=linenum;
-	  for (j=1; j <= count; j++) {
-	    print c[j] >> alignable;
-	    linenum++;
-	  }
-
-	  if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
-	    print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1]"$"fname"$"(prevlinenum+1),name[read2]"$"fname"$"linenum > norm;
+	  # still need to check mapq0
+	  if (m[read1]==0 || m[read2]==0) {
+	    print "This shouldn't happen"
+            # mapq0
+	    for (j=1; j <= count; j++) {
+	      print c[j] > mapq0;
+	    }
+	    count_mapq0++;
 	  }
 	  else {
-	    print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2]"$"fname"$"(prevlinenum+1),name[read1]"$"fname"$"linenum > norm;
-	  }
-	}
+	    if (sum_mapped == 2 && count==2) {
+	      count_reg++;
+	    }
+	    else count_norm++;
+	    # or do we want to print the whole read group including chimeric?
+	    #print c[read1] > alignable;
+	    #linenum++;
+	    #print c[read2] > alignable;
+	    #linenum++;
+	    prevlinenum=linenum;
+	    for (j=1; j <= count; j++) {
+	      print c[j] > alignable;
+	      linenum++;
+	    }
+
+	    if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
+	      print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1]"$"fname"$"(prevlinenum+1),name[read2]"$"fname"$"linenum > norm;
+	    }
+	    else {
+	      print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2]"$"fname"$"(prevlinenum+1),name[read1]"$"fname"$"linenum > norm;
+	    }
+	  } # else on check mapq0 again
+	} # if normal
       } # else (mapq above 0) 
     } # else (sum_mapped >= 2)
     # reset variables
@@ -344,33 +367,40 @@ END{
 	mapped[j] = and(tmp[2],4) == 0;
 	sum_mapped = sum_mapped+mapped[j];
     }
+
     if (sum_mapped < 2) {
       # unmapped
       for (j=1; j <= count; j++) {
-	print c[j] >> unmapped;
+	print c[j] > unmapped;
       }
+      # otherwise first time through will count extra unmapped read
       count_unmapped++;
     }
     else {
       # find minimum mapq; if it's 0, send to mapq0 file
-      minmapq=100;
+      sum_mapq=0;
+      minmapq=1;
       for (j=1; j <= count; j++) {
         split(c[j],tmp);
-	if (tmp[5] < minmapq) {
-          minmapq=tmp[5];
+	if (tmp[5] > 0) {
+          sum_mapq=sum_mapq+1;
 	}
+	else minmapq=0;
       }
-      if (minmapq == 0) {
+      if (sum_mapq < 2) {
+#      if (sum_mapq < 2 || minmapq == 0) {
 	count_mapq0++;
         for (j=1; j <= count; j++) {
-          print c[j] >> mapq0;
+          print c[j] > mapq0;
 	}
       }
       else if ((count > 4) || (count == 1)) {
         # count==1 shouldn't happen; occurs with alternate aligners at times
 	for (j=1; j <= count; j++) {
-          print c[j] >> abnorm;
+          print c[j] > abnorm;
 	}
+	count_abnorm++;
+	
       }
       else {
         # count is 2,3,4.
@@ -380,7 +410,7 @@ END{
         # 4 will be chimeric paired or abnormal
         # (chimeric pair, depends on where the ends are) 
 	for (j=1; j <= count; j++) {
-          split(c[j], tmp);
+	  split(c[j],tmp);
 	  # first in pair: 64
 	  read[j] = (and(tmp[2], 64) > 0);
 	  name[j] = tmp[1];
@@ -443,18 +473,17 @@ END{
 	    }
 	  } # else if str[j]==16
 	} # end for loop, now have all info about each read end
-
-	if (sum_mapped == 2) {
-	  # take these as the reads
-	  read1=0;
-	  read2=0;
+	read1=0;
+	read2=0;
+	if (sum_mapq == 2) {
+	  # take the mapq positive as the reads
 	  for (j=1; j <= count; j++) {
-	    if (mapped[j] && !read1) read1=j;
-	    else if (mapped[j] && read1) read2=j;
+	    if (m[j]>0 && !read1) read1=j;
+	    else if (m[j]>0 && read1) read2=j;
 	  }
 	  normal=1;
 	}
-	else if (sum_mapped == 4) {
+	else if (sum_mapq == 4) {
 	  # looking for A/B...A/B
 	  # will always be first in pair, second in pair
 	  if (read[1] == read[2] && read[3] == read[4] && read[1] != read[3]) {
@@ -472,81 +501,98 @@ END{
 	    else {
 	      # abnormal
 	      for (j=1; j <= count; j++) {
-		print c[j] >> abnorm;
+		print c[j] > abnorm;
 	      }
 	      count_abnorm++;
+	
 	    }
 	  }
 	  else { # count 4, not close together
-	      # abnormal
-	      for (j=1; j <= count; j++) {
-		print c[j] >> abnorm;
-	      }
-	      count_abnorm++;
+	    # abnormal
+	    for (j=1; j <= count; j++) {
+	      print c[j] > abnorm;
+	    }
+	    count_abnorm++;
+	
 	  }
-	} # if sum_mapped == 4
-	else { # sum_mapped == 3
-          dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
-	  dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
-	  dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
+	} # if sum_mapq == 4
+	else { # sum_mapq == 3
+	  r1=0; r2=0; r3=0;
+	  for (j=1; j <= count; j++) {
+	    if (m[j]>0 && !r1 && !r2) r1=j;
+	    else if (m[j]>0 && r1 && !r2) r2=j;
+	    else if (m[j]>0 && r1 && r2) r3=j;
+	  }
+          dist[12] = abs(chr[r1]-chr[r2])*10000000 + abs(pos[r1]-pos[r2]);
+	  dist[23] = abs(chr[r2]-chr[r3])*10000000 + abs(pos[r2]-pos[r3]);
+	  dist[13] = abs(chr[r1]-chr[r3])*10000000 + abs(pos[r1]-pos[r3]);
     
 	  if (min(dist[12],min(dist[23],dist[13])) < 1000) {
 	    # The paired ends look like A/B...B. Make sure we take A and B
-	    if (read[1] == read[2]) {
+	    if (read[r1] == read[r2]) {
 	      # take the unique one "B" for sure
-	      read2 = 3;
+	      read2 = r3;
 	      # take the end of "A/B" that isn't close to "B"
-	      read1 = dist[13] > dist[23] ? 1:2;
+	      read1 = dist[13] > dist[23] ? r1:r2;
 	    }
-	    else if (read[1] == read[3]) { # but this shouldn't happen
-	      read2 = 2;
-	      read1 = dist[12] > dist[23] ? 1:3;
-	      print "This shouldn't happen",name[read2] > "neva_err"
+	    else if (read[r1] == read[r3]) { # but this shouldn't happen
+	      read2 = r2;
+	      read1 = dist[12] > dist[23] ? r1:r3;
+	      print "This shouldn't happen",name[read2] 
 	    }
-	    else if (read[2] == read[3]) {
-	      read2 = 1;
-	      read1 = dist[12] > dist[13] ? 2:3;
+	    else if (read[r2] == read[r3]) {
+	      read2 = r1;
+	      read1 = dist[12] > dist[13] ? r2:r3;
 	    }
 	    else {
-	      printf("reads strange\n") > "/dev/stderr"
-	      exit 1
+	      print "This shouldn't happen"
 	    }
 	    normal = 1;
 	  }
 	  else {
 	    # chimeric read with the 3 ends > 1KB apart
 	    count_abnorm++;
-	    for (i in c) {
-	      print c[i] > abnorm;
+	
+	    for (j=1; j <= count; j++) {
+	      print c[j] > abnorm;
 	    }
 	  }
-	} # sum_mapped == 3
+	} # sum_mapq == 3
 	if (normal) {
-	  if (sum_mapped == 2 && count==2) {
-	    count_reg++;
-	  }
-	  else count_norm++;
-	  # or do we want to print the whole read group including chimeric?
-	  #print c[read1] >> alignable;
-	  #linenum++;
-	  #print c[read2] >> alignable;
-	  #linenum++;
-	  prevlinenum=linenum;
-	  for (j=1; j <= count; j++) {
-	    print c[j] >> alignable;
-	    linenum++;
-	  }
-
-	  if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
-	    print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1]"$"fname"$"(prevlinenum+1),name[read2]"$"fname"$"linenum > norm;
+	  # still need to check mapq0
+	  if (m[read1]==0 || m[read2]==0) {
+            # mapq0
+	    for (j=1; j <= count; j++) {
+	      print c[j] > mapq0;
+	    }
+	    count_mapq0++;
 	  }
 	  else {
-	    print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2]"$"fname"$"(prevlinenum+1),name[read1]"$"fname"$"linenum > norm;
-	  }
-	}
+	    if (sum_mapped == 2 && count==2) {
+	      count_reg++;
+	    }
+	    else count_norm++;
+	    # or do we want to print the whole read group including chimeric?
+	    #print c[read1] > alignable;
+	    #linenum++;
+	    #print c[read2] > alignable;
+	    #linenum++;
+	    prevlinenum=linenum;
+	    for (j=1; j <= count; j++) {
+	      print c[j] > alignable;
+	      linenum++;
+	    }
+
+	    if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
+	      print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1]"$"fname"$"(prevlinenum+1),name[read2]"$"fname"$"linenum > norm;
+	    }
+	    else {
+	      print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2]"$"fname"$"(prevlinenum+1),name[read1]"$"fname"$"linenum > norm;
+	    }
+	  } # else on check mapq0 again
+	} # if normal
       } # else (mapq above 0) 
     } # else (sum_mapped >= 2)
-
-    resfile=norm".res.txt";
+    resfile = norm".res.txt"
     printf("%d %d %d %d %d %d\n", tottot, count_unmapped, count_reg, count_norm, count_abnorm, count_mapq0) >> resfile;
 }
