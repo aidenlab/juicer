@@ -414,8 +414,8 @@ jid=`sbatch <<- HEADER | egrep -o -e "\b[0-9]+$"
 	#SBATCH -e $debugdir/head-%j.err
 	#SBATCH -J "${groupname}_cmd"
 	date
-	$load_bwa
-	$load_java
+	${load_bwa}
+	${load_java}
 
 	# Experiment description
 	if [ -n "${about}" ]
@@ -585,7 +585,7 @@ CNTLIG`
 		#SBATCH --mem-per-cpu=$alloc_mem
 		#SBATCH -J "${groupname}_align1_${jname}"
 		#SBATCH --threads-per-core=1		
-		$load_bwa
+		${load_bwa}
 		# Align read1
 		date
 		if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
@@ -631,7 +631,7 @@ ALGNR1`
 		#SBATCH --mem-per-cpu=$alloc_mem
 		#SBATCH -J "${groupname}_align2_${jname}"
 		#SBATCH --threads-per-core=1		
-		$load_bwa
+		${load_bwa}
 		date
 		# Align read2
 		if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
