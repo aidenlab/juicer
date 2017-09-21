@@ -16,8 +16,6 @@ qsub <<- POSTPROCWRAP
 #PBS -o ${logdir}/${timestamp}_postproc_wrap_${groupname}.log
 #PBS -j oe
 #PBS -N PPrWrp${groupname}
-#PBS -M ${EMAIL}
-#PBS -m a
 ${waitstring3}
 
 date +"%Y-%m-%d %H:%M:%S"
@@ -40,8 +38,6 @@ qsub <<POSTPROCESS
 	#PBS -o ${logdir}/\${timestamp}_postproc_${groupname}.log
 	#PBS -j oe
 	#PBS -N PProc_${groupname}
-	#PBS -M ${EMAIL}
-	#PBS -m a
     $waitstring4
 
     date +"%Y-%m-%d %H:%M:%S"
@@ -66,8 +62,6 @@ qsub <<- FINCK
 #PBS -l $walltime
 #PBS -o ${logdir}/${timestamp}_prep_done_${groupname}.log
 #PBS -j oe
-#PBS -M ${EMAIL}
-#PBS -m a
 #PBS -N Pdone_${groupname}
 #PBS -W depend=afterok:${jID_postprocwrap}
 
@@ -93,8 +87,6 @@ qsub <<DONE
 	#PBS -o ${logdir}/\${timestamp}_done_${groupname}.log
 	#PBS -j oe
 	#PBS -N done_${groupname}
-	#PBS -M ${EMAIL}
-	#PBS -m a
 	\${waitstring5}
 
 	date +"%Y-%m-%d %H:%M:%S"    

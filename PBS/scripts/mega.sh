@@ -48,8 +48,7 @@ juiceDir="/lustre1/mzhibo/hic/apps/juicer"
 # unique name for jobs in this run
 groupname="C$(date +"%s"|cut -c 6-11)"
 
-#give an email to receive notification when a job exit with error
-EMAIL=""
+
 ## Default options, overridden by command line arguments
 
 # top level directory, can also be set in options
@@ -59,8 +58,6 @@ site="MboI"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
 
-#the resolution is optional, set only when you want resolution other than the default
-resolutions="1M,500K,100K,50K,10K,5K,3K,2K"
 ## Read arguments
 usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-r resolutions] [-hx]"
 genomeHelp="   genomeID must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \"$genomeID\")"
@@ -235,11 +232,11 @@ jid5=$(qsub -o ${logdir}/hic0_${groupname}.log -j oe -q batch -M ${EMAIL} -m ae 
 $load_java
 if [ -z "$exclude" ]
 then
-  echo "Launching ${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
-  ${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+  echo "Launching ${juiceDir}/scripts/juicer_tools pre ${resolutions} -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
+  ${juiceDir}/scripts/juicer_tools pre ${resolutions} -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
 else
-  echo "Launching ${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
-  ${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
+  echo "Launching ${juiceDir}/scripts/juicer_tools pre ${resolutions} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}"
+  ${juiceDir}/scripts/juicer_tools pre ${resolutions} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID}
 fi
 HIC0
 )
@@ -249,11 +246,11 @@ jid6=$(qsub -o ${logdir}/hic30_${groupname}.log -j oe -q batch -M ${EMAIL} -m ae
 $load_java
 if [ -z "${exclude}" ]
 then
-    echo "Launching ${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
-    ${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+    echo "Launching ${juiceDir}/scripts/juicer_tools pre ${resolutions} -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
+    ${juiceDir}/scripts/juicer_tools pre ${resolutions} -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
 else
-   echo "Launching ${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
-   ${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+   echo "Launching ${juiceDir}/scripts/juicer_tools pre ${resolutions} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}"
+   ${juiceDir}/scripts/juicer_tools pre ${resolutions} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
 fi
 HIC30
 )

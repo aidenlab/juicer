@@ -17,7 +17,6 @@ echo "resolutions: $resolutions"
 echo "walltime: $walltime"
 echo "long_walltime: $long_walltime"
 echo $load_java
-echo "EMAIL: $EMAIL"
 jID_osplit=$( qstat | grep osplit${groupname} | cut -c 1-7 )
 
 if [ -z $final ]
@@ -35,8 +34,6 @@ qsub <<DOSTAT
 #PBS -l nodes=1:ppn=1:AMD
 #PBS -l mem=1gb
 #PBS -l $walltime
-#PBS -M ${EMAIL}
-#PBS -m a
 #PBS -o ${logdir}/${timestamp}_launch_${groupname}.log
 #PBS -j oe
 #PBS -N Lnch_${groupname}
@@ -64,8 +61,6 @@ qsub <<STATS0
 	#PBS -l mem=20gb
 	#PBS -l $walltime
 	\${waitstring22}
-	#PBS -M ${EMAIL}
-	#PBS -m a 
 	#PBS -o ${logdir}/\${timestamp}_stats0_${groupname}.log
 	#PBS -j oe
 	#PBS -N stats0${groupname}
@@ -89,8 +84,6 @@ qsub <<STATS30
 	#PBS -l nodes=1:ppn=1:AMD
 	#PBS -l mem=20gb
 	#PBS -l $walltime
-	#PBS -M ${EMAIL}
-	#PBS -m a 
 	#PBS -o ${logdir}/\${timestamp}_stats_${groupname}.log
 	#PBS -j oe
 	#PBS -N stats30${groupname}
@@ -115,8 +108,6 @@ qsub <<- ABNORMAL
 	#PBS -l nodes=1:ppn=1:AMD
 	#PBS -l mem=60gb
 	#PBS -l $long_walltime
-	#PBS -M ${EMAIL}
-	#PBS -m ae
 	#PBS -o ${logdir}/\${timestamp}_abnormal_${groupname}.log
 	#PBS -j oe
 	#PBS -N abnorm_${groupname}
@@ -139,8 +130,6 @@ qsub <<- HICWORK
 	#PBS -l nodes=1:ppn=1:AMD
 	#PBS -l mem=60gb
 	#PBS -l $long_walltime
-	#PBS -M ${EMAIL}
-	#PBS -m ae
 	#PBS -o ${logdir}/\${timestamp}_hic0_${groupname}.log
 	#PBS -j oe
 	#PBS -N hic0_${groupname}
@@ -154,7 +143,7 @@ qsub <<- HICWORK
 	then 
 		${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
 	else 
-		${juiceDir}/scripts/juicer_tools pre -r $resolutions -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
+		${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
 	fi
 HICWORK
 jID_stats30=\$( qstat | grep stats30${groupname} | cut -c 1-7)
@@ -166,8 +155,6 @@ qsub <<- HIC30WORK
 	#PBS -l nodes=1:ppn=1:AMD
 	#PBS -l mem=60gb
 	#PBS -l $long_walltime
-	#PBS -M ${EMAIL}
-	#PBS -m ae
 	#PBS -o ${logdir}/\${timestamp}_hic30_${groupname}.log
 	#PBS -j oe
 	#PBS -N hic30_${groupname}
@@ -185,9 +172,8 @@ qsub <<- HIC30WORK
 	then 
 	${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
 	else 
-		${juiceDir}/scripts/juicer_tools pre -r $resolutions -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
+		${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
 	fi
 HIC30WORK
-sleep 3m
 
 DOSTAT

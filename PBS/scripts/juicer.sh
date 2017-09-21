@@ -85,7 +85,7 @@ load_cuda='module load cuda/7.5.18/gcc/4.4.7'
 
 # Juicer directory, contains scripts/, references/, and restriction_sites/
 # can also be set in options via -D
-juiceDir="/lustre1/mzhibo/hic/apps/juicer"
+juiceDir=""
 # default queue, can also be set in options via -q
 queue="batch"
 # default queue time, can also be set in options via -Q
@@ -94,25 +94,18 @@ walltime="walltime=24:00:00"
 long_queue="batch"
 # default long queue time, can also be set in options via -L
 long_walltime="walltime=120:00:00"
-
-###################
-#The specific format for cpu/gpu resource request with #PBS -l node=?:ppn=?:AMD header line
-#might be different on different cluster. 
-#Please adjust this header line according to your cluster setup.
-###################
-# give your email address to be used in #PBS -M to receive notifications when job error occurs.
-EMAIL=""
-
-
 # size to split fastqs. adjust to match your needs. 4000000=1M reads per split
 # can also be changed via the -C flag
+# give your email address to be used in #PBS -M to receive notifications when job error occurs.
+# Must be either set with an email address or skipped
+# This email is not included in the launch stat and postprocessing steps, add manually if needed
+EMAIL='#PBS -M mzhibo@gmail.com'
 splitsize=90000000
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
 # if your fastq files look different, change this value
 read1str="_R1"
 read2str="_R2"
-#resolutions is optional, set if you want resolutions other than the default in .hic
-resolutions='1000000,500000,100000,50000,10000,5000,2000'
+
 
 # unique groupname for jobs submitted in each run. lab initial with an timestamp
 # Length of $groupname in this PBS version needs to be no longer than 8 characters.
@@ -404,9 +397,9 @@ then
                 #PBS -S /bin/bash
                 #PBS -q $queue
                 #PBS -l $walltime
-                $RESOURCE
+                #PBS -l nodes=1:ppn=1:AMD
                 #PBS -l mem=20gb
-                #PBS -M ${EMAIL}
+                ${EMAIL}
                 #PBS -m a
                 #PBS -o ${logdir}/${timestamp}_split_${filename}_${groupname}.log
                 #PBS -j oe
@@ -432,7 +425,7 @@ SPLITEND
             #PBS -l $walltime
             #PBS -l nodes=1:ppn=1:AMD
             #PBS -l mem=20gb
-            #PBS -M ${EMAIL}
+            ${EMAIL}
             #PBS -m a
             #PBS -o ${logdir}/${timestamp}_move_${groupname}.log
             #PBS -j oe
@@ -470,7 +463,7 @@ SPLITMV
     #PBS -j oe
     #PBS -N AlnWrp${groupname}
     #PBS -W depend=afterok:${jID_splitmv}
-    #PBS -M ${EMAIL}
+    ${EMAIL}
     #PBS -m a
     for i in ${read1}
     do
@@ -496,7 +489,7 @@ SPLITMV
         #PBS -l $walltime
         #PBS -l nodes=1:ppn=1:AMD
         #PBS -l mem=4gb
-        #PBS -M ${EMAIL}
+        ${EMAIL}
         #PBS -m a
         #PBS -o ${logdir}/\${timestamp}_\${jname}_CntLig_\${countjobs}_${groupname}.log
         #PBS -j oe
@@ -541,7 +534,7 @@ CNTLIG
         #PBS -l $walltime
         #PBS -l nodes=1:ppn=${threads}:AMD
         #PBS -l mem=\${alloc_mem}
-        #PBS -M ${EMAIL}
+        ${EMAIL}
         #PBS -m a
         #PBS -o ${logdir}/\${timestamp}_\${jname}_align1_\${countjobs}_${groupname}.log
         #PBS -j oe
@@ -592,7 +585,7 @@ ALGNR1
         #PBS -l $walltime
         #PBS -l nodes=1:ppn=${threads}:AMD
         #PBS -l mem=\$alloc_mem
-        #PBS -M ${EMAIL}
+        ${EMAIL}
         #PBS -m a
         #PBS -o ${logdir}/\${timestamp}_\${jname}_align2_\${countjobs}_${groupname}.log
         #PBS -j oe
@@ -643,7 +636,7 @@ ALGNR2
         #PBS -l $long_walltime
         #PBS -l nodes=1:ppn=1:AMD
         #PBS -l mem=24gb
-        #PBS -M ${EMAIL}
+        ${EMAIL}
         #PBS -m a
         #PBS -o ${logdir}/\${timestamp}_\${jname}_merge_\${countjobs}_${groupname}.log
         #PBS -j oe
@@ -719,7 +712,7 @@ MRGALL
     #PBS -l $walltime
     #PBS -l nodes=1:ppn=1:AMD
     #PBS -l mem=24gb
-    #PBS -M ${EMAIL}
+    ${EMAIL}
     #PBS -m a
     #PBS -o ${logdir}/\${timestamp}_\${jname}_chimeric_\${countjobs}_${groupname}.log
     #PBS -j oe
@@ -791,7 +784,7 @@ CHIMERIC
     #PBS -l nodes=1:ppn=1:AMD
     #PBS -l mem=2gb
     #PBS -l $walltime
-    #PBS -M ${EMAIL}
+    ${EMAIL}
     #PBS -m a
     #PBS -o ${logdir}/\${timestamp}_check_alnOK_${groupname}.log
     #PBS -j oe
@@ -809,7 +802,7 @@ CKALIGNFAIL
     #PBS -l nodes=1:ppn=1:AMD
     #PBS -l mem=4gb
     #PBS -l $walltime
-    #PBS -M ${EMAIL}
+    ${EMAIL}
     #PBS -m a
     #PBS -o ${logdir}/\${timestamp}_alignfailclean_${groupname}.log
     #PBS -j oe
@@ -848,7 +841,7 @@ then
     #PBS -l nodes=1:ppn=1:AMD
     #PBS -l mem=24gb
     #PBS -l $walltime
-    #PBS -M ${EMAIL}
+    ${EMAIL}
     #PBS -m a
     #PBS -o ${logdir}/${timestamp}_mergesortwrap_${groupname}.log
     #PBS -j oe
@@ -856,13 +849,13 @@ then
 #    #PBS -W depend=afterok:${jID_alignwrap}
     ${waitstring_mrgsrtwrp}
     date +"%Y-%m-%d %H:%M:%S"
-    echo "all alignment done, all aplitting and alignment jobs succeeded!"
+    echo "all alignment done, all aplitting and alignment jobs succeeded!" 
     jID_alnOK=\$( qstat | grep AlnOK_${groupname} | cut -c 1-7 )
     echo "jID_aln-OK job id is \$jID_alnOK "
     timestamp=\$(date +"%s" | cut -c 4-10)
     if [ -z $merge ]
     then
-        waitstring_alnOK="#PBS -W depend=afterok:\${jID_alnOK}"
+        waitstring_alnOK="#PBS -W depend=afterok:\${jID_alnOK}" 
     fi
     echo "waitstring_anlOK is \${waitstring_alnOK}"  
     echo "below without backslash"
@@ -875,7 +868,7 @@ then
         #PBS -l nodes=1:ppn=1:AMD
         #PBS -l mem=24gb
         #PBS -l $walltime
-        #PBS -M ${EMAIL}
+        ${EMAIL}
         #PBS -m a
         #PBS -o ${logdir}/\${timestamp}_fragmerge_${groupname}.log
         #PBS -j oe
@@ -906,7 +899,7 @@ MRGSRT
         #PBS -l nodes=1:ppn=1:AMD
         #PBS -l mem=2gb
         #PBS -l $walltime
-        #PBS -M ${EMAIL}
+        ${EMAIL}
         #PBS -m a
         #PBS -o ${logdir}/\${timestamp}_clean1_${groupname}.log
         #PBS -j oe
@@ -939,7 +932,7 @@ then
     #PBS -l nodes=1:ppn=1:AMD
     #PBS -l mem=4gb
     #PBS -l $walltime
-    #PBS -M ${EMAIL}
+    ${EMAIL}
     #PBS -m a
     #PBS -o ${logdir}/${timestamp}_rmdupwrap_${groupname}.log
     #PBS -j oe
@@ -961,7 +954,7 @@ then
         #PBS -l nodes=1:ppn=1:AMD
         #PBS -l mem=4gb
         #PBS -l $walltime
-        #PBS -M ${EMAIL}
+        ${EMAIL}
         #PBS -m a   
         #PBS -o ${logdir}/\${timestamp}_osplit_${groupname}.log
         #PBS -j oe
@@ -971,7 +964,7 @@ then
         date +"%Y-%m-%d %H:%M:%S"
         echo "Sucess: All mergefragments jobs were successfully finished!"
         echo "now starts to remove duplicates from the big sorted file"
-        awk -v queue=${long_queue} -v outfile=${logdir}/\${timestamp}_awksplit_rmdunps -v juicedir=${juiceDir} -v dir=$outputdir -v groupname=$groupname -v walltime=$long_walltime -f ${juiceDir}/scripts/split_rmdups.awk $outputdir/merged_sort.txt
+        awk -v queue=${long_queue} -v outfile=${logdir}/\${timestamp}_awksplit_rmdunps -v juicedir=${juiceDir} -v dir=$outputdir -v groupname=$groupname -v walltime=$long_walltime -f ${juiceDir}/scripts/split_rmdups.awk $outputdir/merged_sort.txt    
 RMDUPLICATE
         
 RMDUPWRAP
@@ -1000,7 +993,7 @@ then
         else
             waitstring0=""
         fi
-        echo "waitstring0 is: $waitstring0"
+        echo "waitstring0 is: $waitstring0"        
         timestamp=$(date +"%s" | cut -c 4-10)
 		qsub <<SUPERWRAP1
         #PBS -S /bin/bash
@@ -1008,7 +1001,7 @@ then
         #PBS -l nodes=1:ppn=1:AMD
         #PBS -l mem=1gb
         #PBS -l $walltime
-        #PBS -M ${EMAIL}
+        ${EMAIL}
         #PBS -m a
         #PBS -o ${logdir}/${timestamp}_superwrap1_${groupname}.log
         #PBS -j oe
@@ -1027,12 +1020,11 @@ then
         export splitdir=$splitdir
         export nofrag=$nofrag
         export genomePath=$genomePath
-        export resolutions=$resolutions
         export final=$final
         export queue=$queue
         export walltime=$walltime
         export long_walltime=$long_walltime
-        export EMAIL=$EMAIL
+        export nofrag=$nofrag
         ${juiceDir}/scripts/launch_stats.sh
 SUPERWRAP1
     fi
@@ -1055,7 +1047,7 @@ SUPERWRAP1
     #PBS -o ${logdir}/${timestamp}_super_wrap2_${groupname}.log
     #PBS -j oe
     #PBS -N SpWrp2${groupname}
-    #PBS -M ${EMAIL}
+    ${EMAIL}
     #PBS -m a
     ${waitstring6}    
     wait
@@ -1071,7 +1063,6 @@ SUPERWRAP1
     export walltime=$walltime
     export long_walltime=$long_walltime
     export postproc=$postproc
-	export EMAIL=$EMAIL
     jID_launch=\$(qstat | grep Lnch_${groupname} | cut -c 1-7)
     echo \$jID_launch
     echo "waitstring3 is \${waitstring3}"
@@ -1092,14 +1083,14 @@ else
     #PBS -l mem=1gb
     #PBS -o ${logdir}/${timestamp}_prep_done_${groupname}.out
     #PBS -j oe
-    #PBS -M ${EMAIL}
+    ${EMAIL}
     #PBS -m a
     #PBS -N prepd_${groupname}
     #PBS -W depend=afterok:${jID_rmdupwrap}
     date +"%Y-%m-%d %H:%M:%S"
 
     jID_osplit=\$( qstat | grep osplit${groupname} | cut -c 1-7 )
-    jID_rmsplit=\$( qstat | grep RmSplt${groupname} | cut -c 1-7)
+    jID_rmsplit=\$( qstat | grep RmSplt${groupname} | cut -c 1-7)        
     wait
     timestamp=\$(date +"%s" | cut -c 4-10)
     qsub <<PREPDONE
@@ -1111,7 +1102,7 @@ else
         #PBS -o ${logdir}/\${timestamp}_done_${groupname}.log
         #PBS -j oe
         #PBS -N ${groupname}_done
-        #PBS -M ${EMAIL}
+        ${EMAIL}
         #PBS -m a
         #PBS -W depend=afterok:\${jID_osplit}:\${jID_rmsplit}
 
