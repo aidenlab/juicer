@@ -95,7 +95,7 @@ END {
     print "below is the _catsplit id";
 	print jID_catsplit;
     print "submitting _rmsplit jobs";
-	sysstring=sprintf("qsub -l %s -o %s_rmsplit.log -j oe -q %s -N RmSplt%s <<-W depend=afterok:%s <<-EOF\n rm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt; rm %s/split*;\nEOF", walltime, outfile, queue, groupname,jID_catsplit, dir, dir, dir, dir);
+	sysstring=sprintf("qsub -l %s -o %s_rmsplit.log -j oe -q %s -N RmSplt%s -W depend=afterok:%s <<-EOF\n rm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt; rm %s/split*;\nEOF", walltime, outfile, queue, groupname,jID_catsplit, dir, dir, dir, dir);
   system(sysstring);
     cmd=sprintf("qstat | grep RmSplt%s | cut -d ' ' -f 1",groupname);
     cmd |& getline jID_rmsplit;
