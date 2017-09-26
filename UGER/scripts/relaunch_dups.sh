@@ -57,3 +57,16 @@ if [ "$res1" -eq "$res2" ]
 else
     echo "Number of msplits and splits differ";
 fi
+
+
+#sysstring = sprintf("qsub -o %s -q %s -N %s_catsplit -j y -hold_jid %s <<EOF
+#-EOF\ncat %s/%s_msplit*_optdups.txt > %s/opt_dups.txt; cat %s/%s\
+#_msplit*_dups.txt > %s/dups.txt;cat %s/%s_msplit*_merged_nodups.txt > %s/merged_nodups.txt; \nEOF\n", outfile, queue, groupname, waitstring,# \
+#dir, groupname, dir, dir, groupname, dir, dir, groupname, dir, dir);
+#  system(sysstring);
+#  sysstring = sprintf("qsub -o %s -j y -q %s -hold_jid %s_catsplit -N %s_rmsplit <<EOF
+#- EOF\n rm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.\
+#txt; rm %s/*_msplit*_merged_nodups.txt; rm %s/split*;\nEOF",outfile, queue, groupname, groupname, dir, dir, dir, dir);
+#  system(sysstring);
+#EOF
+#EOF

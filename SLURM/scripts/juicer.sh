@@ -85,8 +85,10 @@ then
     juiceDir="/work/ea14/juicer" ### RICE
     # default queue, can also be set in options via -q
     queue="commons"
+    queue_time="1440"
     # default long queue, can also be set in options via -l
     long_queue="commons"
+    long_queue_time="1440"
 elif [ $isBCM -eq 1 ]
 then    
     # Juicer directory, contains scripts/, references/, and restriction_sites/
@@ -102,14 +104,16 @@ else
     isVoltron=1
     export PATH=/gpfs0/biobuild/biobuilds-2016.11/bin:$PATH 
     unset MALLOC_ARENA_MAX
-    load_gpu="CUDA_VISIBLE_DEVICES=0,1,2,3" 
+    load_gpu="CUDA_VISIBLE_DEVICES=0,1,2,3"
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
     juiceDir="/gpfs0/juicer/"
     # default queue, can also be set in options
     queue="commons"
+    queue_time="1440"
     # default long queue, can also be set in options
     long_queue="long"
+    long_queue_time="10080"
 fi
 
 # size to split fastqs. adjust to match your needs. 4000000=1M reads per split
@@ -263,16 +267,18 @@ if [ ! -e "${refSeq}.bwt" ]; then
 fi
 
 ## Set ligation junction based on restriction enzyme
-case $site in
-    HindIII) ligation="AAGCTAGCTT";;
-    DpnII) ligation="GATCGATC";;
-    MboI) ligation="GATCGATC";;
-    NcoI) ligation="CCATGCATGG";;
-    none) ligation="XXXX";;
-    *)  ligation="XXXX"
-	echo "$site not listed as recognized enzyme. Using $site_file as site file"
-	echo "Ligation junction is undefined"
-esac
+if [ -z "$ligation" ]; then
+    case $site in
+	HindIII) ligation="AAGCTAGCTT";;
+	DpnII) ligation="GATCGATC";;
+	MboI) ligation="GATCGATC";;
+	NcoI) ligation="CCATGCATGG";;
+	none) ligation="XXXX";;
+	*)  ligation="XXXX"
+	    echo "$site not listed as recognized enzyme. Using $site_file as site file"
+	    echo "Ligation junction is undefined"
+    esac
+fi
 
 ## If DNAse-type experiment, no fragment maps
 if [ "$site" == "none" ]
@@ -476,7 +482,7 @@ then
 		    jid=`sbatch <<- SPLITEND | egrep -o -e "\b[0-9]+$"
 			#!/bin/bash -l
 			#SBATCH -p $queue
-			#SBATCH -t 1440
+			#SBATCH -t $queue_time
 			#SBATCH -c 1
 			#SBATCH -o $debugdir/split-%j.out
 			#SBATCH -e $debugdir/split-%j.err
@@ -490,7 +496,7 @@ SPLITEND`
 		    jid=`sbatch <<- SPLITEND | egrep -o -e "\b[0-9]+$"
 			#!/bin/bash -l
 			#SBATCH -p $queue
-			#SBATCH -t 1440
+			#SBATCH -t $queue_time
 			#SBATCH -c 1
 			#SBATCH -o $debugdir/split-%j.out
 			#SBATCH -e $debugdir/split-%j.err
@@ -560,7 +566,7 @@ SPLITEND`
 	jid=`sbatch <<- CNTLIG
 		#!/bin/bash -l
 		#SBATCH -p $queue
-		#SBATCH -t 1440
+		#SBATCH -t $queue_time
 		#SBATCH -c 1
 		#SBATCH -o $debugdir/count_ligation-%j.out
 		#SBATCH -e $debugdir/count_ligation-%j.err
@@ -578,7 +584,7 @@ CNTLIG`
 		#SBATCH -p $queue
 		#SBATCH -o $debugdir/align1-%j.out
 		#SBATCH -e $debugdir/align1-%j.err
-		#SBATCH -t 1440
+		#SBATCH -t $queue_time
 		#SBATCH -n 1
 		#SBATCH -c $threads
 		#SBATCH --ntasks=1
@@ -624,7 +630,7 @@ ALGNR1`
 		#SBATCH -p $queue
 		#SBATCH -o $debugdir/align2-%j.out
 		#SBATCH -e $debugdir/align2-%j.err
-		#SBATCH -t 1440
+		#SBATCH -t $queue_time
 		#SBATCH -n 1
 		#SBATCH -c $threads
 		#SBATCH --ntasks=1
@@ -671,7 +677,7 @@ ALGNR2`
 		#SBATCH -o $debugdir/merge-%j.out
 		#SBATCH -e $debugdir/merge-%j.err
 		#SBATCH --mem-per-cpu=14G
-		#SBATCH -t 1440
+		#SBATCH -t $long_queue_time
 		#SBATCH -c 8 
 		#SBATCH --ntasks=1
 		#SBATCH -d $dependalign
@@ -802,7 +808,7 @@ MRGALL`
 		#!/usr/bin/bash
 		#SBATCH -o $debugdir/aligncheck-%j.out
 		#SBATCH -e $debugdir/aligncheck-%j.err
-		#SBATCH -t 1440
+		#SBATCH -t $queue_time
 		#SBATCH -p $queue
 		#SBATCH -J "${groupname}_check"
 		#SBATCH -d $dependmerge
@@ -831,22 +837,13 @@ then
     fi
     
     # merge the sorted files into one giant file that is also sorted.      jid=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
-    
-    if [ $isVoltron -eq 1 ]
-    then  
-	sbatch_time="#SBATCH -t 10080"
-    else
-	sbatch_time="#SBATCH -t 1440"
-    fi
-
-
 
     jid=`sbatch <<- EOF
 		#!/usr/bin/bash
 		#SBATCH -o $debugdir/fragmerge-%j.out
 		#SBATCH -e $debugdir/fragmerge-%j.err
 		#SBATCH --mem 256000
-		${sbatch_time}
+		#SBATCH -t $long_queue_time
 		#SBATCH -p $long_queue
 		#SBATCH -c 8
 		#SBATCH -J "${groupname}_fragmerge"
@@ -921,7 +918,7 @@ DEDUPGUARD`
 	#SBATCH --mem-per-cpu=2G
 	#SBATCH -o $debugdir/dedup-%j.out
 	#SBATCH -e $debugdir/dedup-%j.err
-	#SBATCH -t 1440
+	#SBATCH -t $queue_time
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_dedup"
@@ -987,7 +984,7 @@ then
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/dupcheck-%j.out
 	#SBATCH -e $debugdir/dupcheck-%j.err
-	#SBATCH -t 1440
+	#SBATCH -t $queue_time
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH --mem-per-cpu=1G
@@ -1010,7 +1007,7 @@ DUPCHECK`
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/stats-%j.out
 		#SBATCH -e $debugdir/stats-%j.err
-		#SBATCH -t 1440
+		#SBATCH -t $long_queue_time
 		#SBATCH -c 1
 		#SBATCH --ntasks=1
 		#SBATCH --mem-per-cpu=6G
@@ -1051,7 +1048,7 @@ STATS`
 	#SBATCH -p $long_queue
 	#SBATCH -o $debugdir/hic-%j.out
 	#SBATCH -e $debugdir/hic-%j.err	
-	#SBATCH -t 1440
+	#SBATCH -t $long_queue_time
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH --mem-per-cpu=32G
@@ -1070,7 +1067,8 @@ STATS`
 		${juiceDir}/scripts/juicer_tools48g pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
 	else
 		${juiceDir}/scripts/juicer_tools48g pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
-fi
+echo "${juiceDir}/scripts/juicer_tools48g pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath "
+	fi
 	date
 HIC`
 
@@ -1081,7 +1079,7 @@ HIC`
 	#SBATCH -p $long_queue
 	#SBATCH -o $debugdir/hic30-%j.out
 	#SBATCH -e $debugdir/hic30-%j.err
-	#SBATCH -t 1440
+	#SBATCH -t $long_queue_time
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH --mem-per-cpu=32G
@@ -1126,7 +1124,7 @@ HIC30`
 	${sbatch_req}
 	#SBATCH -o $debugdir/hiccups_wrap-%j.out
 	#SBATCH -e $debugdir/hiccups_wrap-%j.err
-	#SBATCH -t 1440
+	#SBATCH -t $queue_time
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_hiccups_wrap"
 	${sbatch_wait}
@@ -1154,7 +1152,7 @@ HICCUPS`
 	#SBATCH --mem-per-cpu=8G
 	#SBATCH -o $debugdir/arrowhead_wrap-%j.out
 	#SBATCH -e $debugdir/arrowhead_wrap-%j.err
-	#SBATCH -t 1440
+	#SBATCH -t $queue_time
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_arrowhead_wrap"
 	${sbatch_wait}
