@@ -1,5 +1,5 @@
 #!/bin/bash
-jID_launch=$( qstat | grep Lnch_${groupname} | cut -c 1-7 )
+jID_launch=$( qstat | grep Lnch_${groupname} | cut -d ' ' -f 1 )
 if [ -z $postproc ]
 then
     waitstring3="#PBS -W depend=afterok:${jID_launch}"
@@ -20,7 +20,7 @@ ${waitstring3}
 
 date +"%Y-%m-%d %H:%M:%S"
 
-jID_hic30=\$(qstat | grep hic30_${groupname} |cut -c 1-7)
+jID_hic30=\$(qstat | grep hic30_${groupname} |cut -d ' ' -f 1)
 
 if [ -z $postproc ]
 then
@@ -52,7 +52,7 @@ qsub <<POSTPROCESS
 POSTPROCESS
 POSTPROCWRAP
 
-jID_postprocwrap=$( qstat |grep PPrWrp${groupname} | cut -c 1-7 )
+jID_postprocwrap=$( qstat |grep PPrWrp${groupname} | cut -d ' ' -f 1 )
 echo $jID_postprowrap
 wait
 timestamp=$(date +"%s" | cut -c 4-10)
@@ -66,11 +66,11 @@ qsub <<- FINCK
 #PBS -W depend=afterok:${jID_postprocwrap}
 
 date +"%Y-%m-%d %H:%M:%S"    
-jID_hic30=\$(qstat | grep hic30_${groupname} |cut -c 1-7)
-jID_stats0=\$(qstat | grep stats0${groupname} |cut -c 1-7)
-jID_stats30=\$(qstat | grep stats30${groupname} |cut -c 1-7)
-jID_hic=\$(qstat | grep hic0_${groupname} |cut -c 1-7)
-jID_postproc=\$(qstat | grep PProc_${groupname} |cut -c 1-7)
+jID_hic30=\$(qstat | grep hic30_${groupname} |cut -d ' ' -f 1)
+jID_stats0=\$(qstat | grep stats0${groupname} |cut -d ' ' -f 1)
+jID_stats30=\$(qstat | grep stats30${groupname} |cut -d ' ' -f 1)
+jID_hic=\$(qstat | grep hic0_${groupname} |cut -d ' ' -f 1)
+jID_postproc=\$(qstat | grep PProc_${groupname} |cut -d ' ' -f 1)
 
 waitstring5="#PBS -W depend=afterok:\${jID_postproc}"
 if [ -z $postproc ]

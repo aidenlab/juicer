@@ -99,7 +99,7 @@ long_walltime="walltime=120:00:00"
 # give your email address to be used in #PBS -M to receive notifications when job error occurs.
 # Must be either set with an email address or skipped
 # This email is not included in the launch stat and postprocessing steps, add manually if needed
-EMAIL='#PBS -M mzhibo@gmail.com'
+EMAIL='#PBS -M xxx@gmail.com'
 splitsize=90000000
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
 # if your fastq files look different, change this value
@@ -510,7 +510,7 @@ SPLITMV
         export ligation=${ligation}
         ${juiceDir}/scripts/countligations.sh
 CNTLIG
-        jID_cntlig=\$(qstat | grep "CtLig\${countjobs}${groupname}" | cut -c 1-7 )
+        jID_cntlig=\$(qstat | grep "CtLig\${countjobs}${groupname}" | cut -d ' ' -f 1 )
         echo "jID_cntlig \${countjobs} id is \${jID_cntlig}"
         ## Align read1        
         # align read1 fastq
@@ -573,7 +573,7 @@ CNTLIG
 ALGNR1
         wait
         # Get the jobID from qstat ouput by searching job specific string,"read1\${countjobs}" , in job Name.
-        jID_1=\$( qstat | grep "ALN1\${countjobs}${groupname}" |cut -c 1-7 )
+        jID_1=\$( qstat | grep "ALN1\${countjobs}${groupname}" |cut -d ' ' -f 1 )
         echo "align1 \$countjobs id is: \${jID_1}"
         # Align read2
         echo "starting read2 alignment" 
@@ -625,7 +625,7 @@ ALGNR2
         wait
 
         # Get the jobID of job above from qstat ouput using job specific string,"read2\${countjobs}" , in jobName.
-        jID_2=\$(qstat | grep "ALN2\${countjobs}${groupname}" |cut -c 1-7 )
+        jID_2=\$(qstat | grep "ALN2\${countjobs}${groupname}" |cut -d ' ' -f 1 )
         echo "align2 \${countjobs} id is: \${jID_2}"
         echo "starting merging from read1 and read2"
         # wait for align1 and align2 jobs finish,then merge
@@ -702,7 +702,7 @@ ALGNR2
 MRGALL
     wait
 
-    jID_3=\$(qstat | grep "Mrg\${countjobs}${groupname}" | cut -c 1-7 )
+    jID_3=\$(qstat | grep "Mrg\${countjobs}${groupname}" | cut -d ' ' -f 1 )
     echo "merging align1 and align2 \${coutjobs} id is \${jID_3}"
     echo "starting chimeric step after alignment"
     timestamp=\$(date +"%s" | cut -c 4-10)
@@ -764,7 +764,7 @@ MRGALL
 CHIMERIC
     wait
 
-    jID_4=\$(qstat | grep "Chmr\${countjobs}${groupname}" | cut -c 1-7)
+    jID_4=\$(qstat | grep "Chmr\${countjobs}${groupname}" | cut -d ' ' -f 1)
     echo "chimeric \$countjobs id is \$jID_4"
     exitstatus=\$(qstat -f \${jID_4} |grep "exit_status" )
     echo "the exit status of \{jID_4} is \${exitstatus}"
@@ -822,7 +822,7 @@ ALIGNWRAP
     
 fi
 wait    
-jID_alignwrap=$( qstat | grep AlnWrp${groupname} | cut -c 1-7 )
+jID_alignwrap=$( qstat | grep AlnWrp${groupname} | cut -d ' ' -f 1 )
 if [ -z $merge ]
 then
     waitstring_mrgsrtwrp="#PBS -W depend=afterok:${jID_alignwrap}"
@@ -846,11 +846,10 @@ then
     #PBS -o ${logdir}/${timestamp}_mergesortwrap_${groupname}.log
     #PBS -j oe
     #PBS -N MStWrp${groupname}
-#    #PBS -W depend=afterok:${jID_alignwrap}
     ${waitstring_mrgsrtwrp}
     date +"%Y-%m-%d %H:%M:%S"
     echo "all alignment done, all aplitting and alignment jobs succeeded!" 
-    jID_alnOK=\$( qstat | grep AlnOK_${groupname} | cut -c 1-7 )
+    jID_alnOK=\$( qstat | grep AlnOK_${groupname} | cut -d ' ' -f 1 )
     echo "jID_aln-OK job id is \$jID_alnOK "
     timestamp=\$(date +"%s" | cut -c 4-10)
     if [ -z $merge ]
@@ -873,7 +872,6 @@ then
         #PBS -o ${logdir}/\${timestamp}_fragmerge_${groupname}.log
         #PBS -j oe
         #PBS -N frgmrg${groupname}
-#        #PBS -W depend=afterok:\${jID_alnOK}
         \${waitstring_alnOK}
         date +"%Y-%m-%d %H:%M:%S"
         export LC_ALL=C
@@ -889,7 +887,7 @@ then
             rm -r ${tmpdir}        
         fi
 MRGSRT
-        jID_mrgsrt=\$( qstat | grep frgmrg${groupname} | cut -c 1-7 )
+        jID_mrgsrt=\$( qstat | grep frgmrg${groupname} | cut -d ' ' -f 1 )
 
         ##kill all remaining jobs if previous mergesort step exited with error
         timestamp=\$(date +"%s" | cut -c 4-10)
@@ -908,13 +906,13 @@ MRGSRT
 
         date +"%Y-%m-%d %H:%M:%S"
         echo "Error with merging sorted files job, ${jID_mrgsort}, deleting all remaining jobs of this pipeline."
-        RemJob1=\$(qstat |grep "$groupname" |grep " Q \| H \| R " | awk 'BEGIN{FS=" "}{print $1}'| cut -c 1-7)
+        RemJob1=\$(qstat |grep "$groupname" |grep " Q \| H \| R " | awk 'BEGIN{FS=" "}{print $1}'| cut -d ' ' -f 1)
         qdel \${RemJob1}
 MRGSRTFAILCK
 MRGSRTWRAP
 fi
 wait
-jID_mrgsrtwrap=$( qstat| grep MStWrp${groupname} | cut -c 1-7 )
+jID_mrgsrtwrap=$( qstat| grep MStWrp${groupname} | cut -d ' ' -f 1 )
 if [ -z $dedup ]
 then
     waitstring_RDpWrp="#PBS -W depend=afterok:${jID_mrgsrtwrap}"
@@ -940,7 +938,7 @@ then
     ${waitstring_RDpWrp}
     date +"%Y-%m-%d %H:%M:%S"
     echo ${waitstring_RDpWrp}
-    jID_mrgsrt=\$( qstat | grep frgmrg${groupname} | cut -c 1-7 )
+    jID_mrgsrt=\$( qstat | grep frgmrg${groupname} | cut -d ' ' -f 1 )
     if [ -z $dedup ]
     then
         waitstring_osplit="#PBS -W depend=afterok:\${jID_mrgsrt}"
@@ -970,7 +968,7 @@ RMDUPLICATE
 RMDUPWRAP
 fi
 
-jID_rmdupwrap=$( qstat | grep RDpWrp${groupname} | cut -c 1-7 )
+jID_rmdupwrap=$( qstat | grep RDpWrp${groupname} | cut -d ' ' -f 1 )
 echo "jID_rmdupwrap ID: $jID_rmdupwrap"
 wait
 if [ -z "$genomePath" ]
@@ -1028,7 +1026,7 @@ then
         ${juiceDir}/scripts/launch_stats.sh
 SUPERWRAP1
     fi
-    jID_superwrap1="$( qstat | grep SpWrp1${groupname} | cut -c 1-7 )"
+    jID_superwrap1="$( qstat | grep SpWrp1${groupname} | cut -d ' ' -f 1 )"
     wait
     if [ -z $postproc ]
     then
@@ -1063,7 +1061,7 @@ SUPERWRAP1
     export walltime=$walltime
     export long_walltime=$long_walltime
     export postproc=$postproc
-    jID_launch=\$(qstat | grep Lnch_${groupname} | cut -c 1-7)
+    jID_launch=\$(qstat | grep Lnch_${groupname} | cut -d ' ' -f 1)
     echo \$jID_launch
     echo "waitstring3 is \${waitstring3}"
     ${juiceDir}/scripts/postprocessing.sh
@@ -1089,8 +1087,8 @@ else
     #PBS -W depend=afterok:${jID_rmdupwrap}
     date +"%Y-%m-%d %H:%M:%S"
 
-    jID_osplit=\$( qstat | grep osplit${groupname} | cut -c 1-7 )
-    jID_rmsplit=\$( qstat | grep RmSplt${groupname} | cut -c 1-7)        
+    jID_osplit=\$( qstat | grep osplit${groupname} | cut -d ' ' -f 1 )
+    jID_rmsplit=\$( qstat | grep RmSplt${groupname} | cut -d ' ' -f 1)        
     wait
     timestamp=\$(date +"%s" | cut -c 4-10)
     qsub <<PREPDONE

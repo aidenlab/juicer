@@ -17,7 +17,7 @@ echo "resolutions: $resolutions"
 echo "walltime: $walltime"
 echo "long_walltime: $long_walltime"
 echo $load_java
-jID_osplit=$( qstat | grep osplit${groupname} | cut -c 1-7 )
+jID_osplit=$( qstat | grep osplit${groupname} | cut -d ' ' -f 1 )
 
 if [ -z $final ]
 then
@@ -41,8 +41,8 @@ ${waitstring2}
 
 date +"%Y-%m-%d %H:%M:%S"
 echo "Alignment and merge done, launching the stats job"
-#jID_osplit=\$( qstat | grep osplit${groupname} | cut -c 1-7 )
-jID_rmsplit=\$( qstat | grep RmSplt${groupname} | cut -c 1-7)
+#jID_osplit=\$( qstat | grep osplit${groupname} | cut -d ' ' -f 1 )
+jID_rmsplit=\$( qstat | grep RmSplt${groupname} | cut -d ' ' -f 1)
 
 if [ -z $final ]
 then
@@ -118,7 +118,7 @@ qsub <<- ABNORMAL
 	awk -f ${juiceDir}/scripts/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
 ABNORMAL
 
-jID_stats0=\$( qstat | grep stats0${groupname} | cut -c 1-7)
+jID_stats0=\$( qstat | grep stats0${groupname} | cut -d ' ' -f 1)
 
 wait
 echo "this is the value of jID_stats: \${jID_stats}"
@@ -146,7 +146,7 @@ qsub <<- HICWORK
 		${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
 	fi
 HICWORK
-jID_stats30=\$( qstat | grep stats30${groupname} | cut -c 1-7)
+jID_stats30=\$( qstat | grep stats30${groupname} | cut -d ' ' -f 1)
 timestamp=\$(date +"%s" | cut -c 4-10)
 echo "start submitting hic30 job"
 qsub <<- HIC30WORK
