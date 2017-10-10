@@ -72,7 +72,8 @@ read2str="_R2"
 
 # Juicer directory, contains scripts/, references/, and restriction_sites/
 # can also be set in options via -D
-juiceDir="/opt/juicer"
+# defaults to where juicer.sh is located
+juiceDir=/aidenlab
 # top level directory, can also be set in options
 topDir=$(pwd)
 # restriction enzyme, can also be set in options
@@ -502,13 +503,50 @@ then
     touch ${outputdir}/dups.txt
     touch ${outputdir}/optdups.txt
     touch ${outputdir}/merged_nodups.txt
-    awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ ${outputdir}/merged_sort.txt
-    # for consistency with cluster naming in split_rmdups
-    mv ${outputdir}/optdups.txt ${outputdir}/opt_dups.txt 
+    if ! parallel --version >& /dev/null
+    then
+	awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ ${outputdir}/merged_sort.txt
+	# for consistency with cluster naming in split_rmdups
+	mv ${outputdir}/optdups.txt ${outputdir}/opt_dups.txt 
+    else # run in parallel if possible using GNU parallel
+	rm -f ${outputdir}/cmds.txt #remove old commands file if exists
+	if awk -v juicedir=${juiceDir} -v dir=$outputdir -v groupname=$groupname -v cmds=${outputdir}/cmds.txt -f ${juiceDir}/scripts/split_rmdups.awk $outputdir/merged_sort.txt
+	then
+	    if parallel < ${outputdir}/cmds.txt >& /dev/null
+	    then
+		cat ${outputdir}/*_msplit*_optdups.txt > ${outputdir}/opt_dups.txt
+		cat ${outputdir}/*_msplit*_dups.txt > ${outputdir}/dups.txt
+		cat ${outputdir}/*_msplit*_merged_nodups.txt > ${outputdir}/merged_nodups.txt
+		sorttotal=`ls -l ${outputdir}/merged_sort.txt | awk '{print $5}'`
+		nodupstotal=`ls -l ${outputdir}/merged_nodups.txt ${outputdir}/dups.txt ${outputdir}/opt_dups.txt | awk '{sum = sum + $5}END{print sum}'`
+		if [ -z $sorttotal ] || [ -z $nodupstotal ] || [ $sorttotal -ne $nodupstotal ]
+		then
+		    echo "***! Error! The sorted file and dups/no dups files do not add up, or were empty. Merge or dedupping likely failed, restart pipeline with -S merge or -S dedup"
+		    echo "Dups don't add up.  Check ${outputdir} for results"
+		    exit 1
+		else
+		    rm ${outputdir}/*_msplit*_optdups.txt 
+		    rm ${outputdir}/*_msplit*_dups.txt
+		    rm ${outputdir}/*_msplit*_merged_nodups.txt
+		    rm ${outputdir}/split*
+		    echo "(-: Finished removing duplicates."
+		fi
+	    else
+		echo "***! Some problems occurred somewhere in deduping the merged_sort file."
+		exit 1
+	    fi
+	else
+            echo "***! Some problems occurred somewhere in deduping the merged_sort file."
+            exit 1
+	fi
+    fi
 fi
 if [ -z "$genomePath" ]
 then
     #If no path to genome is give, use genome ID as default.
+#    awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ ${outputdir}/merged_sort.txt
+    # for consistency with cluster naming in split_rmdups
+
     genomePath=$genomeID
 fi
 #CREATE HIC FILES
