@@ -59,6 +59,8 @@
 #             match any files with the read1str.   
 #set -e ## This is causing problems; need better error detection
 shopt -s extglob
+export LC_ALL=C
+
 juicer_version="1.5.6" 
 ### LOAD BWA AND SAMTOOLS
 
@@ -441,7 +443,6 @@ then
             echo "(-: $name$ext.sam created successfully."
 	fi
     
-	export LC_ALL=C
         # call chimeric_blacklist.awk to deal with chimeric reads; 
         # sorted file is sorted by read name at this point
 	touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam
