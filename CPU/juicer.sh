@@ -60,8 +60,7 @@
 shopt -s extglob
 juicer_version="1.5.6" 
 ### LOAD BWA AND SAMTOOLS
-bwa_cmd="/home/neva/smalltest/bwa/bwa"
-#bwa_cmd="bwa"
+bwa_cmd="/home/neva/bwa-0.7.17/bwa"
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
 # if your fastq files look different, change this value
 read1str="_R1" 
@@ -71,7 +70,7 @@ read2str="_R2"
 
 # Juicer directory, contains scripts/, references/, and restriction_sites/
 # can also be set in options via -D
-juiceDir="/opt/juicer"
+juiceDir="/aidenlab"
 # top level directory, can also be set in options
 topDir=$(pwd)
 # restriction enzyme, can also be set in options
@@ -360,7 +359,7 @@ then
 	export LC_ALL=C
         # call chimeric_blacklist.awk to deal with chimeric reads; 
         # sorted file is sorted by read name at this point
-	touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam $name${ext}_mapq0.sam
+	touch $name${ext}_collisions.sam $name${ext}_collisions_low_mapq.sam $name${ext}_collisions $name${ext}_unmapped.sam $name${ext}_mapq0.sam
 	# chimeric takes in $name$ext
 	awk -v "fname"=$name${ext} -f ${juiceDir}/scripts/common/chimeric_blacklist.awk $name$ext.sam
 	if [ $? -ne 0 ]
@@ -368,9 +367,8 @@ then
             echo "***! Failure during chimera handling of $name${ext}"
             exit 1
 	fi	
-	#samtools fixmate tmp_se.bam tmp_se_fixmate.bam
         # if any normal reads were written, find what fragment they correspond
-	# to  and store that
+	# to and store that
 	if [ -e "$name${ext}_norm.txt" ] && [ "$site" != "none" ]
 	then
             ${juiceDir}/scripts/common/fragment.pl $name${ext}_norm.txt $name${ext}.frag.txt $site_file    
@@ -388,10 +386,16 @@ then
 	fi                              
 
 	# convert sams to bams and delete the sams
-	samtools view -hb $name${ext}_abnorm.sam > $name${ext}_abnorm.bam
+	samtools view -hb $name${ext}_collisions.sam > $name${ext}_collisions.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of $name${ext}_abnorm.sam"
+            echo "***! Failure during bam write of $name${ext}_collisions.sam"
+            exit 1
+	fi	
+	samtools view -hb $name${ext}_collisions_low_mapq.sam > $name${ext}_collisions_low_mapq.bam
+	if [ $? -ne 0 ]
+	then
+            echo "***! Failure during bam write of $name${ext}_collisions_low_mapq.sam"
             exit 1
 	fi	
 	samtools view -hb $name${ext}_unmapped.sam > $name${ext}_unmapped.bam
@@ -413,7 +417,7 @@ then
             exit 1
 	fi	
 	# remove all sams EXCEPT alignable, which we need for deduping
-	rm $name${ext}_abnorm.sam $name${ext}_unmapped.sam $name${ext}_mapq0.sam
+	rm $name${ext}_collisions.sam $name${ext}_collisions_low_mapq.sam $name${ext}_unmapped.sam $name${ext}_mapq0.sam
 
         # sort by chromosome, fragment, strand, and position
 	sort -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $name${ext}.frag.txt > $name${ext}.sort.txt
@@ -477,7 +481,7 @@ then
 	awk 'BEGIN{OFS="\t"}FNR==NR{for (i=$1; i<=$2; i++){a[i];} next}(!(FNR in a) && $1 !~ /^@/){$2=or($2,1024)}{print}' "${i}" "${j}_alignable.sam" > "${j}_alignable_dedup.sam"
 	samtools view -hb "${j}_alignable_dedup.sam" > "${j}_alignable.bam"
     done
-#hi neva start here.  alignable.bam should be marked with duplicates after this point
+
     if [ `ls -1 $splitdir/*_alignable.bam 2>/dev/null | wc -l ` -gt 1 ]
     then
 	samtools merge -n ${outputdir}/alignable.bam ${splitdir}/*_alignable.bam
@@ -487,15 +491,16 @@ then
     # combine bams
     if [ `ls -1 $splitdir/*_abnorm.bam 2>/dev/null | wc -l ` -gt 1 ]
     then
-	samtools merge -n $outputdir/abnormal.bam $splitdir/*_abnorm.bam 
+	samtools merge -n $outputdir/collisions.bam $splitdir/*_collisions.bam 
+	samtools merge -n $outputdir/collisions_low_mapq.bam $splitdir/*_collisions_low_mapq.bam 
 	samtools merge -n $outputdir/unmapped.bam $splitdir/*_unmapped.bam 
 	samtools merge -n $outputdir/mapq0.bam $splitdir/*_mapq0.bam
     else
-	cat $splitdir/*_abnorm.bam > $outputdir/abnormal.bam
+	cat $splitdir/*_collisions.bam > $outputdir/collisions.bam
+	cat $splitdir/*_collisions_low_mapq.bam > $outputdir/collisions_low_mapq.bam
 	cat $splitdir/*_unmapped.bam > $outputdir/unmapped.bam
 	cat $splitdir/*_mapq0.bam > $outputdir/mapq0.bam
     fi
-    samtools view $outputdir/abnormal.bam | awk -f ${juiceDir}/scripts/common/collisions.awk  > $outputdir/collisions.txt
 fi
 
 if [ -n "$deduponly" ]

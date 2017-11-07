@@ -76,7 +76,8 @@ BEGIN{
   count_unmapped = -1; # will count first non-group
   norm=fname"_norm.txt"
   alignable=fname"_alignable.sam"
-  abnorm=fname"_abnorm.sam"
+  collisions=fname"_collisions.sam"
+  lowqcollisions=fname"_collisions_low_mapq.sam"
   unmapped=fname"_unmapped.sam"
   mapq0=fname"_mapq0.sam"
   dup=fname"_dup.sam" # for after duplicates have been marked
@@ -102,7 +103,7 @@ $0 !~ /^@/{
     # regardless.
     count++;
   }
-  else {
+  else { 
     # deal with read pair group
     tottot++;
     normal=0; # assume not normal, will get set if normal
@@ -110,11 +111,10 @@ $0 !~ /^@/{
     # blacklist - if 3rd bit set (=4) it means unmapped
     sum_mapped = 0;
     for (j=1; j <= count; j++) {
-        split(c[j],tmp);
-	mapped[j] = and(tmp[2],4) == 0;
-	sum_mapped = sum_mapped+mapped[j];
+      split(c[j],tmp);
+      mapped[j] = and(tmp[2],4) == 0;
+      sum_mapped = sum_mapped+mapped[j];
     }
-
     if (sum_mapped < 2) {
       if (count_unmapped == -1) {
 	print header > unmapped;
@@ -127,15 +127,13 @@ $0 !~ /^@/{
       count_unmapped++;
     }
     else {
-      # find minimum mapq; if it's 0, send to mapq0 file
+      # find if there are at least two mapq > 0 reads
       sum_mapq=0;
-      minmapq=1;
       for (j=1; j <= count; j++) {
         split(c[j],tmp);
 	if (tmp[5] > 0) {
           sum_mapq=sum_mapq+1;
 	}
-	else minmapq=0;
       }
       if (sum_mapq < 2) {
 	if (count_mapq0 == 0) {
@@ -146,16 +144,42 @@ $0 !~ /^@/{
           print c[j] > mapq0;
 	}
       }
-      else if ((count > 4) || (count == 1)) {
+      else if (count == 1) {
         # count==1 shouldn't happen; occurs with alternate aligners at times
-	  if (count_abnorm == 0) {
-	      print header > abnorm;
-	  }
+	# otherwise can signal a problem matching the fastq readnames
+	if (count_lowqcollisions == 0) {
+	  print header > lowqcollisions;
+	}	
+	print c[1] > lowqcollisions;
+	count_lowqcollisions++;
+      }
+      else if (count > 4) {	  
+	# check that MAPQ >= 10 for all reads
+	mapq10=1;
 	for (j=1; j <= count; j++) {
-          print c[j] > abnorm;
+	  split(c[j],tmp);
+	  if (tmp[5] < 10) {
+	    mapq10=0;
+	  }
 	}
-	count_abnorm++;
-	
+	if (mapq10){
+	  if (count_collisions == 0) {
+	    print header > collisions;
+	  }
+	  for (j=1; j <= count; j++) {
+	    print c[j] > collisions;
+	  }
+	  count_collisions++;
+	}
+	else {
+	  if (count_lowqcollisions == 0) {
+	    print header > lowqcollisions;
+	  }
+	  for (j=1; j <= count; j++) {
+	    print c[j] > lowqcollisions;
+	  }
+	  count_lowqcollisions++;
+	}
       }
       else {
         # count is 2,3,4.
@@ -251,26 +275,62 @@ $0 !~ /^@/{
 	    }
 	    else {
 	      # abnormal
-	      if (count_abnorm == 0) {
-		print header > abnorm;
-	      }
+	      # check that MAPQ >= 10 for all reads
+	      mapq10=1;
 	      for (j=1; j <= count; j++) {
-		print c[j] > abnorm;
+		split(c[j],tmp);
+		if (tmp[5] < 10) {
+		  mapq10=0;
+		}
 	      }
-	      count_abnorm++;
-	
+	      if (mapq10) {
+		if (count_collisions == 0) {
+		  print header > collisions;
+		}
+		for (j=1; j <= count; j++) {
+		  print c[j] > collisions;
+		}
+		count_collisions++;
+	      }
+	      else {
+		if (count_lowqcollisions == 0) {
+		  print header > lowqcollisions;
+		}
+		for (j=1; j <= count; j++) {
+		  print c[j] > lowqcollisions;
+		}
+		count_lowqcollisions++;
+	      }
 	    }
 	  }
 	  else { # count 4, not close together
 	    # abnormal
-	    if (count_abnorm == 0) {
-	      print header > abnorm;
-	    }
+	    # check that MAPQ >= 10 for all reads
+	    mapq10=1;
 	    for (j=1; j <= count; j++) {
-	      print c[j] > abnorm;
+	      split(c[j],tmp);
+	      if (tmp[5] < 10) {
+		mapq10=0;
+	      }
 	    }
-	    count_abnorm++;
-	
+	    if (mapq10) {
+	      if (count_collisions == 0) {
+	        print header > collisions;
+	      }
+	      for (j=1; j <= count; j++) {
+		print c[j] > collisions;
+	      }
+	      count_collisions++;
+	    }
+	    else {
+	      if (count_lowqcollisions == 0) {
+		print header > lowqcollisions;
+	      }
+	      for (j=1; j <= count; j++) {
+		print c[j] > lowqcollisions;
+	      }
+	      count_lowqcollisions++;
+	    }
 	  }
 	} # if sum_mapq == 4
 	else { # sum_mapq == 3
@@ -308,12 +368,31 @@ $0 !~ /^@/{
 	  }
 	  else {
 	    # chimeric read with the 3 ends > 1KB apart
-	    if (count_abnorm == 0) {
-	      print header > abnorm;
-	    }
-	    count_abnorm++;
+	    # check that MAPQ >= 10 for all reads
+	    mapq10=1;
 	    for (j=1; j <= count; j++) {
-	      print c[j] > abnorm;
+	      split(c[j],tmp);
+	      if (tmp[5] < 10) {
+		mapq10=0;
+	      }
+	    }
+	    if (mapq10) {
+	      if (count_collisions == 0) {
+	        print header > collisions;
+	      }
+	      for (j=1; j <= count; j++) {
+		print c[j] > collisions;
+	      }
+	      count_collisions++;
+	    }
+	    else {
+	      if (count_lowqcollisions == 0) {
+		print header > lowqcollisions;
+	      }
+	      for (j=1; j <= count; j++) {
+		print c[j] > lowqcollisions;
+	      }
+	      count_lowqcollisions++;
 	    }
 	  }
 	} # sum_mapq == 3
@@ -374,10 +453,10 @@ END{
     }
 
     if (sum_mapped < 2) {
-      # unmapped
       if (count_unmapped == -1) {
 	print header > unmapped;
       }
+      # unmapped
       for (j=1; j <= count; j++) {
 	print c[j] > unmapped;
       }
@@ -404,16 +483,42 @@ END{
           print c[j] > mapq0;
 	}
       }
-      else if ((count > 4) || (count == 1)) {
+      else if (count == 1) {
         # count==1 shouldn't happen; occurs with alternate aligners at times
-	if (count_abnorm == 0) {
-	  print header > abnorm;
-	}
+	# otherwise can signal a problem matching the fastq readnames
+	if (count_lowqcollisions == 0) {
+	  print header > lowqcollisions;
+	}	
+	print c[1] > lowqcollisions;
+	count_lowqcollisions++;
+      }
+      else if (count > 4) {	  
+	# check that MAPQ >= 10 for all reads
+	mapq10=1;
 	for (j=1; j <= count; j++) {
-          print c[j] > abnorm;
+	  split(c[j],tmp);
+	  if (tmp[5] < 10) {
+	    mapq10=0;
+	  }
 	}
-	count_abnorm++;
-	
+	if (mapq10){
+	  if (count_collisions == 0) {
+	    print header > collisions;
+	  }
+	  for (j=1; j <= count; j++) {
+	    print c[j] > collisions;
+	  }
+	  count_collisions++;
+	}
+	else {
+	  if (count_lowqcollisions == 0) {
+	    print header > lowqcollisions;
+	  }
+	  for (j=1; j <= count; j++) {
+	    print c[j] > lowqcollisions;
+	  }
+	  count_lowqcollisions++;
+	}
       }
       else {
         # count is 2,3,4.
@@ -480,10 +585,6 @@ END{
 	      cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
 	      pos[j] = pos[j] + cigloc;
 	    }
-	    # Mitochrondria loops around
-	    if (chr[j] ~ /MT/ && pos[j] >= 16569) {
-	      pos[j] = pos[j] - 16569;
-	    }
 	  } # else if str[j]==16
 	} # end for loop, now have all info about each read end
 	read1=0;
@@ -513,26 +614,62 @@ END{
 	    }
 	    else {
 	      # abnormal
-	      if (count_abnorm == 0) {
-	        print header > abnorm;
-	      }
+	      # check that MAPQ >= 10 for all reads
+	      mapq10=1;
 	      for (j=1; j <= count; j++) {
-		print c[j] > abnorm;
+		split(c[j],tmp);
+		if (tmp[5] < 10) {
+		  mapq10=0;
+		}
 	      }
-	      count_abnorm++;
-	
+	      if (mapq10) {
+		if (count_collisions == 0) {
+		  print header > collisions;
+		}
+		for (j=1; j <= count; j++) {
+		  print c[j] > collisions;
+		}
+		count_collisions++;
+	      }
+	      else {
+		if (count_lowqcollisions == 0) {
+		  print header > lowqcollisions;
+		}
+		for (j=1; j <= count; j++) {
+		  print c[j] > lowqcollisions;
+		}
+		count_lowqcollisions++;
+	      }
 	    }
 	  }
 	  else { # count 4, not close together
 	    # abnormal
-	    if (count_abnorm == 0) {
-	      print header > abnorm;
-	    }
+	    # check that MAPQ >= 10 for all reads
+	    mapq10=1;
 	    for (j=1; j <= count; j++) {
-	      print c[j] > abnorm;
+	      split(c[j],tmp);
+	      if (tmp[5] < 10) {
+		mapq10=0;
+	      }
 	    }
-	    count_abnorm++;
-	
+	    if (mapq10) {
+	      if (count_collisions == 0) {
+	        print header > collisions;
+	      }
+	      for (j=1; j <= count; j++) {
+		print c[j] > collisions;
+	      }
+	      count_collisions++;
+	    }
+	    else {
+	      if (count_lowqcollisions == 0) {
+		print header > lowqcollisions;
+	      }
+	      for (j=1; j <= count; j++) {
+		print c[j] > lowqcollisions;
+	      }
+	      count_lowqcollisions++;
+	    }
 	  }
 	} # if sum_mapq == 4
 	else { # sum_mapq == 3
@@ -570,19 +707,38 @@ END{
 	  }
 	  else {
 	    # chimeric read with the 3 ends > 1KB apart
-	    if (count_abnorm == 0) {
-	      print header > abnorm;
-	    }
-	    count_abnorm++;
-	
+	    # check that MAPQ >= 10 for all reads
+	    mapq10=1;
 	    for (j=1; j <= count; j++) {
-	      print c[j] > abnorm;
+	      split(c[j],tmp);
+	      if (tmp[5] < 10) {
+		mapq10=0;
+	      }
+	    }
+	    if (mapq10) {
+	      if (count_collisions == 0) {
+	        print header > collisions;
+	      }
+	      for (j=1; j <= count; j++) {
+		print c[j] > collisions;
+	      }
+	      count_collisions++;
+	    }
+	    else {
+	      if (count_lowqcollisions == 0) {
+		print header > lowqcollisions;
+	      }
+	      for (j=1; j <= count; j++) {
+		print c[j] > lowqcollisions;
+	      }
+	      count_lowqcollisions++;
 	    }
 	  }
 	} # sum_mapq == 3
 	if (normal) {
 	  # still need to check mapq0
 	  if (m[read1]==0 || m[read2]==0) {
+	    print "This shouldn't happen"
             # mapq0
 	    for (j=1; j <= count; j++) {
 	      print c[j] > mapq0;
@@ -614,5 +770,5 @@ END{
       } # else (mapq above 0) 
     } # else (sum_mapped >= 2)
     resfile = norm".res.txt"
-    printf("%d %d %d %d %d %d\n", tottot, count_unmapped, count_reg, count_norm, count_abnorm, count_mapq0) >> resfile;
+    printf("%d %d %d %d %d %d %d\n", tottot, count_unmapped, count_reg, count_norm, count_collisions, count_lowqcollisions, count_mapq0) >> resfile;
 }
