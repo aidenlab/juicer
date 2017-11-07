@@ -83,15 +83,16 @@ genomeID="hg19"
 shortreadend=0
 # description, default empty
 about=""
-nofrag=0
+nofrag=1
 
+## TODO Change usage to be correct and print nicely
 ## Read arguments                                                     
 usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] [-R end]\n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-r] [-h] [-x]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" \n  (default \"$site\")"
 aboutHelp="* [about]: enter description of experiment, enclosed in single quotes"
-stageHelp="* [stage]: must be one of \"merge\", \"dedup\", \"final\", \"postproc\", or \"early\".\n    -Use \"merge\" when alignment has finished but the merged_sort file has not\n     yet been created.\n    -Use \"dedup\" when the files have been merged into merged_sort but\n     merged_nodups has not yet been created.\n    -Use \"final\" when the reads have been deduped into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
+stageHelp="* [stage]: must be one of \"merge\", \"dedup\", \"final\", \"postproc\", \"early\", \"alignonly\", .\n    -Use \"merge\" when alignment has finished but the merged_sort file has not\n     yet been created.\n    -Use \"dedup\" when the files have been merged into merged_sort but\n     merged_nodups has not yet been created.\n    -Use \"final\" when the reads have been deduped into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
 pathHelp="* [chrom.sizes path]: enter path for chrom.sizes file"
 siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
 scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
@@ -119,7 +120,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:a:hs:p:y:z:S:D:xt:b:" opt; do
+while getopts "d:g:a:hs:p:y:z:S:D:ft:b:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -131,7 +132,7 @@ while getopts "d:g:a:hs:p:y:z:S:D:xt:b:" opt; do
 	z) refSeq=$OPTARG ;;
 	S) stage=$OPTARG ;;
 	D) juiceDir=$OPTARG ;;
-	x) nofrag=1 ;; #no fragment maps
+	f) nofrag=0 ;; #include fragment maps
 	b) ligation=$OPTARG ;;
         t) threads=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
@@ -147,6 +148,8 @@ then
         final) final=1 ;;
 	postproc) postproc=1 ;;
 	alignonly) alignonly=1 ;;
+	mergeonly) mergeonly=1 ;;
+	deduponly) deduponly=1 ;;
         *)  echo "$usageHelp"
 	    echo "$stageHelp"
 	    exit 1
@@ -161,7 +164,6 @@ then
 	mm10) refSeq="${juiceDir}/references/Mus_musculus_assembly10.fasta";;
 	hg38) refSeq="${juiceDir}/references/Homo_sapiens_assembly38.fasta";;
 	hg19) refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
-	
 	*)  echo "$usageHelp"
             echo "$genomeHelp"
             exit 1
@@ -257,13 +259,13 @@ else
 fi
 
 ## Create output directory, only if not in dedup, final, or postproc stages
-if [[ -d "$outputdir" && -z "$final" && -z "$dedup" && -z "$postproc" ]] 
+if [[ -d "$outputdir" && -z "$final" && -z "$dedup" && -z "$postproc" && -z "$deduponly" ]] 
 then
     echo "***! Move or remove directory \"$outputdir\" before proceeding."
     echo "***! Type \"juicer.sh -h \" for help"
     exit 1			
 else
-    if [[ -z "$final" && -z "$dedup" && -z "$postproc" ]]; then
+    if [[ -z "$final" && -z "$dedup" && -z "$postproc" && -z "$deduponly" ]]; then
         mkdir "$outputdir" || { echo "***! Unable to create ${outputdir}, check permissions." ; exit 1; } 
     fi
 fi
@@ -276,7 +278,7 @@ else
 fi
 
 ## Create temporary directory, used for sort later
-if [ ! -d "$tmpdir" ] && [ -z "$final" ] && [ -z "$dedup" ] && [ -z "$postproc" ]; then
+if [ ! -d "$tmpdir" ] && [ -z "$final" ] && [ -z "$dedup" ] && [ -z "deduponly" ] && [ -z "$postproc" ]; then
     mkdir "$tmpdir"
     chmod 777 "$tmpdir"
 fi
@@ -314,7 +316,7 @@ echo "$0 $@" >> $headfile
 ## ALIGN FASTQ AS SINGLE END, SORT BY READNAME, HANDLE CHIMERIC READS
  
 ## Not in merge, dedup, final, or postproc stage, i.e. need to align files.
-if [ -z $merge ] && [ -z $final ] && [ -z $dedup ] && [ -z $postproc ]
+if [ -z $merge ] && [ -z $mergeonly ] && [ -z $final ] && [ -z $dedup ] && [ -z $deduponly ] && [ -z $postproc ]
 then
     echo -e "(-: Aligning files matching $fastqdir\n to genome $genomeID with site file $site_file"
     if [ ! $splitdirexists ]
@@ -345,7 +347,7 @@ then
 	source ${juiceDir}/scripts/common/countligations.sh
 
         # Align reads
-        echo "Running command $bwa_cmd mem $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam" 
+        echo "Running command $bwa_cmd mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam" 
         $bwa_cmd mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam
         if [ $? -ne 0 ]
         then
@@ -431,7 +433,7 @@ then
 fi
 
 #MERGE SORTED AND ALIGNED FILES
-if [ -z $final ] && [ -z $dedup ] && [ -z $postproc ]
+if [ -z $final ] && [ -z $dedup ] && [ -z $deduponly ] && [ -z $postproc ]
 then
     if [ -d $donesplitdir ]
     then
@@ -443,9 +445,15 @@ then
         exit 1
     else
         echo "(-: Finished sorting all sorted files into a single merge."
-        rm -r ${tmpdir}
+        rm -rf ${tmpdir}
     fi
 fi
+
+if [ -n "$mergeonly" ]
+then
+    exit 0
+fi
+
 #REMOVE DUPLICATES
 if [ -z $final ] && [ -z $postproc ]
 then
@@ -466,14 +474,15 @@ then
 	# this could end up being computationally expensive memory-wise
 	# could also consider sed solution, no hashtable required
 	# could rewrite this to not need readname mod, but need filename
-	awk 'FNR==NR{a[$1];next}$0 ~ /^@/{print}(FNR in a){print}' "${i}" "${j}_alignable.sam" > "${j}_alignable_dedup.sam"
-	samtools view -hb "${j}_alignable_dedup.sam" > "${j}_alignable_dedup.bam"
+	awk 'BEGIN{OFS="\t"}FNR==NR{for (i=$1; i<=$2; i++){a[i];} next}(!(FNR in a) && $1 !~ /^@/){$2=or($2,1024)}{print}' "${i}" "${j}_alignable.sam" > "${j}_alignable_dedup.sam"
+	samtools view -hb "${j}_alignable_dedup.sam" > "${j}_alignable.bam"
     done
-    if [ `ls -1 $splitdir/*_alignable_dedup.bam 2>/dev/null | wc -l ` -gt 1 ]
+#hi neva start here.  alignable.bam should be marked with duplicates after this point
+    if [ `ls -1 $splitdir/*_alignable.bam 2>/dev/null | wc -l ` -gt 1 ]
     then
-	samtools merge -n ${outputdir}/merged_nodups.bam ${splitdir}/*_alignable_dedup.bam
+	samtools merge -n ${outputdir}/alignable.bam ${splitdir}/*_alignable.bam
     else
-	cat ${splitdir}/*_alignable_dedup.bam > ${outputdir}/merged_nodups.bam
+	cat ${splitdir}/*_alignable.bam > ${outputdir}/alignable.bam
     fi
     # combine bams
     if [ `ls -1 $splitdir/*_abnorm.bam 2>/dev/null | wc -l ` -gt 1 ]
@@ -481,14 +490,17 @@ then
 	samtools merge -n $outputdir/abnormal.bam $splitdir/*_abnorm.bam 
 	samtools merge -n $outputdir/unmapped.bam $splitdir/*_unmapped.bam 
 	samtools merge -n $outputdir/mapq0.bam $splitdir/*_mapq0.bam
-	samtools merge -n $outputdir/alignable.bam $splitdir/*_alignable.bam
     else
 	cat $splitdir/*_abnorm.bam > $outputdir/abnormal.bam
 	cat $splitdir/*_unmapped.bam > $outputdir/unmapped.bam
 	cat $splitdir/*_mapq0.bam > $outputdir/mapq0.bam
-	cat $splitdir/*_alignable.bam > $outputdir/alignable.bam
     fi
     samtools view $outputdir/abnormal.bam | awk -f ${juiceDir}/scripts/common/collisions.awk  > $outputdir/collisions.txt
+fi
+
+if [ -n "$deduponly" ]
+then
+    exit 0
 fi
 
 #CREATE HIC FILES

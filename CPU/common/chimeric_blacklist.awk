@@ -79,23 +79,18 @@ BEGIN{
   abnorm=fname"_abnorm.sam"
   unmapped=fname"_unmapped.sam"
   mapq0=fname"_mapq0.sam"
+  dup=fname"_dup.sam" # for after duplicates have been marked
   linenum=0
 }
 $0 ~ /^@/{
   # print SAM header to SAM files
-  print > alignable;
   linenum++;
-  print > abnorm;
-  print > unmapped;
-  print > mapq0;
+  header = header""$0"\n";
 }
 $0 !~ /^@/{
   if (tottot == -1) {
-    print "@PG", "ID:Juicer", "VN:1.6" > alignable;
     linenum++;
-    print "@PG", "ID:Juicer", "VN:1.6" > abnorm;
-    print "@PG", "ID:Juicer", "VN:1.6" > unmapped;
-    print "@PG", "ID:Juicer", "VN:1.6" > mapq0;
+    header = header"@PG\tID:Juicer\tVN:1.6";
   }
   # input file is sorted by read name.  Look at read name to group 
   # appropriately
@@ -121,6 +116,9 @@ $0 !~ /^@/{
     }
 
     if (sum_mapped < 2) {
+      if (count_unmapped == -1) {
+	print header > unmapped;
+      }
       # unmapped
       for (j=1; j <= count; j++) {
 	print c[j] > unmapped;
@@ -140,7 +138,9 @@ $0 !~ /^@/{
 	else minmapq=0;
       }
       if (sum_mapq < 2) {
-#      if (sum_mapq < 2 || minmapq==0) {
+	if (count_mapq0 == 0) {
+          print header > mapq0;
+	}
 	count_mapq0++;
         for (j=1; j <= count; j++) {
           print c[j] > mapq0;
@@ -148,6 +148,9 @@ $0 !~ /^@/{
       }
       else if ((count > 4) || (count == 1)) {
         # count==1 shouldn't happen; occurs with alternate aligners at times
+	  if (count_abnorm == 0) {
+	      print header > abnorm;
+	  }
 	for (j=1; j <= count; j++) {
           print c[j] > abnorm;
 	}
@@ -219,10 +222,6 @@ $0 !~ /^@/{
 	      cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
 	      pos[j] = pos[j] + cigloc;
 	    }
-	    # Mitochrondria loops around
-	    if (chr[j] ~ /MT/ && pos[j] >= 16569) {
-	      pos[j] = pos[j] - 16569;
-	    }
 	  } # else if str[j]==16
 	} # end for loop, now have all info about each read end
 	read1=0;
@@ -252,6 +251,9 @@ $0 !~ /^@/{
 	    }
 	    else {
 	      # abnormal
+	      if (count_abnorm == 0) {
+		print header > abnorm;
+	      }
 	      for (j=1; j <= count; j++) {
 		print c[j] > abnorm;
 	      }
@@ -261,6 +263,9 @@ $0 !~ /^@/{
 	  }
 	  else { # count 4, not close together
 	    # abnormal
+	    if (count_abnorm == 0) {
+	      print header > abnorm;
+	    }
 	    for (j=1; j <= count; j++) {
 	      print c[j] > abnorm;
 	    }
@@ -303,8 +308,10 @@ $0 !~ /^@/{
 	  }
 	  else {
 	    # chimeric read with the 3 ends > 1KB apart
+	    if (count_abnorm == 0) {
+	      print header > abnorm;
+	    }
 	    count_abnorm++;
-	
 	    for (j=1; j <= count; j++) {
 	      print c[j] > abnorm;
 	    }
@@ -321,15 +328,13 @@ $0 !~ /^@/{
 	    count_mapq0++;
 	  }
 	  else {
+	    if (count_reg == 0 && count_norm == 0) {
+	      print header > alignable;
+	    }
 	    if (sum_mapped == 2 && count==2) {
 	      count_reg++;
 	    }
 	    else count_norm++;
-	    # or do we want to print the whole read group including chimeric?
-	    #print c[read1] > alignable;
-	    #linenum++;
-	    #print c[read2] > alignable;
-	    #linenum++;
 	    prevlinenum=linenum;
 	    for (j=1; j <= count; j++) {
 	      print c[j] > alignable;
@@ -370,6 +375,9 @@ END{
 
     if (sum_mapped < 2) {
       # unmapped
+      if (count_unmapped == -1) {
+	print header > unmapped;
+      }
       for (j=1; j <= count; j++) {
 	print c[j] > unmapped;
       }
@@ -388,7 +396,9 @@ END{
 	else minmapq=0;
       }
       if (sum_mapq < 2) {
-#      if (sum_mapq < 2 || minmapq == 0) {
+	if (count_mapq0 == 0) {
+          print header > mapq0;
+	}
 	count_mapq0++;
         for (j=1; j <= count; j++) {
           print c[j] > mapq0;
@@ -396,6 +406,9 @@ END{
       }
       else if ((count > 4) || (count == 1)) {
         # count==1 shouldn't happen; occurs with alternate aligners at times
+	if (count_abnorm == 0) {
+	  print header > abnorm;
+	}
 	for (j=1; j <= count; j++) {
           print c[j] > abnorm;
 	}
@@ -500,6 +513,9 @@ END{
 	    }
 	    else {
 	      # abnormal
+	      if (count_abnorm == 0) {
+	        print header > abnorm;
+	      }
 	      for (j=1; j <= count; j++) {
 		print c[j] > abnorm;
 	      }
@@ -509,6 +525,9 @@ END{
 	  }
 	  else { # count 4, not close together
 	    # abnormal
+	    if (count_abnorm == 0) {
+	      print header > abnorm;
+	    }
 	    for (j=1; j <= count; j++) {
 	      print c[j] > abnorm;
 	    }
@@ -551,6 +570,9 @@ END{
 	  }
 	  else {
 	    # chimeric read with the 3 ends > 1KB apart
+	    if (count_abnorm == 0) {
+	      print header > abnorm;
+	    }
 	    count_abnorm++;
 	
 	    for (j=1; j <= count; j++) {
@@ -568,15 +590,13 @@ END{
 	    count_mapq0++;
 	  }
 	  else {
+	    if (count_reg == 0 && count_norm == 0) {
+	      print header > alignable;
+	    }
 	    if (sum_mapped == 2 && count==2) {
 	      count_reg++;
 	    }
 	    else count_norm++;
-	    # or do we want to print the whole read group including chimeric?
-	    #print c[read1] > alignable;
-	    #linenum++;
-	    #print c[read2] > alignable;
-	    #linenum++;
 	    prevlinenum=linenum;
 	    for (j=1; j <= count; j++) {
 	      print c[j] > alignable;
