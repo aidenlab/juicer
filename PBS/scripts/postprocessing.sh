@@ -26,19 +26,19 @@ if [ -z $postproc ]
 then
     waitstring4="#PBS -W depend=afterok:\${jID_hic30}" 
 fi
-echo "waitstring4 is : ${waitstring4}"
+echo "waitstring4 is : \${waitstring4}"
 
 timestamp=\$(date +"%s" | cut -c 4-10)
 qsub <<POSTPROCESS
-	#PBS -S /bin/bash
-	#PBS -q $queue
-	#PBS -l $long_walltime
-	#PBS -l nodes=1:ppn=1:gpus=1:GPU 
-	#PBS -l mem=60gb
-	#PBS -o ${logdir}/\${timestamp}_postproc_${groupname}.log
-	#PBS -j oe
-	#PBS -N PProc_${groupname}
-    $waitstring4
+    #PBS -S /bin/bash
+    #PBS -q $queue
+    #PBS -l $long_walltime
+    #PBS -l nodes=1:ppn=1:gpus=1:GPU 
+    #PBS -l mem=60gb
+    #PBS -o ${logdir}/\${timestamp}_postproc_${groupname}.log
+    #PBS -j oe
+    #PBS -N PProc_${groupname}
+    \$waitstring4
 
     date +"%Y-%m-%d %H:%M:%S"
     $load_java
@@ -79,20 +79,20 @@ then
 fi
 timestamp=\$(date +"%s" | cut -c 4-10)
 qsub <<DONE
-	#PBS -S /bin/bash
-	#PBS -q $queue
-	#PBS -l $walltime
-	#PBS -l nodes=1:ppn=1:AMD 
-	#PBS -l mem=4gb
-	#PBS -o ${logdir}/\${timestamp}_done_${groupname}.log
-	#PBS -j oe
-	#PBS -N done_${groupname}
-	\${waitstring5}
+    #PBS -S /bin/bash
+    #PBS -q $queue
+    #PBS -l $walltime
+    #PBS -l nodes=1:ppn=1:AMD 
+    #PBS -l mem=4gb
+    #PBS -o ${logdir}/\${timestamp}_done_${groupname}.log
+    #PBS -j oe
+    #PBS -N done_${groupname}
+    \${waitstring5}
 
-	date +"%Y-%m-%d %H:%M:%S"    
-	export splitdir=${splitdir}
-	export outputdir=${outputdir}
-	${juiceDir}/scripts/check.sh
+    date +"%Y-%m-%d %H:%M:%S"    
+    export splitdir=${splitdir}
+    export outputdir=${outputdir}
+    ${juiceDir}/scripts/check.sh
 DONE
 FINCK
 

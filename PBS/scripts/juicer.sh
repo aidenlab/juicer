@@ -452,6 +452,12 @@ SPLITMV
     # aligning read2, and merging the two. Keep track of merge names for final 
     # merge. When merge jobs successfully finish, can launch final merge job.  
 
+    if [ -n "$threads" ] && [ -z "$skipsplit" ]
+    then
+        waitstring_alnwrp="#PBS -W depend=afterok:${jID_splitmv}"
+    fi
+    echo "waitstring_alnwrp is ${waitstring_alnwrp}"
+
     timestamp=$(date +"%s" | cut -c 4-10)
     qsub <<ALIGNWRAP
     #PBS -S /bin/bash
@@ -462,7 +468,7 @@ SPLITMV
     #PBS -o ${logdir}/${timestamp}_alnwrap_${groupname}.log
     #PBS -j oe
     #PBS -N AlnWrp${groupname}
-    #PBS -W depend=afterok:${jID_splitmv}
+    $waitstring_alnwrp
     ${EMAIL}
     #PBS -m a
     for i in ${read1}
