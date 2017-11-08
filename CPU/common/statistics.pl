@@ -331,15 +331,6 @@ else {
 }
 printf FILE "%0.2f\%)\n", $intra_fragment*100/$unique; 
 
-print FILE "Below MAPQ Threshold: " . commify($under_mapq);
-if ($seq == 1) {
-  printf FILE " (%0.2f\% / ", $under_mapq*100/$reads; 
-}
-else {
-  print FILE "(";
-}
-printf FILE "%0.2f\%)\n", $under_mapq*100/$unique; 
-
 print FILE "Hi-C Contacts: " . commify($total_current);
 if ($seq == 1) {
   printf FILE " (%0.2f\% / ", $total_current*100/$reads; 
@@ -356,6 +347,7 @@ if ($seq == 1) {
 else {
   print FILE "(";
 }
+
 printf FILE "%0.2f\%)\n", $ligation*100/$unique; 
 
 if ($five_prime_end + $three_prime_end > 0) {
