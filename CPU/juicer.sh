@@ -60,7 +60,7 @@
 shopt -s extglob
 juicer_version="1.5.6" 
 ### LOAD BWA AND SAMTOOLS
-bwa_cmd="/home/neva/bwa-0.7.17/bwa"
+bwa_cmd="bwa"
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
 # if your fastq files look different, change this value
 read1str="_R1" 
