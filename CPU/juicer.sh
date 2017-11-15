@@ -249,6 +249,14 @@ if [[ -z "$final" && -z "$dedup" && -z "$postproc" && -z "$deduponly" && -z "$me
         if stat -t ${fastqdir} >/dev/null 2>&1
     	then
 	    echo "(-: Looking for fastq files...fastq files exist"
+	    testname=$(ls -l ${fastqdir} | awk 'NR==1{print $9}')
+	    if [ "${testname: -3}" == ".gz" ]
+	    then
+		read1=${splitdir}"/*${read1str}*.fastq.gz"
+		gzipped=1
+	    else
+		read1=${splitdir}"/*${read1str}*.fastq"
+	    fi
     	else
 	    if [ ! -d "$splitdir" ]; then 
 	        echo "***! Failed to find any files matching ${fastqdir}"
@@ -286,15 +294,6 @@ fi
 
 ## Arguments have been checked and directories created. Now begins
 ## the real work of the pipeline
-
-testname=$(ls -l ${fastqdir} | awk 'NR==1{print $9}')
-if [ "${testname: -3}" == ".gz" ]
-then
-    read1=${splitdir}"/*${read1str}*.fastq.gz"
-    gzipped=1
-else
-    read1=${splitdir}"/*${read1str}*.fastq"
-fi
 
 headfile=${outputdir}/header
 date > $headfile
