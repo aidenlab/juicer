@@ -274,7 +274,7 @@ then
     echo "***! Type \"juicer.sh -h \" for help"
     exit 1			
 else
-    if [[ -z "$final" && -z "$dedup" && -z "$postproc" && -z "$deduponly" && -z "$alignonly" ]]; then
+    if [[ -z "$final" && -z "$dedup" && -z "$postproc" && -z "$deduponly" ]]; then
         mkdir "$outputdir" || { echo "***! Unable to create ${outputdir}, check permissions." ; exit 1; } 
     fi
 fi
