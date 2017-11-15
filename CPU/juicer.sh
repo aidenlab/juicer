@@ -277,7 +277,7 @@ else
 fi
 
 ## Create temporary directory, used for sort later
-if [ ! -d "$tmpdir" ] && [ -z "$final" ] && [ -z "$dedup" ] && [ -z "deduponly" ] && [ -z "$postproc" ]; then
+if [ ! -d "$tmpdir" ] && [ -z "$final" ] && [ -z "$dedup" ] && [ -z "$deduponly" ] && [ -z "$postproc" ]; then
     mkdir "$tmpdir" || { echo "***! Unable to create ${tmpdir}, check permissions." ; exit 1; }
     chmod 777 "$tmpdir"
 fi
