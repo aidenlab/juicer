@@ -58,7 +58,7 @@
 #             match any files with the read1str.   
 #set -e ## This is causing problems; need better error detection
 shopt -s extglob
-juicer_version="1.5.6" 
+juicer_version="1.6" 
 ### LOAD BWA AND SAMTOOLS
 bwa_cmd="bwa"
 # fastq files should look like filename_R1.fastq and filename_R2.fastq 
