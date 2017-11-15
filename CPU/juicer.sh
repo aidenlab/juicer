@@ -238,21 +238,23 @@ fastqdir=${topDir}"/fastq/*_R*.fastq*"
 outputdir=${topDir}"/aligned"
 tmpdir=${topDir}"/HIC_tmp"
 
-## Check that fastq directory exists and has proper fastq files
-if [ ! -d "$topDir/fastq" ]; then
-    echo "Directory \"$topDir/fastq\" does not exist."
-    echo "Create \"$topDir/fastq\" and put fastq files to be aligned there."
-    echo "Type \"juicer.sh -h\" for help"
-    exit 1
-else 
-    if stat -t ${fastqdir} >/dev/null 2>&1
-    then
-	echo "(-: Looking for fastq files...fastq files exist"
-    else
-	if [ ! -d "$splitdir" ]; then 
-	    echo "***! Failed to find any files matching ${fastqdir}"
-	    echo "***! Type \"juicer.sh -h \" for help"
-	    exit 1		
+## Check that fastq directory exists and has proper fastq files; only if necessary
+if [[ -z "$final" && -z "$dedup" && -z "$postproc" && -z "$deduponly" && -z "$merge" && -z "$mergeonly" ]]; then
+    if [ ! -d "$topDir/fastq" ]; then
+        echo "Directory \"$topDir/fastq\" does not exist."
+    	echo "Create \"$topDir/fastq\" and put fastq files to be aligned there."
+    	echo "Type \"juicer.sh -h\" for help"
+    	exit 1
+    else 
+        if stat -t ${fastqdir} >/dev/null 2>&1
+    	then
+	    echo "(-: Looking for fastq files...fastq files exist"
+    	else
+	    if [ ! -d "$splitdir" ]; then 
+	        echo "***! Failed to find any files matching ${fastqdir}"
+	    	echo "***! Type \"juicer.sh -h \" for help"
+	    	exit 1		
+	    fi
 	fi
     fi
 fi
@@ -264,7 +266,7 @@ then
     echo "***! Type \"juicer.sh -h \" for help"
     exit 1			
 else
-    if [[ -z "$final" && -z "$dedup" && -z "$postproc" && -z "$deduponly" ]]; then
+    if [[ -z "$final" && -z "$dedup" && -z "$postproc" && -z "$deduponly" && -z "$alignonly" ]]; then
         mkdir "$outputdir" || { echo "***! Unable to create ${outputdir}, check permissions." ; exit 1; } 
     fi
 fi
