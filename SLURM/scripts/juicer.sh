@@ -858,7 +858,7 @@ then
 
 		if [ $isRice -eq 1 ]
 		then
-			if ! /work/ea14/olga-scripts/useful-small-scripts/sort --parallel=48 -S8G -T HIC_tmp -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt > $outputdir/merged_sort.txt
+			if ! /work/ea14/olga-scripts/useful-small-scripts/sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt > $outputdir/merged_sort.txt
 			then
 				echo "***! Some problems occurred somewhere in creating sorted align files."
 				touch $errorfile
@@ -867,7 +867,7 @@ then
 				echo "(-: Finished sorting all sorted files into a single merge."
 			fi
 		else
-			if ! sort --parallel=48 -S8G -T HIC_tmp -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt > $outputdir/merged_sort.txt
+			if ! sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt > $outputdir/merged_sort.txt
 			then
 				echo "***! Some problems occurred somewhere in creating sorted align files."
 				touch $errorfile
