@@ -27,11 +27,11 @@
 # Juicer version 1.5
 if [ "$usegzip" -eq 1 ]
 then 
-    num1=$(paste <(zcat $name1$ext) <(zcat $name2$ext) | grep -c $ligation)
-    num2=$(zcat ${name1}${ext} | wc -l | awk '{print $1}')
+    num1=$(paste <(gunzip -c $file1) <(gunzip -c $file2) | grep -c $ligation)
+    num2=$(gunzip -c $file1 | wc -l | awk '{print $1}')
 else
-    num1=$(paste $name1$ext $name2$ext | grep -c $ligation)
-    num2=$(wc -l ${name1}${ext} | awk '{print $1}')
+    num1=$(paste $file1 $file2 | grep -c $ligation)
+    num2=$(wc -l $file1 | awk '{print $1}')
 fi
-echo -ne "$num1 " > ${name}${ext}_norm.txt.res.txt
-echo "$num2" > ${name}${ext}_linecount.txt
+echo -ne "$num1 " > ${ostem}_norm.txt.res.txt
+echo "$num2" > ${ostem}_linecount.txt

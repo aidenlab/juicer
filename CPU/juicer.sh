@@ -65,6 +65,7 @@ bwa_cmd="bwa"
 # if your fastq files look different, change this value
 read1str="_R1" 
 read2str="_R2" 
+ostem="output" # potentially make a flag for this
 
 ## Default options, overridden by command line arguments
 
@@ -119,7 +120,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:a:hs:p:y:z:S:D:ft:b:" opt; do
+while getopts "d:g:a:hs:p:y:z:S:D:ft:b:1:2:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -134,6 +135,8 @@ while getopts "d:g:a:hs:p:y:z:S:D:ft:b:" opt; do
 	f) nofrag=0 ;; #include fragment maps
 	b) ligation=$OPTARG ;;
         t) threads=$OPTARG ;;
+	1) read1files=$OPTARG ;;
+	2) read2files=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -147,7 +150,7 @@ then
         final) final=1 ;;
 	postproc) postproc=1 ;;
 	alignonly) alignonly=1 ;;
-	mergeonly) mergeonly=1 ;;
+	chimericonly) chimericonly=1 ;;
 	deduponly) deduponly=1 ;;
         *)  echo "$usageHelp"
 	    echo "$stageHelp"
@@ -231,6 +234,12 @@ else
     threadstring="-t $threads"
 fi
 
+if [ -n "$read2files" ] && [ -z "$read1files" ]
+then
+    echo "***! When fastqs for read2 are specified with \"-2\", corresponding read1 fastqs must be specified with \"-1\" "
+    exit 1
+fi
+
 ## Directories to be created and regex strings for listing files
 splitdir=${topDir}"/splits"
 donesplitdir=$topDir"/done_splits"
@@ -238,33 +247,11 @@ fastqdir=${topDir}"/fastq/*_R*.fastq*"
 outputdir=${topDir}"/aligned"
 tmpdir=${topDir}"/HIC_tmp"
 
-## Check that fastq directory exists and has proper fastq files; only if necessary
-if [[ -z "$final" && -z "$dedup" && -z "$postproc" && -z "$deduponly" && -z "$merge" && -z "$mergeonly" ]]; then
-    if [ ! -d "$topDir/fastq" ]; then
-        echo "Directory \"$topDir/fastq\" does not exist."
-    	echo "Create \"$topDir/fastq\" and put fastq files to be aligned there."
-    	echo "Type \"juicer.sh -h\" for help"
-    	exit 1
-    else 
-        if stat -t ${fastqdir} >/dev/null 2>&1
-    	then
-	    echo "(-: Looking for fastq files...fastq files exist"
-	    testname=$(ls -l ${fastqdir} | awk 'NR==1{print $9}')
-	    if [ "${testname: -3}" == ".gz" ]
-	    then
-		read1=${splitdir}"/*${read1str}*.fastq.gz"
-		gzipped=1
-	    else
-		read1=${splitdir}"/*${read1str}*.fastq"
-	    fi
-    	else
-	    if [ ! -d "$splitdir" ]; then 
-	        echo "***! Failed to find any files matching ${fastqdir}"
-	    	echo "***! Type \"juicer.sh -h \" for help"
-	    	exit 1		
-	    fi
-	fi
-    fi
+## Create split directory
+if [ -d "$splitdir" ]; then
+    splitdirexists=1
+else
+    mkdir "$splitdir" || { echo "***! Unable to create ${splitdir}, check permissions." ; exit 1; }
 fi
 
 ## Create output directory, only if not in dedup, final, or postproc stages
@@ -279,17 +266,79 @@ else
     fi
 fi
 
-## Create split directory
-if [ -d "$splitdir" ]; then
-    splitdirexists=1
-else
-    mkdir "$splitdir" || { echo "***! Unable to create ${splitdir}, check permissions." ; exit 1; }
-fi
-
 ## Create temporary directory, used for sort later
 if [ ! -d "$tmpdir" ] && [ -z "$final" ] && [ -z "$dedup" ] && [ -z "$deduponly" ] && [ -z "$postproc" ]; then
     mkdir "$tmpdir" || { echo "***! Unable to create ${tmpdir}, check permissions." ; exit 1; }
     chmod 777 "$tmpdir"
+fi
+
+if [ -z "$read1files" ]
+then
+   ## Check that fastq directory exists and has proper fastq files; only if necessary
+    if [[ -z "$final" && -z "$dedup" && -z "$postproc" && -z "$deduponly" && -z "$merge" && -z "$mergeonly" ]]; then
+	if [ ! -d "$topDir/fastq" ]; then
+            echo "Directory \"$topDir/fastq\" does not exist."
+    	    echo "Create \"$topDir/fastq\" and put fastq files to be aligned there."
+    	    echo "Type \"juicer.sh -h\" for help"
+    	    exit 1
+	else 
+            if stat -t ${fastqdir} >/dev/null 2>&1
+    	    then
+		echo "(-: Looking for fastq files...fastq files exist"
+		if [ ! $splitdirexists ]
+		then
+		    echo "(-: Created $splitdir."
+		    ln -s ${fastqdir} ${splitdir}/.
+		else
+		    echo -e "---  Using already created files in $splitdir\n"
+		fi
+
+		testname=$(ls -l ${fastqdir} | awk 'NR==1{print $9}')
+		if [ "${testname: -3}" == ".gz" ]
+		then
+		    read1=${splitdir}"/*${read1str}*.fastq.gz"
+		    gzipped=1
+		else
+		    read1=${splitdir}"/*${read1str}*.fastq"
+		fi
+    	    else
+		if [ ! -d "$splitdir" ]; then 
+	            echo "***! Failed to find any files matching ${fastqdir}"
+	    	    echo "***! Type \"juicer.sh -h \" for help"
+	    	    exit 1		
+		fi
+	    fi
+	fi
+    fi
+
+    read1files=()
+    read2files=()
+    for i in ${read1}
+    do
+        ext=${i#*$read1str}
+        name=${i%$read1str*}
+        # these names have to be right or it'll break                     
+	name1=${name}${read1str}
+        name2=${name}${read2str}
+	read1files+=$name1$ext 
+	read2files+=$name2$ext 
+    done
+else
+    if [ -z "$read2files" ]
+    then
+	echo "***! When fastqs for read1 are specified with \"-1\", corresponding read2 fastqs must be specified with \"-2\" "
+	exit 1
+    else
+	# replace commas with spaces for iteration, put in array
+	read1files=($(echo $read1files | tr ',' ' '))
+	read2files=($(echo $read2files | tr ',' ' '))
+    fi
+fi
+
+if [ "${#read1files[@]}" -ne "${#read2files[@]}" ]
+then
+    echo "***! The number of read1 fastqs specified (${#read1files[@]}) is not equal to the number of read2 fastqs specified (${#read2files[@]})"
+    exit 1
 fi
 
 ## Arguments have been checked and directories created. Now begins
@@ -319,27 +368,17 @@ echo "$0 $@" >> $headfile
 if [ -z $merge ] && [ -z $mergeonly ] && [ -z $final ] && [ -z $dedup ] && [ -z $deduponly ] && [ -z $postproc ]
 then
     echo -e "(-: Aligning files matching $fastqdir\n to genome $genomeID with site file $site_file"
-    if [ ! $splitdirexists ]
-    then
-        echo "(-: Created $splitdir and $outputdir."
-        filename=$(basename "$i")
-        filename=${filename%.*}
-	ln -s ${fastqdir} ${splitdir}/.
-    else
-        echo -e "---  Using already created files in $splitdir\n"
-    fi
 
-    ## Loop over all fastq files and align; then handle chimeric reads
-    for i in ${read1}
-    do
-        ext=${i#*$read1str}
-        name=${i%$read1str*}
-        # these names have to be right or it'll break                     
-	name1=${name}${read1str}
-        name2=${name}${read2str}
-        jname=$(basename $name)${ext}
+    for ((i = 0; i < ${#read1files[@]}; ++i)); do	
         usegzip=0
-        if [ ${ext: -3} == ".gz" ]
+	file1=${read1files[$i]}
+	file2=${read2files[$i]}
+
+	echo $file1
+	echo $file2
+	ostem="$splitdir/$ostem"
+	
+        if [ ${file1: -3} == ".gz" ]
         then
             usegzip=1
         fi
@@ -347,87 +386,87 @@ then
 	source ${juiceDir}/scripts/common/countligations.sh
 
         # Align reads
-        echo "Running command $bwa_cmd mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam" 
-        $bwa_cmd mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam
+        echo "Running command $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > ${ostem}_${i}.sam" 
+        $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > ${ostem}_${i}.sam
         if [ $? -ne 0 ]
         then
-            echo "***! Alignment of $name1$ext $name2$ext failed."
+            echo "***! Alignment of $file1 $file2 failed."
             exit 1
         else                                                            
-	    echo "(-:  Align of $name$ext.sam done successfully"
+	    echo "(-:  Align of ${ostem}_${i}.sam done successfully"
         fi
 #	samtools view -hb $name$ext.sam > $name$ext.bam
 	export LC_ALL=C
         # call chimeric_blacklist.awk to deal with chimeric reads; 
         # sorted file is sorted by read name at this point
-	touch $name${ext}_collisions.sam $name${ext}_collisions_low_mapq.sam $name${ext}_collisions $name${ext}_unmapped.sam $name${ext}_mapq0.sam
+	touch ${ostem}_${i}_collisions.sam ${ostem}_${i}_collisions_low_mapq.sam ${ostem}_${i}_unmapped.sam ${ostem}_${i}_mapq0.sam
 	# chimeric takes in $name$ext
-	awk -v "fname"=$name${ext} -f ${juiceDir}/scripts/common/chimeric_blacklist.awk $name$ext.sam
+	awk -v "fname"=${ostem}_${i} -f ${juiceDir}/scripts/common/chimeric_blacklist.awk ${ostem}_${i}.sam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during chimera handling of $name${ext}"
+            echo "***! Failure during chimera handling of ${ostem}_${i}"
             exit 1
 	fi	
         # if any normal reads were written, find what fragment they correspond
 	# to and store that
-	if [ -e "$name${ext}_norm.txt" ] && [ "$site" != "none" ]
+	if [ -e "${ostem}_${i}_norm.txt" ] && [ "$site" != "none" ]
 	then
-            ${juiceDir}/scripts/common/fragment.pl $name${ext}_norm.txt $name${ext}.frag.txt $site_file    
+            ${juiceDir}/scripts/common/fragment.pl ${ostem}_${i}_norm.txt ${ostem}_${i}.frag.txt $site_file    
 	elif [ "$site" == "none" ]
 	then
-            awk '{printf("%s %s %s %d %s %s %s %d", $1, $2, $3, 0, $4, $5, $6, 1); for (i=7; i<=NF; i++) {printf(" %s",$i);}printf("\n");}' $name${ext}_norm.txt > $name${ext}.frag.txt
+            awk '{printf("%s %s %s %d %s %s %s %d", $1, $2, $3, 0, $4, $5, $6, 1); for (i=7; i<=NF; i++) {printf(" %s",$i);}printf("\n");}' ${ostem}_${i}_norm.txt > ${ostem}_${i}.frag.txt
 	else
-            echo "***! No $name${ext}_norm.txt file created"
+            echo "***! No ${ostem}_${i}_norm.txt file created"
             exit 1
 	fi
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during fragment assignment of $name${ext}"
+            echo "***! Failure during fragment assignment of ${ostem}_${i}"
             exit 1
 	fi                              
 
 	# convert sams to bams and delete the sams
-	samtools view -hb $name${ext}_collisions.sam > $name${ext}_collisions.bam
+	samtools view -hb ${ostem}_${i}_collisions.sam > ${ostem}_${i}_collisions.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of $name${ext}_collisions.sam"
+            echo "***! Failure during bam write of ${ostem}_${i}_collisions.sam"
             exit 1
 	fi	
-	samtools view -hb $name${ext}_collisions_low_mapq.sam > $name${ext}_collisions_low_mapq.bam
+	samtools view -hb ${ostem}_${i}_collisions_low_mapq.sam > ${ostem}_${i}_collisions_low_mapq.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of $name${ext}_collisions_low_mapq.sam"
+            echo "***! Failure during bam write of ${ostem}_${i}_collisions_low_mapq.sam"
             exit 1
 	fi	
-	samtools view -hb $name${ext}_unmapped.sam > $name${ext}_unmapped.bam
+	samtools view -hb ${ostem}_${i}_unmapped.sam > ${ostem}_${i}_unmapped.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of $name${ext}_unmapped.sam"
+            echo "***! Failure during bam write of ${ostem}_${i}_unmapped.sam"
             exit 1
 	fi	
-	samtools view -hb $name${ext}_mapq0.sam > $name${ext}_mapq0.bam
+	samtools view -hb ${ostem}_${i}_mapq0.sam > ${ostem}_${i}_mapq0.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of $name${ext}_mapq0.sam"
+            echo "***! Failure during bam write of ${ostem}_${i}_mapq0.sam"
             exit 1
 	fi	
-	samtools view -hb $name${ext}_alignable.sam > $name${ext}_alignable.bam
+	samtools view -hb ${ostem}_${i}_alignable.sam > ${ostem}_${i}_alignable.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of $name${ext}_alignable.sam"
+            echo "***! Failure during bam write of ${ostem}_${i}_alignable.sam"
             exit 1
 	fi	
 	# remove all sams EXCEPT alignable, which we need for deduping
-	rm $name${ext}_collisions.sam $name${ext}_collisions_low_mapq.sam $name${ext}_unmapped.sam $name${ext}_mapq0.sam
+	rm ${ostem}_${i}_collisions.sam ${ostem}_${i}_collisions_low_mapq.sam ${ostem}_${i}_unmapped.sam ${ostem}_${i}_mapq0.sam
 
         # sort by chromosome, fragment, strand, and position
-	sort -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $name${ext}.frag.txt > $name${ext}.sort.txt
+	sort -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n ${ostem}_${i}.frag.txt > ${ostem}_${i}.sort.txt
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during sort of $name${ext}"
+            echo "***! Failure during sort of ${ostem}_${i}"
             exit 1
 	else
-            rm $name${ext}_norm.txt $name${ext}.frag.txt
+            rm ${ostem}_${i}_norm.txt ${ostem}_${i}.frag.txt
 	fi
     done
 fi
