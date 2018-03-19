@@ -1104,7 +1104,7 @@ HIC30`
 
 	dependhic30="${dependhic}:$jid"
 	fi
-
+else
 	if [ -z $postproc ]
 	then
 		sbatch_wait="#SBATCH -d $dependhic30"
@@ -1183,7 +1183,6 @@ ARROWS`
 	export splitdir=${splitdir}; export outputdir=${outputdir}; ${juiceDir}/scripts/check.sh
 	date
 FINCLN1`
-else
 
 	jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$" 
 	#!/bin/bash
