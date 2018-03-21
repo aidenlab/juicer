@@ -994,7 +994,7 @@ then
 	date      
 	ls -l ${outputdir}/merged_sort.txt | awk '{printf("%s ", \\\$5)}' > $debugdir/dupcheck-${groupname}
 	ls -l ${outputdir}/merged_nodups.txt ${outputdir}/dups.txt ${outputdir}/opt_dups.txt | awk '{sum = sum + \\\$5}END{print sum}' >> $debugdir/dupcheck-${groupname}
-	awk 'NR==1{if (NF == 2 && \\\$1 == \\\$2){print "Sorted and dups/no dups files add up"}else{print "Problem" >> ${errorfile}; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."}}' $debugdir/dupcheck-${groupname} 
+	awk 'NR==1{if (NF == 2 && \\\$1 == \\\$2){print "Sorted and dups/no dups files add up"}else{print "Problem" >> "${errorfile}"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."}}' $debugdir/dupcheck-${groupname} 
         date                                                                                                           
 DUPCHECK`
     sbatch_wait="#SBATCH -d afterok:$jid"
