@@ -56,7 +56,7 @@ use vars qw/ $opt_s $opt_l $opt_d $opt_o $opt_q $opt_h /;
 # Check arguments
 getopts('s:l:o:q:h');
 
-my $site_file = "/poscratch/aidenlab/juicer/restriction_sites/hg19_DpnII.txt";
+my $site_file = "/projects/ea14/juicer/restriction_sites/hg19_DpnII.txt";
 my $ligation_junction = "GATCGATC";
 my $stats_file = "stats.txt";
 my $mapq_threshold = 1;
