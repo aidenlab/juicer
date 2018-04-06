@@ -78,13 +78,13 @@ load_coreutils="use Coreutils"
 # can also be set in options via -D
 juiceDir="/broad/aidenlab"
 # default queue, can also be set in options via -q
-queue="short"
+queue="broad"
 # default queue time, can also be set in options via -Q
 queue_time="1200"
 # default long queue, can also be set in options via -l
-long_queue="long"
+long_queue="broad"
 # default long queue time, can also be set in options via -L
-long_queue_time="3600"
+long_queue_time="86400"
 # size to split fastqs. adjust to match your needs. 4000000=1M reads per split
 # can also be changed via the -C flag
 splitsize=45000000 # 90M => 22.5M; average but still spills over short queue
@@ -192,7 +192,9 @@ then
         dedup) dedup=1 ;;
         early) earlyexit=1 ;;
         final) final=1 ;;
-	postproc) postproc=1 ;; 
+        chimeric) chimeric=1 ;;
+        mergealign) mergealign=1 ;;
+	      postproc) postproc=1 ;; 
         *)  echo "$usageHelp"
 	    echo "$stageHelp"
 	    exit 1
@@ -368,7 +370,7 @@ else
     read1=${splitdir}"/*${read1str}*.fastq"
 fi
 
-myjid=$(qsub -terse -o ${debugdir}/head-${groupname}.out -j y -q $queue -r y -N ${groupname}cmd <<- HEADER
+myjid=$(qsub -terse -o ${debugdir}/head-${groupname}.out -j y -q $queue -r y -l h_rt=30 -N ${groupname}cmd <<- HEADER
 	date
 	source $usePath
 	$load_bwa
@@ -426,8 +428,8 @@ then
         then
             for i in ${fastqdir}
             do
-		filename=$(basename $i)
-		filename=${filename%.*}      
+		            filename=$(basename $i)
+		            filename=${filename%.*}      
                 if [ -z "$gzipped" ]
                 then
                     qsub -o ${debugdir}/split-${groupname}.out -e ${debugdir}/split-${groupname}.err -q $queue -r y -N ${groupname}split${countjobs} -sync y <<- SPLITEND
@@ -464,7 +466,7 @@ SPLITEND
         then
             read1=${splitdir}"/*${read1str}*.fastq.gz"
         else
-	    read1=${splitdir}"/*${read1str}*.fastq"
+	          read1=${splitdir}"/*${read1str}*.fastq"
         fi
     fi
     
@@ -483,22 +485,28 @@ SPLITEND
     
     for i in ${read1}
     do
-	ext=${i#*$read1str}
-	name=${i%$read1str*} 
+	      ext=${i#*$read1str}
+	      name=${i%$read1str*} 
         # these names have to be right or it'll break
-	name1=${name}${read1str}
-	name2=${name}${read2str}	
+	      name1=${name}${read1str}
+	      name2=${name}${read2str}	
         jname=$(basename $name)${ext}
         usegzip=0
         if [ ${ext: -3} == ".gz" ]
         then
             usegzip=1
         fi
-        myjid=$(qsub -terse -o ${debugdir}/count_ligations-${groupname}-${jname}.out -e ${debugdir}/count_ligations-${groupname}-${jname}.err -q ${queue} -r y -N ${groupname}${jname}countligations -v usegzip=${usegzip},name=${name},name1=${name1},name2=${name2},ext=${ext},ligation=${ligation} ${juiceDir}/scripts/countligations.sh)
-        echo "Count ligations $jname job $myjid" >> ${debugdir}/jobs-${groupname}.out
-        # align read1 fastq
         touchfile1=${tmpdir}/${jname}1
-        jid1=$(qsub -terse -o ${debugdir}/alignR1-${groupname}-${jname}.out -e ${debugdir}/alignR1-${groupname}-${jname}.err -q ${queue} -r y -N ${groupname}_align1${jname} -l h_vmem=16g -pe smp ${threads} -binding linear:${threads}  <<- ALGNR1
+        touchfile2=${tmpdir}/${jname}2
+        touchfile3=${tmpdir}/${jname}3
+        touchfile4=${tmpdir}/${jname}4
+
+        myjid=$(qsub -terse -o ${debugdir}/count_ligations-${groupname}-${jname}.out -e ${debugdir}/count_ligations-${groupname}-${jname}.err -q ${queue} -r y -l h_rt=${queue_time} -N ${groupname}${jname}countligations -v usegzip=${usegzip},name=${name},name1=${name1},name2=${name2},ext=${ext},ligation=${ligation} ${juiceDir}/scripts/countligations.sh)
+        echo "Count ligations $jname job $myjid" >> ${debugdir}/jobs-${groupname}.out
+        if [ -z $chimeric ] && [ -z $mergealign ]
+        then
+            # align read1 fastq
+            jid1=$(qsub -terse -o ${debugdir}/alignR1-${groupname}-${jname}.out -e ${debugdir}/alignR1-${groupname}-${jname}.err -q ${queue} -r y -l h_rt=${queue_time} -N ${groupname}_align1${jname} -l h_vmem=16g -pe smp ${threads} -binding linear:${threads}  <<- ALGNR1
         #!/bin/bash 
         source $usePath
         $load_bwa
@@ -531,10 +539,9 @@ SPLITEND
         fi
 ALGNR1
 )
-        echo "Align read1 $jname job $jid1" >> ${debugdir}/jobs-${groupname}.out
-        touchfile2=${tmpdir}/${jname}2
- 	      # align read2 fastq
-	jid2=$(qsub -terse -o ${debugdir}/alignR2-${groupname}-${jname}.out -e ${debugdir}/alignR2-${groupname}-${jname}.err -q ${queue} -r y -N ${groupname}_align2${jname} -l h_vmem=16g -pe smp ${threads} -binding linear:${threads}  <<- ALGNR2
+            echo "Align read1 $jname job $jid1" >> ${debugdir}/jobs-${groupname}.out
+ 	          # align read2 fastq
+	          jid2=$(qsub -terse -o ${debugdir}/alignR2-${groupname}-${jname}.out -e ${debugdir}/alignR2-${groupname}-${jname}.err -q ${queue} -r y -l h_rt=${queue_time} -N ${groupname}_align2${jname} -l h_vmem=16g -pe smp ${threads} -binding linear:${threads}  <<- ALGNR2
  	#!/bin/bash 
         source $usePath
         $load_bwa
@@ -566,11 +573,14 @@ ALGNR1
  	          fi		
  	      fi		
 ALGNR2
-);
-        echo "Align read2 $jname job $jid2" >> ${debugdir}/jobs-${groupname}.out
-        touchfile3=${tmpdir}/${jname}3
-        # wait for top two, merge
-	jid3=$(qsub -terse  -o ${debugdir}/merge-${groupname}-${jname}.out -e ${debugdir}/merge-${groupname}-${jname}.err -q ${queue} -r y -N ${groupname}_merge${jname} -l h_vmem=8g -hold_jid ${groupname}_align1${jname},${groupname}_align2${jname}  <<- MRGALL
+)
+            echo "Align read2 $jname job $jid2" >> ${debugdir}/jobs-${groupname}.out
+        fi
+        if [ -z $chimeric ]
+        then
+            touch $touchfile1 $touchfile2
+            # wait for top two, merge
+            jid3=$(qsub -terse  -o ${debugdir}/merge-${groupname}-${jname}.out -e ${debugdir}/merge-${groupname}-${jname}.err -q ${queue} -r y -l h_rt=${queue_time} -N ${groupname}_merge${jname} -l h_vmem=8g -hold_jid ${groupname}_align1${jname},${groupname}_align2${jname}  <<- MRGALL
  	      #!/bin/bash 
  	      export LC_ALL=C
         source $usePath
@@ -623,9 +633,12 @@ ALGNR2
  	      fi 
 MRGALL
 )
-        echo "Merge $jname job $jid3" >> ${debugdir}/jobs-${groupname}.out
-        touchfile4=${tmpdir}/${jname}4
-	jid4=$(qsub -terse  -o ${debugdir}/chimeric-${groupname}-${jname}.out -e ${debugdir}/chimeric-${groupname}-${jname}.err -q ${queue} -r y -hold_jid ${groupname}_merge${jname} -l h_vmem=4g -N ${groupname}_chimeric${jname}  <<- CHIMERIC
+            echo "Merge $jname job $jid3" >> ${debugdir}/jobs-${groupname}.out
+        else
+            touch $touchfile1 $touchfile2 $touchfile3
+        fi
+
+	      jid4=$(qsub -terse  -o ${debugdir}/chimeric-${groupname}-${jname}.out -e ${debugdir}/chimeric-${groupname}-${jname}.err -q ${queue} -r y -l h_rt=${queue_time} -hold_jid ${groupname}_merge${jname} -l h_vmem=4g -N ${groupname}_chimeric${jname}  <<- CHIMERIC
         #!/bin/bash                   
         export LC_ALL=C
         source $usePath
@@ -643,11 +656,12 @@ MRGALL
  	      # call chimeric_blacklist.awk to deal with chimeric reads; sorted file is sorted by read name at this point
  	      awk -v "fname1"=$name${ext}_norm.txt -v "fname2"=$name${ext}_abnorm.sam -v "fname3"=$name${ext}_unmapped.sam -f ${juiceDir}/scripts/chimeric_blacklist.awk $name$ext.sam
 		
-        if [ \$? -ne 0 ]                                              
-        then                                       
+        numfields=\$(awk '{print NF}' $name${ext}_norm.txt.res.txt)
+        if [ \$? -ne 0 ] || [ \$numfields -ne 6 ]                                  
+        then                        
             echo "***! Failure during chimera handling of $name${ext}"
             touch $errorfile
-            exit 1                                                     
+            exit 1
         fi  
         # if any normal reads were written, find what fragment they correspond to and store that
         # check if site file exists and if so write the fragment number even if nofrag set
@@ -708,7 +722,7 @@ CHIMERIC
 	      msg="***! Error in ${ARRAY[$i]}  Type qacct -j ${JIDS[$i]} to see what happened"
 	
 	      # check that alignment finished successfully
-	      myjid=$(qsub -terse -o ${debugdir}/aligncheck-${groupname}.out -e ${debugdir}/aligncheck-${groupname}.err -q $queue -r y -N ${groupname}_check${i} $holdjobs <<- CHECK
+	      myjid=$(qsub -terse -o ${debugdir}/aligncheck-${groupname}.out -e ${debugdir}/aligncheck-${groupname}.err -q $queue -r y -l h_rt=30 -N ${groupname}_check${i} $holdjobs <<- CHECK
 			echo "Checking $f"
 			if [ ! -e $f ]
 			then
@@ -735,7 +749,7 @@ then
         pflags=""
     fi
     
-    myjid=$(qsub -terse -o ${debugdir}/fragmerge-${groupname}.out -e ${debugdir}/fragmerge-${groupname}.err -q ${long_queue} -r y -N ${groupname}_fragmerge -l h_vmem=2g $fragflags $holdjobs <<- MRGSRT
+    myjid=$(qsub -terse -o ${debugdir}/fragmerge-${groupname}.out -e ${debugdir}/fragmerge-${groupname}.err -q ${long_queue} -r y -l h_rt=${long_queue_time} -N ${groupname}_fragmerge -l h_vmem=2g $fragflags $holdjobs <<- MRGSRT
     if [ -f "${errorfile}" ]
     then
         echo "***! Found errorfile. Exiting."
@@ -772,14 +786,14 @@ touchfile5=${tmpdir}/${groupname}5
 # Remove the duplicates from the big sorted file
 if [ -z $final ] && [ -z $postproc ]
 then
-    myjid=$(qsub -terse -o ${debugdir}/dedup-${groupname}.out -e ${debugdir}/dedup-${groupname}.err -q ${long_queue} -r y -N ${groupname}_osplit $holdjobs <<- DEDUP
+    myjid=$(qsub -terse -o ${debugdir}/dedup-${groupname}.out -e ${debugdir}/dedup-${groupname}.err -q ${long_queue} -r y -l h_rt=${long_queue_time} -N ${groupname}_osplit $holdjobs <<- DEDUP
     if [ -f "${errorfile}" ]
     then
         exit 1
     fi
     source $usePath
     $load_cluster
-    awk -v queue=$long_queue -v outfile=${debugdir}/dedup-${groupname}.out -v errfile=${debugdir}/dedup-${groupname}.err -v juicedir=${juiceDir} -v dir=$outputdir -v groupname=$groupname -f ${juiceDir}/scripts/split_rmdups.awk $outputdir/merged_sort.txt
+    awk -v queue=$long_queue -v queue_time=$long_queue_time -v outfile=${debugdir}/dedup-${groupname}.out -v errfile=${debugdir}/dedup-${groupname}.err -v juicedir=${juiceDir} -v dir=$outputdir -v groupname=$groupname -f ${juiceDir}/scripts/split_rmdups.awk $outputdir/merged_sort.txt
     echo "(-: Finished launching dedup jobs"
     touch $touchfile5
 DEDUP
@@ -812,7 +826,7 @@ then
 	holdjobs1="-hold_jid ${groupname}_finallaunch"
 	holdjobs2="-hold_jid ${groupname}_hic30"
 	holdjobs3="-hold_jid ${groupname}_hic30,${groupname}_hic,${groupname}_stats,${groupname}_postproc"
-	myjid=$(qsub -terse -o ${debugdir}/finallaunch-${groupname}.out -e ${debugdir}/finallaunch-${groupname}.err -q ${queue} -r y -N ${groupname}_finallaunch $holdjobs <<- DOSTAT
+	myjid=$(qsub -terse -o ${debugdir}/finallaunch-${groupname}.out -e ${debugdir}/finallaunch-${groupname}.err -q ${queue} -r y -l h_rt=30 -N ${groupname}_finallaunch $holdjobs <<- DOSTAT
         #!/bin/bash 
         if [ -f "${errorfile}" ] 
         then
@@ -821,33 +835,33 @@ then
  	      echo "(-: Alignment and merge done, launching other jobs."
         source $usePath
         $load_cluster
-        qsub -o ${debugdir}/stats-${groupname}.out -e ${debugdir}/stats-${groupname}.err -q $long_queue -l h_vmem=16g -l m_mem_free=16g -N ${groupname}_stats -r y $holdjobs <<- EOF  
+        qsub -o ${debugdir}/stats-${groupname}.out -e ${debugdir}/stats-${groupname}.err -q $long_queue -l h_vmem=16g -l m_mem_free=16g -N ${groupname}_stats -r y -l h_rt=${long_queue_time} $holdjobs <<- EOF  
         if [ ! -f $touchfile5 ]; then touch $errorfile; exit 1; fi; if [ -s ${debugdir}/dedup-${groupname}.err ]; then touch $errorfile; exit 1; fi; source $usePath; $load_java; export _JAVA_OPTIONS=-Xmx16384m; export LC_ALL=en_US.UTF-8; tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt; ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt; cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt; java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt; ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt 
 EOF
-        qsub -o ${debugdir}/abnormal-${groupname}.out -e ${debugdir}/abnormal-${groupname}.err -q $long_queue -l h_vmem=1g -l m_mem_free=1g -N ${groupname}_abnormal -r y $holdjobs <<-EOF 
+        qsub -o ${debugdir}/abnormal-${groupname}.out -e ${debugdir}/abnormal-${groupname}.err -q $long_queue -l h_vmem=1g -l m_mem_free=1g -N ${groupname}_abnormal -r y -l h_rt=${long_queue_time} $holdjobs <<-EOF 
         if [ ! -f $touchfile5 ]; then touch $errorfile; exit 1; fi; if [ -s ${debugdir}/dedup-${groupname}.err ]; then touch $errorfile; exit 1; fi; cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam; cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam; awk -f ${juiceDir}/scripts/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
 EOF
-        qsub -o ${debugdir}/hic-${groupname}.out -e ${debugdir}/hic-${groupname}.err -q $long_queue -l m_mem_free=16g -l h_vmem=16g -N ${groupname}_hic -hold_jid ${groupname}_stats -r y <<- EOF 
+        qsub -o ${debugdir}/hic-${groupname}.out -e ${debugdir}/hic-${groupname}.err -q $long_queue -l m_mem_free=16g -l h_vmem=16g -N ${groupname}_hic -hold_jid ${groupname}_stats -r y -l h_rt=${long_queue_time} <<- EOF 
         if [ ! -f $touchfile5 ]; then touch $errorfile; exit 1; fi; if [ -s ${debugdir}/dedup-${groupname}.err ]; then touch $errorfile; exit 1; fi; source $usePath; $load_java; export _JAVA_OPTIONS=-Xmx16384m; if [ "$nofrag" -eq 1 ]; then ${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath; else ${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath; fi ;
 EOF
-     qsub -o ${debugdir}/stats30-${groupname}.out -e ${debugdir}/stats30-${groupname}.err -q $long_queue -l h_vmem=16g -l m_mem_free=16g -N ${groupname}_stats30 -r y $holdjobs <<-EOF
+     qsub -o ${debugdir}/stats30-${groupname}.out -e ${debugdir}/stats30-${groupname}.err -q $long_queue -l h_vmem=16g -l m_mem_free=16g -N ${groupname}_stats30 -r y -l h_rt=${long_queue_time} $holdjobs <<-EOF
      if [ ! -f $touchfile5 ]; then touch $errorfile; exit 1; fi; if [ -s ${debugdir}/dedup-${groupname}.err ]; then touch $errorfile; exit 1; fi; source $usePath; $load_java; $load_bwa; export _JAVA_OPTIONS=-Xmx16384m; export LC_ALL=en_US.UTF-8; tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter_30.txt; cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter_30.txt; java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt; ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt
 EOF
- 	qsub  -o ${debugdir}/hic30-${groupname}.out -e ${debugdir}/hic30-${groupname}.err -q $long_queue -l h_vmem=16g -l m_mem_free=16g -N ${groupname}_hic30 -r y -hold_jid ${groupname}_stats30 <<- EOF 
+ 	qsub  -o ${debugdir}/hic30-${groupname}.out -e ${debugdir}/hic30-${groupname}.err -q $long_queue -l h_vmem=16g -l m_mem_free=16g -N ${groupname}_hic30 -r y -hold_jid ${groupname}_stats30 -l h_rt=${long_queue_time} <<- EOF 
      if [ ! -f $touchfile5 ]; then touch $errorfile; exit 1; fi; if [ -s ${debugdir}/dedup-${groupname}.err ]; then touch $errorfile; exit 1; fi; source $usePath; $load_java; export _JAVA_OPTIONS=-Xmx16384m; if [ "$nofrag" -eq 1 ]; then ${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath; else ${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath; fi
 EOF
 DOSTAT
 )
 	echo "Statistics job $myjid" >> ${debugdir}/jobs-${groupname}.out
     fi
-    myjid=$(qsub -terse  -o ${debugdir}/postproc-${groupname}.out -e ${debugdir}/postproc-${groupname}.err -q ${queue} -r y -N ${groupname}_postprocessing $holdjobs1 -cwd <<- POSTPROC
+    myjid=$(qsub -terse  -o ${debugdir}/postproc-${groupname}.out -e ${debugdir}/postproc-${groupname}.err -q ${queue} -l h_rt=30 -r y -N ${groupname}_postprocessing $holdjobs1 -cwd <<- POSTPROC
     if [ -f "${errorfile}" ]
     then
         exit 1
     fi
     source $usePath
     $load_cluster 
-    qsub -o ${debugdir}/postproc-${groupname}.out -e ${debugdir}/postproc-${groupname}.err -q $long_queue -l h_vmem=16g -l m_mem_free=16g -N ${groupname}_postproc $holdjobs2 -cwd <<-EOF
+    qsub -o ${debugdir}/postproc-${groupname}.out -e ${debugdir}/postproc-${groupname}.err -q $long_queue -l h_vmem=16g -l m_mem_free=16g -l h_rt=${long_queue_time} -N ${groupname}_postproc $holdjobs2 -cwd <<-EOF
     if [ -f "${errorfile}" ]
     then
        exit 1
@@ -863,18 +877,18 @@ EOF
 POSTPROC
 )
     echo "Postprocessing job $myjid" >> ${debugdir}/jobs-${groupname}.out
-    myjid=$(qsub -terse -o ${debugdir}/finalcheck-${groupname}.out -e ${debugdir}/finalcheck-${groupname}.err -q ${queue} -r y -N ${groupname}_done $holdjobs1 <<- FINCLN2
+    myjid=$(qsub -terse -o ${debugdir}/finalcheck-${groupname}.out -e ${debugdir}/finalcheck-${groupname}.err -q ${queue} -r y -l h_rt=30 -N ${groupname}_done $holdjobs1 <<- FINCLN2
     source $usePath
     $load_cluster
-    qsub  -o ${debugdir}/finalcheck-${groupname}.out -e ${debugdir}/finalcheck-${groupname}.err -q $queue -N ${groupname}_prep_finalize -v splitdir=${splitdir},outputdir=${outputdir} $holdjobs3 ${juiceDir}/scripts/check.sh
+    qsub  -o ${debugdir}/finalcheck-${groupname}.out -e ${debugdir}/finalcheck-${groupname}.err -q $queue -N ${groupname}_prep_finalize -l h_rt=30 -v splitdir=${splitdir},outputdir=${outputdir} $holdjobs3 ${juiceDir}/scripts/check.sh
 FINCLN2
 )
     echo "Final check job $myjid" >> ${debugdir}/jobs-${groupname}.out
 else
-    qsub -o ${debugdir}/finalcheck-${groupname}.out -e ${debugdir}/finalcheck-${groupname}.err -q ${queue} -r y -N ${groupname}_finallaunch $holdjobs <<- CHECKEARLY
+    qsub -o ${debugdir}/finalcheck-${groupname}.out -e ${debugdir}/finalcheck-${groupname}.err -q ${queue} -r y -N ${groupname}_finallaunch -l h_rt=30 $holdjobs <<- CHECKEARLY
     source $usePath
     $load_cluster
-    qsub  -o ${debugdir}/finalcheck-${groupname}.out -e ${debugdir}/finalcheck-${groupname}.err -q $queue -N ${groupname}_done -v splitdir=${splitdir},outputdir=${outputdir},early=1 $holdjobs ${juiceDir}/scripts/check.sh
+    qsub  -o ${debugdir}/finalcheck-${groupname}.out -e ${debugdir}/finalcheck-${groupname}.err -q $queue -N ${groupname}_done -l h_rt=30 -v splitdir=${splitdir},outputdir=${outputdir},early=1 $holdjobs ${juiceDir}/scripts/check.sh
 CHECKEARLY
 fi
 echo "(-: Finished adding all jobs... please wait while processing."
