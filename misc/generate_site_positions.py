@@ -15,6 +15,8 @@ elif sys.argv[1]=='DpnII':
 	teststring='GATC'
 elif sys.argv[1]=='MboI':
 	teststring='GATC'
+elif sys.argv[1]=='NcoI':
+	teststring='CCATGG'
 else:
 	print 'Usage: %s <restriction enzyme> <genome> [location]' % (sys.argv[0])
 	print '<restriction enzyme> must be defined in script, such as "HindIII" or "DpnII" '
