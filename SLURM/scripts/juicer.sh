@@ -836,7 +836,7 @@ then
     fi
     
     # merge the sorted files into one giant file that is also sorted.      
-    jid=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
+    #jid=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
     
     if [ $isVoltron -eq 1 ]
     then  
