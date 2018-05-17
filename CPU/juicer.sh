@@ -159,7 +159,7 @@ then
 fi
 
 ## Set reference sequence based on genome ID
-if [ -z "$refSeq" ]
+if [ -z "$refSeq" ] 
 then 
     case $genomeID in
 	mm9) refSeq="${juiceDir}/references/Mus_musculus_assembly9_norandom.fasta";;
@@ -173,7 +173,7 @@ then
 else
     # Reference sequence passed in, so genomePath must be set for the .hic file
     # to be properly created
-    if [ -z "$genomePath" ]
+    if [ -z "$genomePath" ] && [ -z "$alignonly" ]
     then
         echo "***! You must define a chrom.sizes file via the \"-p\" flag that delineates the lengths of the chromosomes in the genome at $refSeq";
         exit 1;
@@ -362,7 +362,7 @@ java -version 2>&1 | awk 'NR==1{printf("%s; ", $0);}' >> $headfile
 ${juiceDir}/scripts/juicer_tools -V 2>&1 | awk '$1=="Juicer" && $2=="Tools"{printf("%s; ", $0);}' >> $headfile
 echo "$0 $@" >> $headfile
 
-## ALIGN FASTQ AS SINGLE END, SORT BY READNAME, HANDLE CHIMERIC READS
+## ALIGN FASTQ IN SINGLE END MODE, SORT BY READNAME, HANDLE CHIMERIC READS
  
 ## Not in merge, dedup, final, or postproc stage, i.e. need to align files.
 if [ -z $merge ] && [ -z $mergeonly ] && [ -z $final ] && [ -z $dedup ] && [ -z $deduponly ] && [ -z $postproc ]
@@ -376,97 +376,98 @@ then
 
 	echo $file1
 	echo $file2
-	ostem="$splitdir/$ostem"
+	ostem="${splitdir}/${ostem}"
 	
         if [ ${file1: -3} == ".gz" ]
         then
             usegzip=1
         fi
 
+	curr_ostem=${ostem}_${i}
 	source ${juiceDir}/scripts/common/countligations.sh
 
         # Align reads
-        echo "Running command $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > ${ostem}_${i}.sam" 
-        $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > ${ostem}_${i}.sam
+        echo "Running command $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > ${curr_ostem}.sam" 
+        $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > ${curr_ostem}.sam
         if [ $? -ne 0 ]
         then
             echo "***! Alignment of $file1 $file2 failed."
             exit 1
         else                                                            
-	    echo "(-:  Align of ${ostem}_${i}.sam done successfully"
+	    echo "(-:  Align of ${curr_ostem}.sam done successfully"
         fi
 #	samtools view -hb $name$ext.sam > $name$ext.bam
 	export LC_ALL=C
         # call chimeric_blacklist.awk to deal with chimeric reads; 
         # sorted file is sorted by read name at this point
-	touch ${ostem}_${i}_collisions.sam ${ostem}_${i}_collisions_low_mapq.sam ${ostem}_${i}_unmapped.sam ${ostem}_${i}_mapq0.sam
+	touch ${curr_ostem}_collisions.sam ${curr_ostem}_collisions_low_mapq.sam ${curr_ostem}_unmapped.sam ${curr_ostem}_mapq0.sam
 	# chimeric takes in $name$ext
-	awk -v "fname"=${ostem}_${i} -f ${juiceDir}/scripts/common/chimeric_blacklist.awk ${ostem}_${i}.sam
+	awk -v "fname"=${curr_ostem} -f ${juiceDir}/scripts/common/chimeric_blacklist.awk ${curr_ostem}.sam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during chimera handling of ${ostem}_${i}"
+            echo "***! Failure during chimera handling of ${curr_ostem}"
             exit 1
 	fi	
         # if any normal reads were written, find what fragment they correspond
 	# to and store that
-	if [ -e "${ostem}_${i}_norm.txt" ] && [ "$site" != "none" ]
+	if [ -e "${curr_ostem}_norm.txt" ] && [ "$site" != "none" ]
 	then
-            ${juiceDir}/scripts/common/fragment.pl ${ostem}_${i}_norm.txt ${ostem}_${i}.frag.txt $site_file    
+            ${juiceDir}/scripts/common/fragment.pl ${curr_ostem}_norm.txt ${curr_ostem}.frag.txt $site_file    
 	elif [ "$site" == "none" ]
 	then
-            awk '{printf("%s %s %s %d %s %s %s %d", $1, $2, $3, 0, $4, $5, $6, 1); for (i=7; i<=NF; i++) {printf(" %s",$i);}printf("\n");}' ${ostem}_${i}_norm.txt > ${ostem}_${i}.frag.txt
+            awk '{printf("%s %s %s %d %s %s %s %d", $1, $2, $3, 0, $4, $5, $6, 1); for (i=7; i<=NF; i++) {printf(" %s",$i);}printf("\n");}' ${curr_ostem}_norm.txt > ${curr_ostem}.frag.txt
 	else
-            echo "***! No ${ostem}_${i}_norm.txt file created"
+            echo "***! No ${curr_ostem}_norm.txt file created"
             exit 1
 	fi
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during fragment assignment of ${ostem}_${i}"
+            echo "***! Failure during fragment assignment of ${curr_ostem}"
             exit 1
 	fi                              
 
 	# convert sams to bams and delete the sams
-	samtools view -hb ${ostem}_${i}_collisions.sam > ${ostem}_${i}_collisions.bam
+	samtools view -hb ${curr_ostem}_collisions.sam > ${curr_ostem}_collisions.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of ${ostem}_${i}_collisions.sam"
+            echo "***! Failure during bam write of ${curr_ostem}_collisions.sam"
             exit 1
 	fi	
-	samtools view -hb ${ostem}_${i}_collisions_low_mapq.sam > ${ostem}_${i}_collisions_low_mapq.bam
+	samtools view -hb ${curr_ostem}_collisions_low_mapq.sam > ${curr_ostem}_collisions_low_mapq.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of ${ostem}_${i}_collisions_low_mapq.sam"
+            echo "***! Failure during bam write of ${curr_ostem}_collisions_low_mapq.sam"
             exit 1
 	fi	
-	samtools view -hb ${ostem}_${i}_unmapped.sam > ${ostem}_${i}_unmapped.bam
+	samtools view -hb ${curr_ostem}_unmapped.sam > ${curr_ostem}_unmapped.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of ${ostem}_${i}_unmapped.sam"
+            echo "***! Failure during bam write of ${curr_ostem}_unmapped.sam"
             exit 1
 	fi	
-	samtools view -hb ${ostem}_${i}_mapq0.sam > ${ostem}_${i}_mapq0.bam
+	samtools view -hb ${curr_ostem}_mapq0.sam > ${curr_ostem}_mapq0.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of ${ostem}_${i}_mapq0.sam"
+            echo "***! Failure during bam write of ${curr_ostem}_mapq0.sam"
             exit 1
 	fi	
-	samtools view -hb ${ostem}_${i}_alignable.sam > ${ostem}_${i}_alignable.bam
+	samtools view -hb ${curr_ostem}_alignable.sam > ${curr_ostem}_alignable.bam
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during bam write of ${ostem}_${i}_alignable.sam"
+            echo "***! Failure during bam write of ${curr_ostem}_alignable.sam"
             exit 1
 	fi	
 	# remove all sams EXCEPT alignable, which we need for deduping
-	rm ${ostem}_${i}_collisions.sam ${ostem}_${i}_collisions_low_mapq.sam ${ostem}_${i}_unmapped.sam ${ostem}_${i}_mapq0.sam
+	rm ${curr_ostem}_collisions.sam ${curr_ostem}_collisions_low_mapq.sam ${curr_ostem}_unmapped.sam ${curr_ostem}_mapq0.sam
 
         # sort by chromosome, fragment, strand, and position
-	sort -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n ${ostem}_${i}.frag.txt > ${ostem}_${i}.sort.txt
+	sort -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n ${curr_ostem}.frag.txt > ${curr_ostem}.sort.txt
 	if [ $? -ne 0 ]
 	then
-            echo "***! Failure during sort of ${ostem}_${i}"
+            echo "***! Failure during sort of ${curr_ostem}"
             exit 1
 	else
-            rm ${ostem}_${i}_norm.txt ${ostem}_${i}.frag.txt
+            rm ${curr_ostem}_norm.txt ${curr_ostem}.frag.txt
 	fi
     done
 fi
@@ -483,6 +484,22 @@ then
     then
         mv $donesplitdir/* $splitdir/.
     fi
+
+    # combine bams
+    if [ `ls -1 $splitdir/*_abnorm.bam 2>/dev/null | wc -l ` -gt 1 ]
+    then
+	samtools merge -n $outputdir/collisions.bam $splitdir/*_collisions.bam 
+	samtools merge -n $outputdir/collisions_low_mapq.bam $splitdir/*_collisions_low_mapq.bam 
+	samtools merge -n $outputdir/unmapped.bam $splitdir/*_unmapped.bam 
+	samtools merge -n $outputdir/mapq0.bam $splitdir/*_mapq0.bam
+    else
+	cat $splitdir/*_collisions.bam > $outputdir/collisions.bam
+	cat $splitdir/*_collisions_low_mapq.bam > $outputdir/collisions_low_mapq.bam
+	cat $splitdir/*_unmapped.bam > $outputdir/unmapped.bam
+	cat $splitdir/*_mapq0.bam > $outputdir/mapq0.bam
+    fi
+
+
     if ! sort -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
     then 
         echo "***! Some problems occurred somewhere in creating sorted align files."
@@ -527,19 +544,6 @@ then
 	samtools merge -n ${outputdir}/alignable.bam ${splitdir}/*_alignable.bam
     else
 	cat ${splitdir}/*_alignable.bam > ${outputdir}/alignable.bam
-    fi
-    # combine bams
-    if [ `ls -1 $splitdir/*_abnorm.bam 2>/dev/null | wc -l ` -gt 1 ]
-    then
-	samtools merge -n $outputdir/collisions.bam $splitdir/*_collisions.bam 
-	samtools merge -n $outputdir/collisions_low_mapq.bam $splitdir/*_collisions_low_mapq.bam 
-	samtools merge -n $outputdir/unmapped.bam $splitdir/*_unmapped.bam 
-	samtools merge -n $outputdir/mapq0.bam $splitdir/*_mapq0.bam
-    else
-	cat $splitdir/*_collisions.bam > $outputdir/collisions.bam
-	cat $splitdir/*_collisions_low_mapq.bam > $outputdir/collisions_low_mapq.bam
-	cat $splitdir/*_unmapped.bam > $outputdir/unmapped.bam
-	cat $splitdir/*_mapq0.bam > $outputdir/mapq0.bam
     fi
 fi
 

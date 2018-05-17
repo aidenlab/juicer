@@ -33,5 +33,5 @@ else
     num1=$(paste $file1 $file2 | grep -c $ligation)
     num2=$(wc -l $file1 | awk '{print $1}')
 fi
-echo -ne "$num1 " > ${ostem}_norm.txt.res.txt
-echo "$num2" > ${ostem}_linecount.txt
+echo -ne "$num1 " > ${curr_ostem}_norm.txt.res.txt
+echo "$num2" > ${curr_ostem}_linecount.txt
