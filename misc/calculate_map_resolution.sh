@@ -97,7 +97,7 @@ threshold=$(( $threshold / 5 ))
 
 echo -ne "."
 newbin=50
-bins1000=$(awk '$3>=1000{sum++}END{print sum}' $coveragename)
+bins1000=$(awk '$3>=1000{sum++}END{if (sum == 0) print 0; else print sum}' $coveragename)
 lowrange=$newbin
 
 # find reasonable range with big jumps
