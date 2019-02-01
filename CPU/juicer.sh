@@ -367,8 +367,8 @@ then
         # Align read1 
         if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
 	then
-	    echo "Running command bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam"
-	    bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam 
+	    echo "Running command bwa aln -q 15 $threadstring $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam"
+	    bwa aln -q 15 $threadstring $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam 
             if [ $? -ne 0 ]
             then
                 echo "***! Alignment of $name1$ext failed."
@@ -390,8 +390,8 @@ then
         # Align read2
         if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
         then
-            echo "Running command bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam "
-            bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam 
+            echo "Running command bwa aln -q 15 $threadstring $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam "
+            bwa aln -q 15 $threadstring $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam 
             if [ $? -ne 0 ]
             then
 		echo "***! Alignment of $name2$ext failed."
