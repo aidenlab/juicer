@@ -17,6 +17,9 @@ Neva C. Durand, Muhammad S. Shamim, Ido Machol, Suhas S. P. Rao, Miriam H. Huntl
 # Documentation
 Please see [the wiki](https://github.com/theaidenlab/juicer/wiki) for extensive documentation.
 
+# Questions?
+For FAQs, or for asking new questions, please see our forum: [aidenlab.org/forum.html](http://aidenlab.org/forum.html).
+
 ------------
 Distribution
 ------------
