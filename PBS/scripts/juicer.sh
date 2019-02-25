@@ -290,7 +290,7 @@ fi
 ## Directories to be created and regex strings for listing files
 splitdir=${topDir}"/splits"
 donesplitdir=$topDir"/done_splits"
-fastqdir=${topDir}"/fastq/*_R*.fastq"
+fastqdir=${topDir}"/fastq/*_R*.fastq*"
 outputdir=${topDir}"/aligned"
 tmpdir=${topDir}"/HIC_tmp"
 logdir=${topDir}"/logs"
@@ -482,7 +482,7 @@ SPLITMV
         name2=\${name}${read2str}
         jname=\$(basename "\$name")\${ext}
         usegzip=0
-        if [ "\${ext}" == ".gz" ]
+        if [ "\${ext: -3}" == ".gz" ]
         then
             usegzip=1
         fi
@@ -685,6 +685,7 @@ ALGNR2
 
         # remove header, add read end indicator to read name
         awk -f ${juiceDir}/scripts/read1_sortproc.awk \${name1}\${ext}_sort.sam > \${name1}\${ext}_sort1.sam
+        awk -f ${juiceDir}/scripts/read2_sortproc.awk \${name2}\${ext}_sort.sam > \${name2}\${ext}_sort1.sam
         echo "below is the number of lines in \${name1}\${ext}_sort1.sam"
         cat \${name1}\${ext}_sort1.sam | wc -l
         echo "below is the number of lines in \${name2}\${ext}_sort1.sam"
