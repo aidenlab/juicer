@@ -36,7 +36,7 @@
 
 use POSIX;
 
-$site_file = "/projects/ea14/juicer/restriction_sites/hg19_DpnII.txt";
+$site_file = "/opt/juicer/restriction_sites/hg19_DpnII.txt";
 # Check arguments
 if (scalar(@ARGV) == 2) {
   ($infile,$outfile) = @ARGV;
@@ -51,13 +51,13 @@ else {
   print " [site file]: list of restriction sites, one line per chromosome (default DpnII hg19)\n";
   exit;
 }
-
 # Global variables for calculating statistics
 my %chromosomes;
 my %hindIII;
 
 # read in restriction site file and store as multidimensional array
 open FILE, $site_file or die $!;
+
 while (<FILE>) {
   my @locs = split;
   my $key = shift(@locs);

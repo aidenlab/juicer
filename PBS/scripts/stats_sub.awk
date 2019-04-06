@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/awk -f
 ##########
 #The MIT License (MIT)
 #
@@ -22,30 +22,16 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
-# Script to clean up big repetitive files and zip fastqs. Run after you are 
-# sure the pipeline ran successfully.  Run from top directory (HIC001 e.g.).
+# Script to read in individual split outputs and put stats together
 # Juicer version 1.5
-total=`ls -l aligned/merged_sort.txt | awk '{print $5}'`
-total2=`ls -l aligned/merged_nodups.txt aligned/dups.txt aligned/opt_dups.txt | awk '{sum = sum + $5}END{print sum}'`
-if [ $total -eq $total2 ] 
-then 
-    rm aligned/merged_sort.txt 
-    rm -r splits 
-    testname=$(ls -l fastq | awk 'NR==1{print $9}')
-    if [ "${testname: -5}" == ".fastq" ]
-    then
-	for i in fastq/*.fastq
-	do
-            gzip $i
-	done
-    fi
-    gzip aligned/merged_nodups.txt
-    gzip aligned/dups.txt
-    gzip aligned/opt_dups.txt
-    gzip aligned/abnormal.sam
-    gzip aligned/collisions.txt
-    gzip aligned/unmapped.sam
-else 
-    echo "Problem: The sum of merged_nodups and the dups files is not the same size as merged_sort.txt"
-    echo "Did NOT clean up";
-fi
+{
+a1+=$2; # total reads
+a2+=$3; # normal
+a3+=$4; # chimeric paired
+a4+=$5; # chimeric ambiguous
+a5+=$6; # unmapped
+a6+=$1; # ligations 
+}
+END{
+    printf("Sequenced Read Pairs:  %'d\n Normal Paired: %'d (%0.2f%)\n Chimeric Paired: %'d (%0.2f%)\n Chimeric Ambiguous: %'d (%0.2f%)\n Unmapped: %'d (%0.2f%)\n Ligation Motif Present: %'d (%0.2f%)\nAlignable (Normal+Chimeric Paired): %'d (%0.2f%)\n", a1, a3, a3*100/a1, a4, a4*100/a1, a5, a5*100/a1, a2, a2*100/a1, a6, a6*100/a1, a3+a4, (a3+a4)*100/a1);
+}

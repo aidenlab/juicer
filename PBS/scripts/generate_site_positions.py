@@ -1,28 +1,24 @@
 #! /usr/bin/env python
-# Generate site positions in genome from given restriction enzyme
+#Generate site positions in genome from given restriction enzyme
 # Juicer 1.5
 import sys
 import subprocess
 import re
 
 if len(sys.argv) != 3 and len(sys.argv) != 4:
-	print 'Usage: %s <restriction enzyme> <genome> [location]' % (sys.argv[0])
-	sys.exit(1)
+  print 'Usage: %s <restriction enzyme> <genome> [location]' % (sys.argv[0])
+sys.exit(1)
 
 if sys.argv[1]=='HindIII':
-	teststring='AAGCTT'
+  teststring='AAGCTT'
 elif sys.argv[1]=='DpnII':
-	teststring='GATC'
+  teststring='GATC'
 elif sys.argv[1]=='MboI':
-	teststring='GATC'
-elif sys.argv[1]=='NcoI':
-	teststring='CCATGG'
-elif sys.argv[1]=='Sau3AI':
-	teststring='GATC'
+  teststring='GATC'
 else:
-	print 'Usage: %s <restriction enzyme> <genome> [location]' % (sys.argv[0])
-	print '<restriction enzyme> must be defined in script, such as "HindIII" or "DpnII" '
-	sys.exit(1)
+  print 'Usage: %s <restriction enzyme> <genome> [location]' % (sys.argv[0])
+  print '<restriction enzyme> must be defined in script, such as "HindIII" or "DpnII" '
+  sys.exit(1)
 
 genome=sys.argv[2]
 if len(sys.argv) == 4:
@@ -84,4 +80,4 @@ print chromosomecheck
             
 f.close()
 g.close()
-            
+

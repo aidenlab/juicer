@@ -109,6 +109,8 @@ class LibraryComplexity {
     decimalFormat.setMinimumFractionDigits(2);
     decimalFormat.setMaximumFractionDigits(2);
 
+    long result2 = readPairs*readPairs/(2*(readPairs-uniqueReadPairs));
+    
     System.out.print("Unique Reads: " + NumberFormat.getInstance().format(uniqueReadPairs) + " ");
     if (totalReadPairs > 0) {
       System.out.println("(" + decimalFormat.format(uniqueReadPairs/(double)totalReadPairs) + ")");
@@ -136,9 +138,12 @@ class LibraryComplexity {
       result = estimateLibrarySize(readPairs, uniqueReadPairs);
     }
     catch (NullPointerException e) {
-      result = 0;
+      System.err.println("Library complexity undefined when total = " + readPairs + " and unique = " + uniqueReadPairs);
+      return;
     }
     System.out.println("Library Complexity Estimate: " + nf.format(result));
+    //    System.out.println("Library complexity (old): " + nf.format(result2));
+		
   }
 
   /**

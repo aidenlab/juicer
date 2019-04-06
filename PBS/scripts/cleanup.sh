@@ -31,14 +31,10 @@ if [ $total -eq $total2 ]
 then 
     rm aligned/merged_sort.txt 
     rm -r splits 
-    testname=$(ls -l fastq | awk 'NR==1{print $9}')
-    if [ "${testname: -5}" == ".fastq" ]
-    then
-	for i in fastq/*.fastq
-	do
-            gzip $i
-	done
-    fi
+    for i in fastq/*.fastq
+    do
+        gzip $i
+    done
     gzip aligned/merged_nodups.txt
     gzip aligned/dups.txt
     gzip aligned/opt_dups.txt

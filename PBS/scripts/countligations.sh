@@ -22,30 +22,16 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
-# Script to clean up big repetitive files and zip fastqs. Run after you are 
-# sure the pipeline ran successfully.  Run from top directory (HIC001 e.g.).
+#
+# Small helper script to count reads with ligation junction
 # Juicer version 1.5
-total=`ls -l aligned/merged_sort.txt | awk '{print $5}'`
-total2=`ls -l aligned/merged_nodups.txt aligned/dups.txt aligned/opt_dups.txt | awk '{sum = sum + $5}END{print sum}'`
-if [ $total -eq $total2 ] 
+if [ "$usegzip" -eq 1 ]
 then 
-    rm aligned/merged_sort.txt 
-    rm -r splits 
-    testname=$(ls -l fastq | awk 'NR==1{print $9}')
-    if [ "${testname: -5}" == ".fastq" ]
-    then
-	for i in fastq/*.fastq
-	do
-            gzip $i
-	done
-    fi
-    gzip aligned/merged_nodups.txt
-    gzip aligned/dups.txt
-    gzip aligned/opt_dups.txt
-    gzip aligned/abnormal.sam
-    gzip aligned/collisions.txt
-    gzip aligned/unmapped.sam
-else 
-    echo "Problem: The sum of merged_nodups and the dups files is not the same size as merged_sort.txt"
-    echo "Did NOT clean up";
+    num1=$(paste -d "" <(zcat ${name1}${ext}) <(zcat ${name2}${ext}) | grep -c $ligation)
+    num2=$(zcat ${name1}${ext} | wc -l | awk '{print $1}')
+else
+    num1=$(paste -d "" ${name1}${ext} ${name2}${ext}| grep -c $ligation)
+    num2=$(wc -l ${name1}${ext} | awk '{print $1}')
 fi
+echo -ne "$num1 " > ${name}${ext}_norm.txt.res.txt
+echo "$num2" > ${name}${ext}_linecount.txt

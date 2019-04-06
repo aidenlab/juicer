@@ -835,7 +835,8 @@ then
         sbatch_wait=""
     fi
     
-    # merge the sorted files into one giant file that is also sorted.      jid=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
+    # merge the sorted files into one giant file that is also sorted.      
+    #jid=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
     
     if [ $isVoltron -eq 1 ]
     then  
@@ -863,7 +864,10 @@ then
 			exit 1 
 		fi
 		export LC_COLLATE=C
-
+		if [ -d $donesplitdir ]
+		then
+			mv $donesplitdir/* $splitdir/.
+		fi
 		if [ $isRice -eq 1 ]
 		then
 			if ! ${juiceDir}/scripts/sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt > $outputdir/merged_sort.txt
