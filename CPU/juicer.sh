@@ -61,7 +61,7 @@
 shopt -s extglob
 export LC_ALL=C
 
-juicer_version="1.5.6" 
+juicer_version="1.5.7" 
 ### LOAD BWA AND SAMTOOLS
 
 
@@ -86,10 +86,13 @@ genomeID="hg19"
 shortreadend=0
 # description, default empty
 about=""
-nofrag=0
+# do not include fragment delimited maps by default
+nofrag=1
+# use wobble for dedupping by default (not just exact matches)
+justexact=0
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] [-R end]\n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-r] [-h] [-x]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] [-R end]\n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-r] [-h] [-f] [-j]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" \n  (default \"$site\")"
@@ -103,7 +106,8 @@ scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which 
 refSeqHelp="* [reference genome file]: enter path for reference sequence file, BWA index\n  files must be in same directory"
 ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
 threadsHelp="* [threads]: number of threads when running BWA alignment"
-excludeHelp="* -x: exclude fragment-delimited maps from hic file creation"
+excludeHelp="* -f: include fragment-delimited maps in hic file creation"
+justHelp="* -j: just exact duplicates excluded at dedupping step"
 helpHelp="* -h: print this help and exit"
 
 printHelpAndExit() {
@@ -126,7 +130,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:R:a:hrs:p:y:z:S:D:xt:b:" opt; do
+while getopts "d:g:R:a:hrs:p:y:z:S:D:fjt:b:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -140,9 +144,10 @@ while getopts "d:g:R:a:hrs:p:y:z:S:D:xt:b:" opt; do
 	z) refSeq=$OPTARG ;;
 	S) stage=$OPTARG ;;
 	D) juiceDir=$OPTARG ;;
-	x) nofrag=1 ;; #no fragment maps
+	f) nofrag=0 ;; #use fragment maps
 	b) ligation=$OPTARG ;;
         t) threads=$OPTARG ;;
+	j) justexact=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -503,7 +508,13 @@ then
     touch ${outputdir}/dups.txt
     touch ${outputdir}/optdups.txt
     touch ${outputdir}/merged_nodups.txt
-    awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ ${outputdir}/merged_sort.txt
+    
+    if [ "$justexact" -eq 1 ]
+    then
+	awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ -v nowobble=1 ${outputdir}/merged_sort.txt
+    else
+	awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ ${outputdir}/merged_sort.txt
+    fi
     # for consistency with cluster naming in split_rmdups
     mv ${outputdir}/optdups.txt ${outputdir}/opt_dups.txt 
 fi
