@@ -594,4 +594,5 @@ then
 fi
 #CHECK THAT PIPELINE WAS SUCCESSFUL
 export early=$earlyexit
+export splitdir=$splitdir
 source ${juiceDir}/scripts/common/check.sh

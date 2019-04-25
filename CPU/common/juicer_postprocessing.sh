@@ -84,10 +84,10 @@ else
     echo "GPUs are not installed so HiCCUPs cannot be run";
 fi
 
-if [ -f ${hic_file_path%.*}"_loops.txt" ]
+if [ -f ${hic_file_path%.*}"_loops/merged_loops.bedpe" ]
 then
     echo -e "\nAPA:\n"
-    ${juicer_tools_path} apa ${hic_file_path} ${hic_file_path%.*}"_loops" "apa_results"
+    ${juicer_tools_path} apa ${hic_file_path} ${hic_file_path%.*}"_loops/merged_loops.bedpe" "apa_results"
     ## Check that bed folder exists    
     if [ ! -e "${bed_file_dir}" ]; then
 	echo "***! Can't find folder ${bed_file_dir}";
