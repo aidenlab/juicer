@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+
 ##########
 #The MIT License (MIT)
 #
@@ -55,7 +56,7 @@ use vars qw/ $opt_s $opt_l $opt_d $opt_o $opt_q $opt_h /;
 # Check arguments
 getopts('s:l:o:q:h');
 
-my $site_file;
+my $site_file = "/projects/ea14/juicer/restriction_sites/hg19_DpnII.txt";
 my $ligation_junction = "GATCGATC";
 my $stats_file = "stats.txt";
 my $mapq_threshold = 1;
@@ -85,6 +86,11 @@ if (scalar(@ARGV)==0) {
   print STDOUT "No input file specified, reading from input stream\n";
 }
 
+# Remove parenthesis
+$ligation_junction =~ s/\(//;
+$ligation_junction =~ s/\)//;
+
+# with OR | symbol, this won't work, need to explicitly fix
 my $dangling_junction = substr $ligation_junction, length($ligation_junction)/2;
 
 # Global variables for calculating statistics
@@ -127,7 +133,7 @@ my @bins = (10,12,15,19,23,28,35,43,53,66,81,100,123,152,187,231,285,351,433,534
 
 if (index($site_file, "none") != -1) {
    #no restriction enzyme, no need for RE distance
-}
+ }
 else {
   # read in restriction site file and store as multidimensional array
   open FILE, $site_file or die $!;
@@ -260,7 +266,7 @@ while (<>) {
         }
       }
       # read pair contains ligation junction
-      if ($record[10] =~ m/$ligation_junction/ || $record[13] =~ m/$ligation_junction/) {
+      if ($record[10] =~ m/($ligation_junction)/ || $record[13] =~ m/($ligation_junction)/) {
         $ligation++;
       }
     }
@@ -331,6 +337,15 @@ else {
 }
 printf FILE "%0.2f\%)\n", $intra_fragment*100/$unique; 
 
+print FILE "Below MAPQ Threshold: " . commify($under_mapq);
+if ($seq == 1) {
+  printf FILE " (%0.2f\% / ", $under_mapq*100/$reads; 
+}
+else {
+  print FILE "(";
+}
+printf FILE "%0.2f\%)\n", $under_mapq*100/$unique; 
+
 print FILE "Hi-C Contacts: " . commify($total_current);
 if ($seq == 1) {
   printf FILE " (%0.2f\% / ", $total_current*100/$reads; 
@@ -347,7 +362,6 @@ if ($seq == 1) {
 else {
   print FILE "(";
 }
-
 printf FILE "%0.2f\%)\n", $ligation*100/$unique; 
 
 if ($five_prime_end + $three_prime_end > 0) {
