@@ -37,7 +37,22 @@ printHelpAndExit() {
 #set defaults
 genomeID="hg19"
 hic_file_path="$(pwd)/aligned/inter_30.hic"
-juicer_tools_path="/projects/ea14/juicer/scripts/juicer_tools"
+
+# Aiden Lab specific check
+isRice=$(hostname | awk '{if ($1~/rice/){print 1}else {print 0}}')
+isBCM=$(hostname | awk '{if ($1~/bcm/){print 1}else {print 0}}')
+isVoltron=0
+# Set default appropriately
+if [ $isRice -eq 1 ] 
+then
+    juicer_tools_path="/projects/ea14/juicer/scripts/juicer_tools"
+elif [ $isBCM -eq 1 ]
+then    
+    juicer_tools_path="/storage/aiden/juicer/scripts/juicer_tools"
+else
+    isVoltron=1
+    juicer_tools_path="/gpfs0/juicer/scripts/juicer_tools"
+fi
 
 while getopts "h:j:i:" opt; do
     case $opt in
