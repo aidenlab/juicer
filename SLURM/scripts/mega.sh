@@ -94,7 +94,7 @@ site="MboI"
 genomeID="hg19"
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-h]"
+usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-q queue] [-l long queue] [-Q queue time] [-L long queue time] [-x] [-h]"
 genomeHelp="   genomeID must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \"$genomeID\")"
 dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged_nodups files underneath it"
 siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
@@ -113,7 +113,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:hxs:S:" opt; do
+while getopts "d:g:hxs:S:l:L:q:Q:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -121,6 +121,10 @@ while getopts "d:g:hxs:S:" opt; do
 	s) site=$OPTARG ;;
 	x) exclude=1 ;;
 	S) stage=$OPTARG ;;
+	l) long_queue=$OPTARG ;;
+	L) long_queue_time=$OPTARG ;;
+	q) queue=$OPTARG ;;
+	Q) queue_time=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -233,7 +237,7 @@ then
 #SBATCH -o $logdir/topstats-%j.out
 #SBATCH -e $logdir/topstats-%j.err
 #SBATCH -J "${groupname}_topstats"
-#SBATCH --mem-per-cpu=32G 
+#SBATCH --mem-per-cpu=4G 
 export LC_COLLATE=C
 if ! awk -f ${juiceDir}/scripts/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
 then  
@@ -254,12 +258,11 @@ TOPSTATS`
 #SBATCH -t ${long_queue_time}
 #SBATCH -c 1
 #SBATCH --ntasks=1
-#SBATCH --mem-per-cpu=16384
 #SBATCH -o $logdir/merge-%j.out
 #SBATCH -e $logdir/merge-%j.err
 #SBATCH -J "${groupname}_merge"
 #SBATCH -d "${dependtopstats}"
-#SBATCH --mem-per-cpu=32G 
+#SBATCH --mem-per-cpu=8G
 if [ ! -f "${touchfile1}" ]
 then
     echo "***! Top stats job failed, type \"scontrol show job $jid1\" to see what happened."
@@ -268,13 +271,13 @@ fi
 
   if [ $isRice -eq 1 ]
   then
-    if ! /poscratch/aidenlab/olga/sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
+    if ! ${juiceDir}/scripts/sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
     then
       echo "***! Some problems occurred somewhere in creating sorted merged_nodups files."
       exit 1
     fi
   else
-    if ! sort -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
+    if ! sort --parallel=40 -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
     then 
       echo "***! Some problems occurred somewhere in creating sorted merged_nodups files."
       exit 1
@@ -303,7 +306,7 @@ then
 #SBATCH -o $logdir/inter0-%j.out
 #SBATCH -e $logdir/inter0-%j.err
 #SBATCH -J "${groupname}_inter0"
-#SBATCH --mem-per-cpu=32G 
+#SBATCH --mem-per-cpu=2G
 ${dependmerge}
 if [ ! -f "${touchfile2}" ]
 then
@@ -327,7 +330,7 @@ INTER0`
 #SBATCH -o $logdir/inter30-%j.out
 #SBATCH -e $logdir/inter30-%j.err
 #SBATCH -J "${groupname}_inter30"
-#SBATCH --mem-per-cpu=32G 
+#SBATCH --mem-per-cpu=2G 
 ${dependmerge}
 if [ ! -f "${touchfile2}" ]
 then
@@ -346,24 +349,25 @@ INTER30`
 #!/bin/bash -l
 #SBATCH -p ${long_queue}
 #SBATCH -t ${long_queue_time}
-#SBATCH -c 1
+#SBATCH -c 8
 #SBATCH --ntasks=1
 #SBATCH -o $logdir/hic0-%j.out
 #SBATCH -e $logdir/hic0-%j.err
 #SBATCH -J "${groupname}_hic0"
 #SBATCH -d "${dependinter0}"
-#SBATCH --mem-per-cpu=32G
+#SBATCH --mem=73G
 #source $usePath
 $load_java
+export IBM_JAVA_OPTIONS="-Xmx73728m -Xgcthreads1"
 if [ ! -f "${touchfile3}" ]
 then
    echo "***! Statistics q=1 job failed."
    exit 1
 fi
-if [ -z "$exclude" ] &&  ${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
+if [ -z "$exclude" ] &&  ${juiceDir}/scripts/juicer_tools72g pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
 then
    touch $touchfile5
-elif [ -n "$exclude" ] &&  ${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
+elif [ -n "$exclude" ] &&  ${juiceDir}/scripts/juicer_tools72g pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
 then
    touch $touchfile5 
 fi
@@ -381,18 +385,19 @@ HIC0`
 #SBATCH -e $logdir/hic30-%j.err
 #SBATCH -J "${groupname}_hic30"
 #SBATCH -d "${dependinter30}"
-#SBATCH --mem-per-cpu=32G
+#SBATCH --mem=73G
 #source $usePath
 $load_java	
+export IBM_JAVA_OPTIONS="-Xmx73728m -Xgcthreads1"
 if [ ! -f "${touchfile4}" ]
 then
    echo "***! Statistics q=30 job failed."
    exit 1
 fi
-if [ -z "${exclude}" ] &&  ${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
+if [ -z "${exclude}" ] &&  ${juiceDir}/scripts/juicer_tools72g pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
 then
    touch $touchfile6
-elif [ -n "${exclude}" ] && ${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
+elif [ -n "${exclude}" ] && ${juiceDir}/scripts/juicer_tools72g pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
 then
    touch $touchfile6
 fi
@@ -434,7 +439,7 @@ then
 	   exit 1
 	fi
 	${load_gpu}
-	${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
+	${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools72g -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
 	touch $touchfile7
 	HICCUPS`
 	dependhic30="${dependhic30}:$jid7"
@@ -461,7 +466,7 @@ then
    echo "***! HIC maps q=30 job failed."
    exit 1
 fi
-${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic
+${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicer_tools72g -i $outputdir/inter_30.hic
 touch $touchfile8
 ARROWHEAD`
     dependhic30="${dependhic0}:$jid8"

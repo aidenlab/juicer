@@ -74,7 +74,7 @@ BEGIN{
   OFS="\t";
   tottot = -1; # will count first non-group
 }
-{
+$0 !~ /^@/{
   # input file is sorted by read name.  Look at read name to group 
   # appropriately
   split($1,a,"/");
