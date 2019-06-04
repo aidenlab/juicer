@@ -86,6 +86,11 @@ if (scalar(@ARGV)==0) {
   print STDOUT "No input file specified, reading from input stream\n";
 }
 
+# Remove parenthesis
+$ligation_junction =~ s/\(//;
+$ligation_junction =~ s/\)//;
+
+# with OR | symbol, this won't work, need to explicitly fix
 my $dangling_junction = substr $ligation_junction, length($ligation_junction)/2;
 
 # Global variables for calculating statistics
@@ -261,7 +266,7 @@ while (<>) {
         }
       }
       # read pair contains ligation junction
-      if ($record[10] =~ m/$ligation_junction/ || $record[13] =~ m/$ligation_junction/) {
+      if ($record[10] =~ m/($ligation_junction)/ || $record[13] =~ m/($ligation_junction)/) {
         $ligation++;
       }
     }
