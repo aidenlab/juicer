@@ -44,11 +44,10 @@ genomeID="hg19"
 juiceDir="/aidenlab"
 
 
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-b ligation] [-h]"
+usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-h]"
 genomeHelp="   genomeID must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \"$genomeID\")"
 dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged_nodups files underneath it"
 siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
-ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
 stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
 excludeHelp="   -x: exclude fragment-delimited maps from Hi-C mega map (will run much faster)"
 helpHelp="   -h: print this help and exit"
@@ -58,14 +57,13 @@ printHelpAndExit() {
     echo "$genomeHelp"
     echo "$dirHelp"
     echo "$siteHelp"
-    echo "$ligationHelp"
     echo "$stageHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hxs:S:b:" opt; do
+while getopts "d:g:hxs:S:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -73,25 +71,21 @@ while getopts "d:g:hxs:S:b:" opt; do
 	s) site=$OPTARG ;;
 	x) exclude=1 ;;
 	S) stage=$OPTARG ;;
-	b) ligation=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
 
 ## Set ligation junction based on restriction enzyme
-if [ -z "$ligation" ]
-then
-    case $site in
-	HindIII) ligation="AAGCTAGCTT";;
-	DpnII) ligation="GATCGATC";;
-	MboI) ligation="GATCGATC";;
-	none) ligation="XXXX";;
-	*)  ligation="XXXX"
-	    site_file=$site
-	    echo "$site not listed as recognized enzyme, so trying it as site file."
-	    echo "Ligation junction is undefined";;
-    esac
-fi
+case $site in
+    HindIII) ligation="AAGCTAGCTT";;
+    DpnII) ligation="GATCGATC";;
+    MboI) ligation="GATCGATC";;
+    none) ligation="XXXX";;
+    *)  ligation="XXXX"
+    site_file=$site
+    echo "$site not listed as recognized enzyme, so trying it as site file."
+    echo "Ligation junction is undefined";;
+esac
 
 if [ -z "$site_file" ]
 then
