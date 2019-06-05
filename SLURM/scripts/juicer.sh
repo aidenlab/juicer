@@ -147,7 +147,7 @@ nofrag=1
 justexact=0
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-R end] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads]\n                 [-r] [-h] [-f] [-j]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-R end] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads]\n                 [-A account name] [-r] [-h] [-f] [-j]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
@@ -166,6 +166,7 @@ queueTimeHelp="* [queue time limit]: time limit for queue, i.e. -W 12:00 is 12 h
 longQueueTimeHelp="* [long queue time limit]: time limit for long queue, i.e. -W 168:00 is one week\n  (default ${long_queue_time})"
 ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
 threadsHelp="* [threads]: number of threads when running BWA alignment"
+userHelp="* [account name]: user account name on cluster"
 excludeHelp="* -f: include fragment-delimited maps in hic file creation"
 justHelp="* -j: just exact duplicates excluded at dedupping step"
 helpHelp="* -h: print this help and exit"
@@ -190,12 +191,13 @@ printHelpAndExit() {
     echo -e "$longQueueTimeHelp"
     echo -e "$ligationHelp"
     echo -e "$threadsHelp"
+    echo -e "$userHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:R:a:hrq:s:p:l:y:z:S:C:D:Q:L:b:t:jf" opt; do
+while getopts "d:g:R:a:hrq:s:p:l:y:z:S:C:D:Q:L:b:A:t:jf" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -217,6 +219,7 @@ while getopts "d:g:R:a:hrq:s:p:l:y:z:S:C:D:Q:L:b:t:jf" opt; do
 	f) nofrag=0 ;;
 	b) ligation=$OPTARG ;;
 	t) threads=$OPTARG ;;
+	A) user=$OPTARG ;;
 	j) justexact=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
@@ -229,7 +232,7 @@ then
         dedup) dedup=1 ;;
         early) earlyexit=1 ;;
         final) final=1 ;;
-	      postproc) postproc=1 ;; 
+	postproc) postproc=1 ;; 
         *)  echo "$usageHelp"
 	    echo "$stageHelp"
 	    exit 1
@@ -240,14 +243,14 @@ fi
 if [ -z "$refSeq" ]
 then 
     case $genomeID in
-	      mm9)	refSeq="${juiceDir}/references/Mus_musculus_assembly9_norandom.fasta";;
-	      mm10)	refSeq="${juiceDir}/references/Mus_musculus_assembly10/v0/Mus_musculus_assembly10.fasta";;
-	      hg38)	refSeq="${juiceDir}/references/hg38/hg38.fa";;
-	      hg19)	refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
-	      hg18)	refSeq="${juiceDir}/references/hg18.fasta";;
-	      *)	echo "$usageHelp"
-	          echo "$genomeHelp"
-	          exit 1
+	mm9)	refSeq="${juiceDir}/references/Mus_musculus_assembly9_norandom.fasta";;
+	mm10)	refSeq="${juiceDir}/references/Mus_musculus_assembly10/v0/Mus_musculus_assembly10.fasta";;
+	hg38)	refSeq="${juiceDir}/references/hg38/hg38.fa";;
+	hg19)	refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
+	hg18)	refSeq="${juiceDir}/references/hg18.fasta";;
+	*)	echo "$usageHelp"
+	    echo "$genomeHelp"
+	    exit 1
     esac
 else
     ## Reference sequence passed in, so genomePath must be set for the .hic 
@@ -421,9 +424,17 @@ else
     read1=${splitdir}"/*${read1str}*.fastq"
 fi
 
+if [ -z "$user" ]
+then
+    userstring=""
+else
+    userstring="#SBATCH -A $user"
+fi
+
 # Add header containing command executed and timestamp:
 jid=`sbatch <<- HEADER | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash 
+        $userstring
 	#SBATCH -p $queue
 	#SBATCH -t 2
 	#SBATCH -c 1
@@ -491,14 +502,15 @@ then
                 if [ -z "$gzipped" ]
                 then	
 		    jid=`sbatch <<- SPLITEND | egrep -o -e "\b[0-9]+$"
-			#!/bin/bash -l
-			#SBATCH -p $queue
+			#!/bin/bash
+                        #SBATCH -p $queue
 			#SBATCH -t $queue_time
 			#SBATCH -c 1
 			#SBATCH --mem=5G
 			#SBATCH -o $debugdir/split-%j.out
 			#SBATCH -e $debugdir/split-%j.err
 			#SBATCH -J "${groupname}_split_${i}"
+                        $userstring			
 			date
 			echo "Split file: $filename"
 			split -a 3 -l $splitsize -d --additional-suffix=.fastq $i $splitdir/$filename
@@ -506,7 +518,7 @@ then
 SPLITEND`
 		else
 		    jid=`sbatch <<- SPLITEND | egrep -o -e "\b[0-9]+$"
-			#!/bin/bash -l
+			#!/bin/bash
 			#SBATCH -p $queue
 			#SBATCH -t $queue_time
 			#SBATCH -c 1
@@ -514,6 +526,7 @@ SPLITEND`
 			#SBATCH -o $debugdir/split-%j.out
 			#SBATCH -e $debugdir/split-%j.err
 			#SBATCH -J "${groupname}_split_${i}"
+                        $userstring			
 			date
 			echo "Split file: $filename"
 			zcat $i | split -a 3 -l $splitsize -d --additional-suffix=.fastq - $splitdir/$filename
@@ -577,7 +590,7 @@ SPLITEND`
 
 	# count ligations
 	jid=`sbatch <<- CNTLIG |  egrep -o -e "\b[0-9]+$"
-		#!/bin/bash -l
+		#!/bin/bash
 		#SBATCH -p $queue
 		#SBATCH -t $queue_time
 		#SBATCH -c 1
@@ -585,6 +598,8 @@ SPLITEND`
 		#SBATCH -e $debugdir/count_ligation-%j.err
 		#SBATCH -J "${groupname}${jname}_Count_Ligation"
 		#SBATCH --mem=5G
+                $userstring			
+
 		date
 		export usegzip=${usegzip}; export name=${name}; export name1=${name1}; export name2=${name2}; export ext=${ext}; export ligation=${ligation}; ${juiceDir}/scripts/countligations.sh
 		date
@@ -594,7 +609,7 @@ CNTLIG`
 	touchfile1=${tmpdir}/${jname}1
 
 	jid=`sbatch <<- ALGNR1 | egrep -o -e "\b[0-9]+$"
-		#!/bin/bash -l
+		#!/bin/bash
 		#SBATCH -p $queue
 		#SBATCH -o $debugdir/align1-%j.out
 		#SBATCH -e $debugdir/align1-%j.err
@@ -605,6 +620,8 @@ CNTLIG`
 		#SBATCH --mem=$alloc_mem
 		#SBATCH -J "${groupname}_align1_${jname}"
 		#SBATCH --threads-per-core=1		
+                $userstring			
+
 		${load_bwa}
 		# Align read1
 		date
@@ -639,7 +656,7 @@ ALGNR1`
 	# align read2 fastq
 	touchfile2=${tmpdir}/${jname}2
 	jid=`sbatch <<- ALGNR2 | egrep -o -e "\b[0-9]+$"
-		#!/bin/bash -l
+		#!/bin/bash
 		#SBATCH -p $queue
 		#SBATCH -o $debugdir/align2-%j.out
 		#SBATCH -e $debugdir/align2-%j.err
@@ -650,6 +667,8 @@ ALGNR1`
 		#SBATCH --mem=$alloc_mem
 		#SBATCH -J "${groupname}_align2_${jname}"
 		#SBATCH --threads-per-core=1		
+                $userstring			
+
 		${load_bwa}
 		date
 		# Align read2
@@ -685,7 +704,7 @@ ALGNR2`
 	touchfile3=${tmpdir}/${jname}3
 	# wait for top two, merge
 	jid=`sbatch <<- MRGALL | egrep -o -e "\b[0-9]+$"
-		#!/bin/bash -l
+		#!/bin/bash
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/merge-%j.out
 		#SBATCH -e $debugdir/merge-%j.err
@@ -696,6 +715,8 @@ ALGNR2`
 		#SBATCH -d $dependalign
 		#SBATCH -J "${groupname}_merge_${jname}"
 		#SBATCH --threads-per-core=1
+                $userstring			
+
 		export LC_COLLATE=C
 		date
 		if [ ! -f "${touchfile1}" ] || [ ! -f "${touchfile2}" ]
@@ -825,6 +846,8 @@ MRGALL`
 		#SBATCH -p $queue
 		#SBATCH -J "${groupname}_check"
 		#SBATCH -d $dependmerge
+                $userstring			
+
 		date
 		echo "Checking $f"
 		if [ ! -e $f ]
@@ -877,6 +900,8 @@ then
 		${sbatch_cpu_alloc}
 		#SBATCH -J "${groupname}_fragmerge"
 		${sbatch_wait}
+                $userstring			
+
 		date
 		if [ -f "${errorfile}" ]
 		then
@@ -928,7 +953,7 @@ then
     # We keep the ID of this guard, so we can later alter dependencies of inner dedupping phase.
     # After dedup is done, this job will be released. 
     guardjid=`sbatch <<- DEDUPGUARD | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/dedupguard-%j.out
 	#SBATCH -e $debugdir/dedupguard-%j.err
@@ -938,6 +963,8 @@ then
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_dedup_guard"
 	${sbatch_wait}
+        $userstring			
+
 	date
 DEDUPGUARD`
 
@@ -945,7 +972,7 @@ DEDUPGUARD`
 
     # if jobs succeeded, kill the cleanup job, remove the duplicates from the big sorted file
     jid=`sbatch <<- DEDUP | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
 	#SBATCH -o $debugdir/dedup-%j.out
@@ -955,6 +982,8 @@ DEDUPGUARD`
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_dedup"
 	${sbatch_wait}
+        $userstring			
+
 	date
         if [ -f "${errorfile}" ]
         then 
@@ -978,7 +1007,7 @@ DEDUP`
 
     #Wait for all parts of split_rmdups to complete:
     jid=`sbatch <<- MSPLITWAIT | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/post_dedup-%j.out
 	#SBATCH -e $debugdir/post_dedup-%j.err
@@ -987,6 +1016,8 @@ DEDUP`
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_post_dedup"
 	#SBATCH -d ${dependguard}
+        $userstring			
+
 	date
 	rm -Rf $tmpdir;
 	find $debugdir -type f -size 0 | xargs rm
@@ -1020,6 +1051,8 @@ then
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_prep_done"     
 	${sbatch_wait}
+        $userstring			
+
 	date
 	export splitdir=${splitdir}; export outputdir=${outputdir}; export early=1; ${juiceDir}/scripts/check.sh
 	date
@@ -1033,9 +1066,9 @@ if [ -z $postproc ]
     then
     # Check that dedupping worked properly
     # in ideal world, we would check this in split_rmdups and not remove before we know they are correct
-    awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash -l\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt;rm %s/split*;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."}}'
+    awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt;rm %s/split*;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."}}'
     jid=`sbatch <<- DUPCHECK | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/dupcheck-%j.out
 	#SBATCH -e $debugdir/dupcheck-%j.err
@@ -1045,6 +1078,7 @@ if [ -z $postproc ]
 	#SBATCH --mem-per-cpu=1G
 	#SBATCH -J "${groupname}_dupcheck"
 	${sbatch_wait}
+        $userstring			
 
 	date      
 	ls -l ${outputdir}/merged_sort.txt | awk '{printf("%s ", \\\$5)}' > $debugdir/dupcheck-${groupname}
@@ -1054,7 +1088,7 @@ if [ -z $postproc ]
 DUPCHECK`
     sbatch_wait="#SBATCH -d afterok:$jid"
     jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
-		#!/bin/bash -l
+		#!/bin/bash
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/stats-%j.out
 		#SBATCH -e $debugdir/stats-%j.err
@@ -1064,6 +1098,7 @@ DUPCHECK`
 		#SBATCH --mem=25G
 		#SBATCH -J "${groupname}_stats"
 		${sbatch_wait}
+                $userstring			
 
 		date
 		if [ -f "${errorfile}" ]
@@ -1095,7 +1130,7 @@ STATS`
     dependstats="afterok:$jid"
 
     jid=`sbatch <<- HIC | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash
 	#SBATCH -p $long_queue
 	#SBATCH -o $debugdir/hic-%j.out
 	#SBATCH -e $debugdir/hic-%j.err	
@@ -1105,6 +1140,8 @@ STATS`
 	#SBATCH --mem=49G
 	#SBATCH -J "${groupname}_hic"
 	#SBATCH -d $dependstats
+        $userstring			
+
 	${load_java}
 	export IBM_JAVA_OPTIONS="-Xmx49152m -Xgcthreads1"
 	date
@@ -1125,7 +1162,7 @@ HIC`
     dependhic="afterok:$jid"
 
     jid=`sbatch <<- HIC30 | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash
 	#SBATCH -p $long_queue
 	#SBATCH -o $debugdir/hic30-%j.out
 	#SBATCH -e $debugdir/hic30-%j.err
@@ -1135,6 +1172,8 @@ HIC`
 	#SBATCH --mem=49G
 	#SBATCH -J "${groupname}_hic30"
 	#SBATCH -d ${dependstats}
+        $userstring			
+
 	${load_java}
 	export IBM_JAVA_OPTIONS="-Xmx49152m -Xgcthreads1"
 	date
@@ -1165,7 +1204,7 @@ then
 	sbatch_req="#SBATCH --gres=gpu:kepler:1"
     fi
     jid=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=4G
 	${sbatch_req}
@@ -1175,6 +1214,8 @@ then
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_hiccups_wrap"
 	${sbatch_wait}
+        $userstring			
+
 	${load_gpu}
 	echo "load: $load_gpu"
 	${load_java}
@@ -1194,7 +1235,7 @@ else
 fi
 
 jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=8G
 	#SBATCH -o $debugdir/arrowhead_wrap-%j.out
@@ -1203,6 +1244,8 @@ jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_arrowhead_wrap"
 	${sbatch_wait}
+        $userstring			
+
 	${load_java}
 	date
         if [ -f "${errorfile}" ]
@@ -1226,6 +1269,8 @@ jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_prep_done"
 	#SBATCH -d $dependarrows
+        $userstring			
+
 	date
 	export splitdir=${splitdir}; export outputdir=${outputdir}; ${juiceDir}/scripts/check.sh
 	date

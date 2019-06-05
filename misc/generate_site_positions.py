@@ -15,6 +15,8 @@ elif sys.argv[1]=='DpnII':
 	teststring='GATC'
 elif sys.argv[1]=='MboI':
 	teststring='GATC'
+elif sys.argv[1]=='NcoI':
+	teststring='CCATGG'
 elif sys.argv[1]=='Sau3AI':
 	teststring='GATC'
 else:
