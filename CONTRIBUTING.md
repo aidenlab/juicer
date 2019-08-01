@@ -6,7 +6,7 @@ The following is a set of guidelines for contributing to Juicebox and its module
 
 ## Code of Conduct
 
-This project and everyone participating in it is governed by the [Juicebox Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [aidenlab@bcm.edu](mailto:aidenlab@bcm.edu).
+This project and everyone participating in it is governed by the [Juicer Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [aidenlab@bcm.edu](mailto:aidenlab@bcm.edu).
 
 ## I don't want to read this whole thing I just have a question!!!
 
