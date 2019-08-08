@@ -731,7 +731,7 @@ ALGNR2`
 		#SBATCH -e $debugdir/merge-%j.err
 		#SBATCH --mem=50G
 		#SBATCH -t $long_queue_time
-		#SBATCH -c 32 
+		#SBATCH -c $threads 
 		#SBATCH --ntasks=1
 		#SBATCH -d $dependalign
 		#SBATCH -J "${groupname}_merge_${jname}"
