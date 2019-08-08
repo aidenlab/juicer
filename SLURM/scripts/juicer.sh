@@ -283,6 +283,7 @@ if [ -z "$ligation" ]; then
 	MboI) ligation="GATCGATC";;
         NcoI) ligation="CCATGCATGG";;
 	MboI+HindIII) ligation="'(GATCGATC|AAGCTAGCTT)'";;
+	Arima) ligation="'(GAATAATC|GAATACTC|GAATAGTC|GAATATTC|GAATGATC|GACTAATC|GACTACTC|GACTAGTC|GACTATTC|GACTGATC|GAGTAATC|GAGTACTC|GAGTAGTC|GAGTATTC|GAGTGATC|GATCAATC|GATCACTC|GATCAGTC|GATCATTC|GATCGATC|GATTAATC|GATTACTC|GATTAGTC|GATTATTC|GATTGATC)'";;
 	none) ligation="XXXX";;
 	*)  ligation="XXXX"
 	    echo "$site not listed as recognized enzyme. Using $site_file as site file"
