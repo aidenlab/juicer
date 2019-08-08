@@ -184,7 +184,7 @@ else
     # to be properly created
     if [ -z "$genomePath" ]
     then
-        echo "***! You must define a chrom.sizes file via the \"-p\" flag that delineates the lengths of the chromosomes in the genome at $refSeq";
+        echo "***! You must define a chrom.sizes file via the \"-p\" flag that delineates the lengths of the chromosomes in the genome at $refSeq; you may use \"-p hg19\" or other standard genomes";
         exit 1;
     fi
 fi
@@ -238,7 +238,7 @@ then
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ] && [ "$nofrag" -ne 1 ]
+if [ ! -e "$site_file" ] && [ "$site" != "none" ]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
     exit 1
@@ -518,37 +518,43 @@ then
     # for consistency with cluster naming in split_rmdups
     mv ${outputdir}/optdups.txt ${outputdir}/opt_dups.txt 
 fi
+
+#STATISTICS
+#Skip if post-processing only is required
+if [ -z $postproc ]
+then        
+    export _JAVA_OPTIONS=-Xmx16384m
+    export LC_ALL=en_US.UTF-8 
+    tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt;
+    cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
+    ${juiceDir}/scripts/common/juicer_tools LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
+    cp $outputdir/inter.txt $outputdir/inter_30.txt 
+    ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt 
+    cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam
+    cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam
+    awk -f ${juiceDir}/scripts/common/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
+    # Collisions dedupping script goes here
+fi
+
 if [ -z "$genomePath" ]
 then
     #If no path to genome is give, use genome ID as default.
     genomePath=$genomeID
 fi
+
 #CREATE HIC FILES
-# if early exit, we stop here, once the merged_nodups.txt file is created.
+# if early exit, we stop here, once the statistics are calculated
 if [ -z "$earlyexit" ]
 then
     #Skip if post-processing only is required
     if [ -z $postproc ]
     then        
-        export _JAVA_OPTIONS=-Xmx16384m
-        export LC_ALL=en_US.UTF-8 
-	tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt;
-        ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt
-        cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
-        java -cp ${juiceDir}/scripts/common/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
-        ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt 
-        cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam
-        cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam
-        awk -f ${juiceDir}/scripts/common/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
         if [ "$nofrag" -eq 1 ]
         then 
             ${juiceDir}/scripts/common/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
         else 
             ${juiceDir}/scripts/common/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath 
         fi 
-	tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter_30.txt;
-        cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter_30.txt
-        java -cp ${juiceDir}/scripts/common/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt
         ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt
         if [ "$nofrag" -eq 1 ]
         then 
