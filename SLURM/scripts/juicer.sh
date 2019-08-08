@@ -275,8 +275,9 @@ if [ ! -e "${refSeq}.bwt" ]; then
 fi
 
 ## Check if ligation is a unquoted regex, if so quote
-if [[ -n "$ligation" && $ligation =~ [\(\)\|] && ! $ligation =~ [\"\'] ]];
+if [[ -n "$ligation" && $ligation =~ [\(\)\|] && ! $ligation =~ [\"\'] ]]; then 
     export ligation="'$ligation'"
+fi
 
 ## Set ligation junction based on restriction enzyme
 if [ -z "$ligation" ]; then
