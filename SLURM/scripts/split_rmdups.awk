@@ -92,7 +92,7 @@ END {
     close(sscriptname);
     
     sscriptname = sprintf("%s/.%s_mail.slurm", debugdir, groupname);
-    printf("#!/bin/bash -l\n#SBATCH -o %s/dup-mail.out\n#SBATCH -e %s/dup-mail.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\necho %s %s %s %s | mail -r Juicer@rice.edu -s \"Juicer pipeline finished successfully @ Rice\" -t %s@rice.edu;\ndate\n", debugdir, debugdir, queue, groupname, topDir, site, genomeID, genomePath, user) > sscriptname;
+    printf("#!/bin/bash -l\n#SBATCH -o %s/dup-mail.out\n#SBATCH -e %s/dup-mail.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\necho %s %s %s %s | mail -r aidenlab@bcm.edu -s \"Juicer pipeline finished successfully @ Voltron\" -t %s@hi-c.io;\ndate\n", debugdir, debugdir, queue, groupname, topDir, site, genomeID, genomePath, user) > sscriptname;
     sysstring = sprintf("sbatch %s", sscriptname);
     system(sysstring);
     close(sscriptname);
