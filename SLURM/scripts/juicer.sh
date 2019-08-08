@@ -281,7 +281,8 @@ if [ -z "$ligation" ]; then
 	MseI)  ligation="TTATAA";;
 	DpnII) ligation="GATCGATC";;
 	MboI) ligation="GATCGATC";;
-	NcoI) ligation="CCATGCATGG";;
+        NcoI) ligation="CCATGCATGG";;
+	MboI+HindIII) ligation="'(GATCGATC|AAGCTAGCTT)'";;
 	none) ligation="XXXX";;
 	*)  ligation="XXXX"
 	    echo "$site not listed as recognized enzyme. Using $site_file as site file"
@@ -1076,6 +1077,33 @@ if [ -z $postproc ]
         date                                                                                                           
 DUPCHECK`
     sbatch_wait="#SBATCH -d afterok:$jid"
+
+    jid=`sbatch <<- PRESTATS | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash -l
+	#SBATCH -p $queue
+	#SBATCH -o $debugdir/prestats-%j.out
+	#SBATCH -e $debugdir/prestats-%j.err
+	#SBATCH -t $queue_time
+	#SBATCH -c 1
+	#SBATCH --ntasks=1
+	#SBATCH --mem-per-cpu=1G
+	#SBATCH -J "${groupname}_prestats"
+	${sbatch_wait}
+	$userstring
+
+        date
+        ${load_java}
+        export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"                                                                                                         
+        export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"                                                                                                              
+        
+        tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt                                                                              
+        cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt                                                                
+        ${juiceDir}/scripts/juicer_tools LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt                                                           
+        cp $outputdir/inter.txt $outputdir/inter_30.txt                                                       
+        date
+PRESTATS`
+
+    sbatch_wait0="#SBATCH -d afterok:$jid"
     jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
@@ -1086,7 +1114,7 @@ DUPCHECK`
 		#SBATCH --ntasks=1
 		#SBATCH --mem=25G
 		#SBATCH -J "${groupname}_stats"
-		${sbatch_wait}
+		${sbatch_wait0}
                 $userstring			
 
 		date
@@ -1095,20 +1123,12 @@ DUPCHECK`
 			echo "***! Found errorfile. Exiting." 
 			exit 1 
 		fi 
-		${load_java}
-		export IBM_JAVA_OPTIONS="-Xmx16384m -Xgcthreads1"
-		export _JAVA_OPTIONS="-Xmx16384m -Xms16384m"
-		tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt 
-
-		${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt
-		cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
-                ${juiceDir}/scripts/juicer_tools LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
-                cp $outputdir/inter.txt $outputdir/inter_30.txt 
 		${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt
 
 		date
 STATS`
     sbatch_wait1="#SBATCH -d afterok:$jid"
+
     dependstats="afterok:$jid"
     jid=`sbatch <<- STATS30 | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
@@ -1120,7 +1140,7 @@ STATS`
 		#SBATCH --ntasks=1
 		#SBATCH --mem=25G
 		#SBATCH -J "${groupname}_stats"
-		${sbatch_wait}
+		${sbatch_wait0}
                 $userstring			
 
 		${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt
@@ -1128,7 +1148,8 @@ STATS`
 STATS30`
 
     dependstats30="afterok:$jid"
-
+    sbatch_wait1="${sbatch_wait1}:$jid"
+    # This job is waiting on deduping, thus sbatch_wait (vs sbatch_wait0 or 1) 
     jid=`sbatch <<- CONCATFILES | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
