@@ -32,7 +32,7 @@
 # [topDir]/mega     - Location of result of processing the mega map
 #
 # Juicer version 1.5
-juicer_version="1.5.6" 
+juicer_version="1.5.7" 
 ## Set the following variables to work with your system
 
 # Aiden Lab specific check
@@ -92,14 +92,18 @@ topDir=$(pwd)
 site="MboI"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
+# by default exclude fragment delimited maps
+exclude=1
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-q queue] [-l long queue] [-Q queue time] [-L long queue time] [-x] [-h]"
-genomeHelp="   genomeID must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \"$genomeID\")"
+usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-b ligation] [-D Juicer scripts directory] [-q queue] [-l long queue] [-Q queue time] [-L long queue time] [-f] [-h]"
+genomeHelp="   genomeID is either defined in the script, e.g. \"hg19\" or \"mm10\" or the path to the chrom.sizes file"
 dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged_nodups files underneath it"
 siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
 stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
-excludeHelp="   -x: exclude fragment-delimited maps from Hi-C mega map (will run much faster)"
+ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
+scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
+excludeHelp="   -f: include fragment-delimited maps from Hi-C mega map (will run slower)"
 helpHelp="   -h: print this help and exit"
 
 printHelpAndExit() {
@@ -108,38 +112,43 @@ printHelpAndExit() {
     echo "$dirHelp"
     echo "$siteHelp"
     echo "$stageHelp"
+    echo "$ligationHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hxs:S:l:L:q:Q:" opt; do
+while getopts "d:g:hfs:S:l:L:q:Q:b:D:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
-	x) exclude=1 ;;
+	f) exclude=0 ;;
 	S) stage=$OPTARG ;;
 	l) long_queue=$OPTARG ;;
 	L) long_queue_time=$OPTARG ;;
 	q) queue=$OPTARG ;;
 	Q) queue_time=$OPTARG ;;
+	b) ligation=$OPTARG ;;
+	D) juiceDir=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
 
 ## Set ligation junction based on restriction enzyme
-case $site in
-    HindIII) ligation="AAGCTAGCTT";;
-    DpnII) ligation="GATCGATC";;
-    MboI) ligation="GATCGATC";;
-    none) ligation="XXXX";;
-    *)  ligation="XXXX"
-	site_file=$site
-	echo "$site not listed as recognized enzyme, so trying it as site file."
-	echo "Ligation junction is undefined";;
-esac
+if [ -z "$ligation" ]; then
+    case $site in
+	HindIII) ligation="AAGCTAGCTT";;
+	DpnII) ligation="GATCGATC";;
+	MboI) ligation="GATCGATC";;
+	none) ligation="XXXX";;
+	*)  ligation="XXXX"
+	    site_file=$site
+	    echo "$site not listed as recognized enzyme, so trying it as site file."
+	    echo "Ligation junction is undefined";;
+    esac
+fi
 
 if [ -z "$site_file" ]
 then
@@ -359,15 +368,16 @@ INTER30`
 #source $usePath
 $load_java
 export IBM_JAVA_OPTIONS="-Xmx73728m -Xgcthreads1"
+export _JAVA_OPTIONS="-Xms73728m -Xmx73728m"
 if [ ! -f "${touchfile3}" ]
 then
    echo "***! Statistics q=1 job failed."
    exit 1
 fi
-if [ -z "$exclude" ] &&  ${juiceDir}/scripts/juicer_tools72g pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
+if [ -z "$exclude" ] &&  ${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
 then
    touch $touchfile5
-elif [ -n "$exclude" ] &&  ${juiceDir}/scripts/juicer_tools72g pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
+elif [ -n "$exclude" ] &&  ${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
 then
    touch $touchfile5 
 fi
@@ -389,15 +399,16 @@ HIC0`
 #source $usePath
 $load_java	
 export IBM_JAVA_OPTIONS="-Xmx73728m -Xgcthreads1"
+export _JAVA_OPTIONS="-Xms73728m -Xmx73728m"
 if [ ! -f "${touchfile4}" ]
 then
    echo "***! Statistics q=30 job failed."
    exit 1
 fi
-if [ -z "${exclude}" ] &&  ${juiceDir}/scripts/juicer_tools72g pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
+if [ -z "${exclude}" ] &&  ${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
 then
    touch $touchfile6
-elif [ -n "${exclude}" ] && ${juiceDir}/scripts/juicer_tools72g pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
+elif [ -n "${exclude}" ] && ${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
 then
    touch $touchfile6
 fi
@@ -439,7 +450,7 @@ then
 	   exit 1
 	fi
 	${load_gpu}
-	${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools72g -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
+	${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
 	touch $touchfile7
 	HICCUPS`
 	dependhic30="${dependhic30}:$jid7"
@@ -466,7 +477,7 @@ then
    echo "***! HIC maps q=30 job failed."
    exit 1
 fi
-${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicer_tools72g -i $outputdir/inter_30.hic
+${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic
 touch $touchfile8
 ARROWHEAD`
     dependhic30="${dependhic0}:$jid8"
