@@ -50,8 +50,14 @@ function optcheck(tile1,tile2,x1,x2,y1,y2) {
 # Executed once, before beginning the file read
 BEGIN {
 	i=0;
-	wobble1=4;
-	wobble2=4;
+	if (length(nowobble) == 0) {
+	  wobble1=4;
+	  wobble2=4;
+	}
+	else {
+	  wobble1=0;
+	  wobble2=0;
+	}
 	# names of output files
 	# the variable "name" can be set via the -v flag
 	dupname=name"dups.txt";

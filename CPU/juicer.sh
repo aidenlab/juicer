@@ -61,7 +61,7 @@
 shopt -s extglob
 export LC_ALL=C
 
-juicer_version="1.5.6" 
+juicer_version="1.5.7" 
 ### LOAD BWA AND SAMTOOLS
 
 
@@ -86,10 +86,13 @@ genomeID="hg19"
 shortreadend=0
 # description, default empty
 about=""
-nofrag=0
+# do not include fragment delimited maps by default
+nofrag=1
+# use wobble for dedupping by default (not just exact matches)
+justexact=0
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] [-R end]\n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-r] [-h] [-x]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] [-R end]\n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-r] [-h] [-f] [-j]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" \n  (default \"$site\")"
@@ -103,7 +106,8 @@ scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which 
 refSeqHelp="* [reference genome file]: enter path for reference sequence file, BWA index\n  files must be in same directory"
 ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
 threadsHelp="* [threads]: number of threads when running BWA alignment"
-excludeHelp="* -x: exclude fragment-delimited maps from hic file creation"
+excludeHelp="* -f: include fragment-delimited maps in hic file creation"
+justHelp="* -j: just exact duplicates excluded at dedupping step"
 helpHelp="* -h: print this help and exit"
 
 printHelpAndExit() {
@@ -126,7 +130,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:R:a:hrs:p:y:z:S:D:xt:b:" opt; do
+while getopts "d:g:R:a:hrs:p:y:z:S:D:fjt:b:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -140,9 +144,10 @@ while getopts "d:g:R:a:hrs:p:y:z:S:D:xt:b:" opt; do
 	z) refSeq=$OPTARG ;;
 	S) stage=$OPTARG ;;
 	D) juiceDir=$OPTARG ;;
-	x) nofrag=1 ;; #no fragment maps
+	f) nofrag=0 ;; #use fragment maps
 	b) ligation=$OPTARG ;;
         t) threads=$OPTARG ;;
+	j) justexact=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -179,7 +184,7 @@ else
     # to be properly created
     if [ -z "$genomePath" ]
     then
-        echo "***! You must define a chrom.sizes file via the \"-p\" flag that delineates the lengths of the chromosomes in the genome at $refSeq";
+        echo "***! You must define a chrom.sizes file via the \"-p\" flag that delineates the lengths of the chromosomes in the genome at $refSeq; you may use \"-p hg19\" or other standard genomes";
         exit 1;
     fi
 fi
@@ -233,7 +238,7 @@ then
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ] && [ "$nofrag" -ne 1 ]
+if [ ! -e "$site_file" ] && [ "$site" != "none" ]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
     exit 1
@@ -367,8 +372,8 @@ then
         # Align read1 
         if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
 	then
-	    echo "Running command bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam"
-	    bwa aln -q 15 $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam 
+	    echo "Running command bwa aln -q 15 $threadstring $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam"
+	    bwa aln -q 15 $threadstring $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam 
             if [ $? -ne 0 ]
             then
                 echo "***! Alignment of $name1$ext failed."
@@ -390,8 +395,8 @@ then
         # Align read2
         if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
         then
-            echo "Running command bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam "
-            bwa aln -q 15 $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam 
+            echo "Running command bwa aln -q 15 $threadstring $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam "
+            bwa aln -q 15 $threadstring $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam 
             if [ $? -ne 0 ]
             then
 		echo "***! Alignment of $name2$ext failed."
@@ -503,41 +508,53 @@ then
     touch ${outputdir}/dups.txt
     touch ${outputdir}/optdups.txt
     touch ${outputdir}/merged_nodups.txt
-    awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ ${outputdir}/merged_sort.txt
+    
+    if [ "$justexact" -eq 1 ]
+    then
+	awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ -v nowobble=1 ${outputdir}/merged_sort.txt
+    else
+	awk -f ${juiceDir}/scripts/common/dups.awk -v name=${outputdir}/ ${outputdir}/merged_sort.txt
+    fi
     # for consistency with cluster naming in split_rmdups
     mv ${outputdir}/optdups.txt ${outputdir}/opt_dups.txt 
 fi
+
+#STATISTICS
+#Skip if post-processing only is required
+if [ -z $postproc ]
+then        
+    export _JAVA_OPTIONS=-Xmx16384m
+    export LC_ALL=en_US.UTF-8 
+    tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt;
+    cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
+    ${juiceDir}/scripts/common/juicer_tools LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
+    cp $outputdir/inter.txt $outputdir/inter_30.txt 
+    ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt 
+    cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam
+    cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam
+    awk -f ${juiceDir}/scripts/common/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
+    # Collisions dedupping script goes here
+fi
+
 if [ -z "$genomePath" ]
 then
     #If no path to genome is give, use genome ID as default.
     genomePath=$genomeID
 fi
+
 #CREATE HIC FILES
-# if early exit, we stop here, once the merged_nodups.txt file is created.
+# if early exit, we stop here, once the statistics are calculated
 if [ -z "$earlyexit" ]
 then
     #Skip if post-processing only is required
     if [ -z $postproc ]
     then        
-        export _JAVA_OPTIONS=-Xmx16384m
-        export LC_ALL=en_US.UTF-8 
-	tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt;
-        ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt
-        cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
-        java -cp ${juiceDir}/scripts/common/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
-        ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt 
-        cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam
-        cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam
-        awk -f ${juiceDir}/scripts/common/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
         if [ "$nofrag" -eq 1 ]
         then 
             ${juiceDir}/scripts/common/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
         else 
             ${juiceDir}/scripts/common/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath 
         fi 
-	tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter_30.txt;
-        cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter_30.txt
-        java -cp ${juiceDir}/scripts/common/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt
         ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt
         if [ "$nofrag" -eq 1 ]
         then 
@@ -551,4 +568,5 @@ then
 fi
 #CHECK THAT PIPELINE WAS SUCCESSFUL
 export early=$earlyexit
+export splitdir=$splitdir
 source ${juiceDir}/scripts/common/check.sh

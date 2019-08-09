@@ -32,7 +32,7 @@
 # [topDir]/mega     - Location of result of processing the mega map
 #
 # Juicer version 1.5
-juicer_version="1.5.6" 
+juicer_version="1.5.7" 
 # top level directory, can also be set in options
 topDir=$(pwd)
 # restriction enzyme, can also be set in options
@@ -43,13 +43,14 @@ genomeID="hg19"
 # can also be set in options via -D 
 juiceDir="/aidenlab"
 
-
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-h]"
-genomeHelp="   genomeID must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \"$genomeID\")"
+usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-b ligation] [-D Juicer scripts directory] [-f] [-h]"
+genomeHelp="   genomeID is either defined in the script, e.g. \"hg19\" or \"mm10\" or the path to the chrom.sizes file"
 dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged_nodups files underneath it"
 siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
 stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
-excludeHelp="   -x: exclude fragment-delimited maps from Hi-C mega map (will run much faster)"
+ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
+scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
+excludeHelp="   -f: include fragment-delimited maps in Hi-C mega map (will run slower)"
 helpHelp="   -h: print this help and exit"
 
 printHelpAndExit() {
@@ -58,34 +59,39 @@ printHelpAndExit() {
     echo "$dirHelp"
     echo "$siteHelp"
     echo "$stageHelp"
+    echo "$ligationHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hxs:S:" opt; do
+while getopts "d:g:hfs:S:b:D:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
-	x) exclude=1 ;;
+	b) ligation=$OPTARG ;;
+        D) juiceDir=$OPTARG ;;
+        f) exclude=0 ;;
 	S) stage=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
 
 ## Set ligation junction based on restriction enzyme
-case $site in
-    HindIII) ligation="AAGCTAGCTT";;
-    DpnII) ligation="GATCGATC";;
-    MboI) ligation="GATCGATC";;
-    none) ligation="XXXX";;
-    *)  ligation="XXXX"
-    site_file=$site
-    echo "$site not listed as recognized enzyme, so trying it as site file."
-    echo "Ligation junction is undefined";;
-esac
+if [ -z "$ligation" ]; then
+    case $site in
+	HindIII) ligation="AAGCTAGCTT";;
+	DpnII) ligation="GATCGATC";;
+	MboI) ligation="GATCGATC";;
+	none) ligation="XXXX";;
+	*)  ligation="XXXX"
+	    site_file=$site
+	    echo "$site not listed as recognized enzyme, so trying it as site file."
+	    echo "Ligation junction is undefined";;
+    esac
+fi
 
 if [ -z "$site_file" ]
 then
@@ -164,28 +170,28 @@ fi
 if [ -z $final ] && [ -z $postproc ]
 then
 # Create top statistics file from all inter.txt files found under current dir
-    awk -f ${juiceDir}/scripts/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
+    awk -f ${juiceDir}/scripts/common/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
     echo "(-: Finished creating top stats files."
     cp ${outputdir}/inter.txt ${outputdir}/inter_30.txt
     sort -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
     echo "(-: Finished sorting all merged_nodups files into a single merge."
     rm -r ${tmpdir}
-    ${juiceDir}/scripts/statistics.pl -q 1 -o${outputdir}/inter.txt -s $site_file -l $ligation ${outputdir}/merged_nodups.txt
-    ${juiceDir}/scripts/statistics.pl -q 30 -o${outputdir}/inter_30.txt -s $site_file -l $ligation ${outputdir}/merged_nodups.txt 
+    ${juiceDir}/scripts/common/statistics.pl -q 1 -o${outputdir}/inter.txt -s $site_file -l $ligation ${outputdir}/merged_nodups.txt
+    ${juiceDir}/scripts/common/statistics.pl -q 30 -o${outputdir}/inter_30.txt -s $site_file -l $ligation ${outputdir}/merged_nodups.txt 
     if [ -n "$exclude" ]
     then
-	${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
-	${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
+	${juiceDir}/scripts/common/juicer_tools pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
+	${juiceDir}/scripts/common/juicer_tools pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
     else
-	${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
-	${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
+	${juiceDir}/scripts/common/juicer_tools pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
+	${juiceDir}/scripts/common/juicer_tools pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
     fi
 fi
 if [ -z $early ]
 then
 # Create loop lists file for MQ > 30
-    ${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
-    ${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic
+    ${juiceDir}/scripts/common/juicer_hiccups.sh -j ${juiceDir}/scripts/common/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
+    ${juiceDir}/scripts/common/juicer_arrowhead.sh -j ${juiceDir}/scripts/common/juicer_tools -i $outputdir/inter_30.hic
 fi
 
 echo "(-: Successfully completed making mega map. Done. :-)"
