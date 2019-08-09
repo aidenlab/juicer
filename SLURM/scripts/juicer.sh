@@ -274,6 +274,11 @@ if [ ! -e "${refSeq}.bwt" ]; then
     exit 1;
 fi
 
+## Check if ligation is a unquoted regex, if so quote
+if [[ -n "$ligation" && $ligation =~ [\(\)\|] && ! $ligation =~ [\"\'] ]]; then 
+    export ligation="'$ligation'"
+fi
+
 ## Set ligation junction based on restriction enzyme
 if [ -z "$ligation" ]; then
     case $site in
@@ -283,6 +288,7 @@ if [ -z "$ligation" ]; then
 	MboI) ligation="GATCGATC";;
         NcoI) ligation="CCATGCATGG";;
 	MboI+HindIII) ligation="'(GATCGATC|AAGCTAGCTT)'";;
+	Arima) ligation="'(GAATAATC|GAATACTC|GAATAGTC|GAATATTC|GAATGATC|GACTAATC|GACTACTC|GACTAGTC|GACTATTC|GACTGATC|GAGTAATC|GAGTACTC|GAGTAGTC|GAGTATTC|GAGTGATC|GATCAATC|GATCACTC|GATCAGTC|GATCATTC|GATCGATC|GATTAATC|GATTACTC|GATTAGTC|GATTATTC|GATTGATC)'";;
 	none) ligation="XXXX";;
 	*)  ligation="XXXX"
 	    echo "$site not listed as recognized enzyme. Using $site_file as site file"
@@ -725,7 +731,7 @@ ALGNR2`
 		#SBATCH -e $debugdir/merge-%j.err
 		#SBATCH --mem=50G
 		#SBATCH -t $long_queue_time
-		#SBATCH -c 32 
+		#SBATCH -c $threads 
 		#SBATCH --ntasks=1
 		#SBATCH -d $dependalign
 		#SBATCH -J "${groupname}_merge_${jname}"
