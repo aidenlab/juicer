@@ -32,7 +32,7 @@
 # [topDir]/mega     - Location of result of processing the mega map
 #
 # Juicer version 1.5
-juicer_version="1.5.6" 
+juicer_version="1.5.7" 
 ## Set the following variables to work with your system
 
 # Aiden Lab specific check
@@ -92,14 +92,18 @@ topDir=$(pwd)
 site="MboI"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
+# by default exclude fragment delimited maps
+exclude=1
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-h]"
-genomeHelp="   genomeID must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \"$genomeID\")"
+usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-b ligation] [-D Juicer scripts directory] [-q queue] [-l long queue] [-Q queue time] [-L long queue time] [-f] [-h]"
+genomeHelp="   genomeID is either defined in the script, e.g. \"hg19\" or \"mm10\" or the path to the chrom.sizes file"
 dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged_nodups files underneath it"
 siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
 stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
-excludeHelp="   -x: exclude fragment-delimited maps from Hi-C mega map (will run much faster)"
+ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
+scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
+excludeHelp="   -f: include fragment-delimited maps from Hi-C mega map (will run slower)"
 helpHelp="   -h: print this help and exit"
 
 printHelpAndExit() {
@@ -108,34 +112,43 @@ printHelpAndExit() {
     echo "$dirHelp"
     echo "$siteHelp"
     echo "$stageHelp"
+    echo "$ligationHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hxs:S:" opt; do
+while getopts "d:g:hfs:S:l:L:q:Q:b:D:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
-	x) exclude=1 ;;
+	f) exclude=0 ;;
 	S) stage=$OPTARG ;;
+	l) long_queue=$OPTARG ;;
+	L) long_queue_time=$OPTARG ;;
+	q) queue=$OPTARG ;;
+	Q) queue_time=$OPTARG ;;
+	b) ligation=$OPTARG ;;
+	D) juiceDir=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
 
 ## Set ligation junction based on restriction enzyme
-case $site in
-    HindIII) ligation="AAGCTAGCTT";;
-    DpnII) ligation="GATCGATC";;
-    MboI) ligation="GATCGATC";;
-    none) ligation="XXXX";;
-    *)  ligation="XXXX"
-	site_file=$site
-	echo "$site not listed as recognized enzyme, so trying it as site file."
-	echo "Ligation junction is undefined";;
-esac
+if [ -z "$ligation" ]; then
+    case $site in
+	HindIII) ligation="AAGCTAGCTT";;
+	DpnII) ligation="GATCGATC";;
+	MboI) ligation="GATCGATC";;
+	none) ligation="XXXX";;
+	*)  ligation="XXXX"
+	    site_file=$site
+	    echo "$site not listed as recognized enzyme, so trying it as site file."
+	    echo "Ligation junction is undefined";;
+    esac
+fi
 
 if [ -z "$site_file" ]
 then
@@ -233,7 +246,7 @@ then
 #SBATCH -o $logdir/topstats-%j.out
 #SBATCH -e $logdir/topstats-%j.err
 #SBATCH -J "${groupname}_topstats"
-#SBATCH --mem-per-cpu=32G 
+#SBATCH --mem-per-cpu=4G 
 export LC_COLLATE=C
 if ! awk -f ${juiceDir}/scripts/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
 then  
@@ -254,12 +267,11 @@ TOPSTATS`
 #SBATCH -t ${long_queue_time}
 #SBATCH -c 1
 #SBATCH --ntasks=1
-#SBATCH --mem-per-cpu=16384
 #SBATCH -o $logdir/merge-%j.out
 #SBATCH -e $logdir/merge-%j.err
 #SBATCH -J "${groupname}_merge"
 #SBATCH -d "${dependtopstats}"
-#SBATCH --mem-per-cpu=32G 
+#SBATCH --mem-per-cpu=8G
 if [ ! -f "${touchfile1}" ]
 then
     echo "***! Top stats job failed, type \"scontrol show job $jid1\" to see what happened."
@@ -268,13 +280,13 @@ fi
 
   if [ $isRice -eq 1 ]
   then
-    if ! /poscratch/aidenlab/olga/sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
+    if ! ${juiceDir}/scripts/sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
     then
       echo "***! Some problems occurred somewhere in creating sorted merged_nodups files."
       exit 1
     fi
   else
-    if ! sort -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
+    if ! sort --parallel=40 -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
     then 
       echo "***! Some problems occurred somewhere in creating sorted merged_nodups files."
       exit 1
@@ -303,7 +315,7 @@ then
 #SBATCH -o $logdir/inter0-%j.out
 #SBATCH -e $logdir/inter0-%j.err
 #SBATCH -J "${groupname}_inter0"
-#SBATCH --mem-per-cpu=32G 
+#SBATCH --mem-per-cpu=2G
 ${dependmerge}
 if [ ! -f "${touchfile2}" ]
 then
@@ -327,7 +339,7 @@ INTER0`
 #SBATCH -o $logdir/inter30-%j.out
 #SBATCH -e $logdir/inter30-%j.err
 #SBATCH -J "${groupname}_inter30"
-#SBATCH --mem-per-cpu=32G 
+#SBATCH --mem-per-cpu=2G 
 ${dependmerge}
 if [ ! -f "${touchfile2}" ]
 then
@@ -346,15 +358,17 @@ INTER30`
 #!/bin/bash -l
 #SBATCH -p ${long_queue}
 #SBATCH -t ${long_queue_time}
-#SBATCH -c 1
+#SBATCH -c 8
 #SBATCH --ntasks=1
 #SBATCH -o $logdir/hic0-%j.out
 #SBATCH -e $logdir/hic0-%j.err
 #SBATCH -J "${groupname}_hic0"
 #SBATCH -d "${dependinter0}"
-#SBATCH --mem-per-cpu=32G
+#SBATCH --mem=73G
 #source $usePath
 $load_java
+export IBM_JAVA_OPTIONS="-Xmx73728m -Xgcthreads1"
+export _JAVA_OPTIONS="-Xms73728m -Xmx73728m"
 if [ ! -f "${touchfile3}" ]
 then
    echo "***! Statistics q=1 job failed."
@@ -381,9 +395,11 @@ HIC0`
 #SBATCH -e $logdir/hic30-%j.err
 #SBATCH -J "${groupname}_hic30"
 #SBATCH -d "${dependinter30}"
-#SBATCH --mem-per-cpu=32G
+#SBATCH --mem=73G
 #source $usePath
 $load_java	
+export IBM_JAVA_OPTIONS="-Xmx73728m -Xgcthreads1"
+export _JAVA_OPTIONS="-Xms73728m -Xmx73728m"
 if [ ! -f "${touchfile4}" ]
 then
    echo "***! Statistics q=30 job failed."

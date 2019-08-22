@@ -65,7 +65,7 @@
 #             match any files with the read1str.   
 # Juicer version 1.5.6
 shopt -s extglob
-juicer_version="1.5.6"
+juicer_version="1.5.7"
 ## Set the following variables to work with your system
 
 # Aiden Lab specific check
@@ -110,10 +110,10 @@ else
     juiceDir="/gpfs0/juicer/"
     # default queue, can also be set in options
     queue="commons"
-    queue_time="1440"
+    queue_time="2880"
     # default long queue, can also be set in options
     long_queue="long"
-    long_queue_time="10080"
+    long_queue_time="7200"
 fi
 
 # size to split fastqs. adjust to match your needs. 4000000=1M reads per split
@@ -141,10 +141,13 @@ genomeID="hg19"
 shortreadend=0
 # description, default empty
 about=""
-nofrag=0
+# do not include fragment delimited maps by default
+nofrag=1
+# use wobble for dedupping by default (not just exact matches)
+justexact=0
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-R end] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads]\n                 [-r] [-h] [-x]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-R end] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads]\n                 [-A account name] [-r] [-h] [-f] [-j]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
@@ -163,7 +166,9 @@ queueTimeHelp="* [queue time limit]: time limit for queue, i.e. -W 12:00 is 12 h
 longQueueTimeHelp="* [long queue time limit]: time limit for long queue, i.e. -W 168:00 is one week\n  (default ${long_queue_time})"
 ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
 threadsHelp="* [threads]: number of threads when running BWA alignment"
-excludeHelp="* -x: exclude fragment-delimited maps from hic file creation"
+userHelp="* [account name]: user account name on cluster"
+excludeHelp="* -f: include fragment-delimited maps in hic file creation"
+justHelp="* -j: just exact duplicates excluded at dedupping step"
 helpHelp="* -h: print this help and exit"
 
 printHelpAndExit() {
@@ -186,12 +191,13 @@ printHelpAndExit() {
     echo -e "$longQueueTimeHelp"
     echo -e "$ligationHelp"
     echo -e "$threadsHelp"
+    echo -e "$userHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:R:a:hrq:s:p:l:y:z:S:C:D:Q:L:b:t:x" opt; do
+while getopts "d:g:R:a:hrq:s:p:l:y:z:S:C:D:Q:L:b:A:t:jf" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -210,9 +216,11 @@ while getopts "d:g:R:a:hrq:s:p:l:y:z:S:C:D:Q:L:b:t:x" opt; do
 	D) juiceDir=$OPTARG ;;
 	Q) queue_time=$OPTARG ;;
 	L) long_queue_time=$OPTARG ;;
-	x) nofrag=1 ;;
+	f) nofrag=0 ;;
 	b) ligation=$OPTARG ;;
 	t) threads=$OPTARG ;;
+	A) user=$OPTARG ;;
+	j) justexact=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -240,7 +248,7 @@ then
 	hg38)	refSeq="${juiceDir}/references/hg38/hg38.fa";;
 	hg19)	refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
 	hg18)	refSeq="${juiceDir}/references/hg18.fasta";;
-	*)		echo "$usageHelp"
+	*)	echo "$usageHelp"
 	    echo "$genomeHelp"
 	    exit 1
     esac
@@ -249,7 +257,7 @@ else
     ## file to be properly created
     if [ -z "$genomePath" ]
     then
-        echo "***! You must define a chrom.sizes file via the \"-p\" flag that delineates the lengths of the chromosomes in the genome at $refSeq";
+        echo "***! You must define a chrom.sizes file or a standard genome ID via the \"-p\" flag that delineates the lengths of the chromosomes in the genome at $refSeq; you may use \"-p hg19\" or other standard genomes";
         exit 1;
     fi
 fi
@@ -266,13 +274,21 @@ if [ ! -e "${refSeq}.bwt" ]; then
     exit 1;
 fi
 
+## Check if ligation is a unquoted regex, if so quote
+if [[ -n "$ligation" && $ligation =~ [\(\)\|] && ! $ligation =~ [\"\'] ]]; then 
+    export ligation="'$ligation'"
+fi
+
 ## Set ligation junction based on restriction enzyme
 if [ -z "$ligation" ]; then
     case $site in
 	HindIII) ligation="AAGCTAGCTT";;
+	MseI)  ligation="TTATAA";;
 	DpnII) ligation="GATCGATC";;
 	MboI) ligation="GATCGATC";;
-	NcoI) ligation="CCATGCATGG";;
+        NcoI) ligation="CCATGCATGG";;
+	MboI+HindIII) ligation="'(GATCGATC|AAGCTAGCTT)'";;
+	Arima) ligation="'(GAATAATC|GAATACTC|GAATAGTC|GAATATTC|GAATGATC|GACTAATC|GACTACTC|GACTAGTC|GACTATTC|GACTGATC|GAGTAATC|GAGTACTC|GAGTAGTC|GAGTATTC|GAGTGATC|GATCAATC|GATCACTC|GATCAGTC|GATCATTC|GATCGATC|GATTAATC|GATTACTC|GATTAGTC|GATTATTC|GATTGATC)'";;
 	none) ligation="XXXX";;
 	*)  ligation="XXXX"
 	    echo "$site not listed as recognized enzyme. Using $site_file as site file"
@@ -302,7 +318,7 @@ then
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ] && [ "$nofrag" -ne 1 ]
+if [ ! -e "$site_file" ] && [ "$site" != "none" ]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
     exit 1
@@ -315,20 +331,30 @@ then
     if [ $isRice -eq 1 ]
     then
 	threads=8
+	threadstring="-t $threads"
     elif [ $isBCM -eq 1 ]
     then
-	threads=24
+	threads=1
+	threadstring="-t $threads"
     else
-	threads=16 # VOLTRON; may need to make this separate and specific for Voltron
+	threads=10 # VOLTRON; may need to make this separate and specific for Voltron
+	## On voltron wiht 8 thread per core Power8 CPU bwa can use more threads
+	threadstring="-t \$SLURM_JOB_CPUS_PER_NODE"
     fi
+else
+    threadstring="-t $threads"
 fi
 
-threadstring="-t $threads"
 alloc_mem=$(($threads * 5000))
 
-if [ $alloc_mem -gt 40000 ]
+if [ $alloc_mem -gt 50000 ]
 then
-    alloc_mem=40000
+    alloc_mem=50000
+fi
+
+if [ $isBCM -eq 1 ]
+then
+    alloc_mem=50000
 fi
 
 ## Directories to be created and regex strings for listing files
@@ -392,12 +418,15 @@ fi
 ## Arguments have been checked and directories created. Now begins
 ## the real work of the pipeline
 # If chunk size sent in, split. Otherwise check size before splitting
-if [ -z $splitme ]
+if [ $isVoltron -ne 1 ]
 then
-    fastqsize=$(ls -lL  ${fastqdir} | awk '{sum+=$5}END{print sum}')
-    if [ "$fastqsize" -gt "2592410750" ]
+    if [ -z $splitme ]
     then
-	splitme=1
+	fastqsize=$(ls -lL  ${fastqdir} | awk '{sum+=$5}END{print sum}')
+	if [ "$fastqsize" -gt "2592410750" ]
+	then
+	    splitme=1
+	fi
     fi
 fi
 
@@ -410,9 +439,17 @@ else
     read1=${splitdir}"/*${read1str}*.fastq"
 fi
 
+if [ -z "$user" ]
+then
+    userstring=""
+else
+    userstring="#SBATCH -A $user"
+fi
+
 # Add header containing command executed and timestamp:
 jid=`sbatch <<- HEADER | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash -l 
+        $userstring
 	#SBATCH -p $queue
 	#SBATCH -t 2
 	#SBATCH -c 1
@@ -481,12 +518,14 @@ then
                 then	
 		    jid=`sbatch <<- SPLITEND | egrep -o -e "\b[0-9]+$"
 			#!/bin/bash -l
-			#SBATCH -p $queue
+                        #SBATCH -p $queue
 			#SBATCH -t $queue_time
 			#SBATCH -c 1
+			#SBATCH --mem=5G
 			#SBATCH -o $debugdir/split-%j.out
 			#SBATCH -e $debugdir/split-%j.err
 			#SBATCH -J "${groupname}_split_${i}"
+                        $userstring			
 			date
 			echo "Split file: $filename"
 			split -a 3 -l $splitsize -d --additional-suffix=.fastq $i $splitdir/$filename
@@ -498,9 +537,11 @@ SPLITEND`
 			#SBATCH -p $queue
 			#SBATCH -t $queue_time
 			#SBATCH -c 1
+			#SBATCH --mem=5G
 			#SBATCH -o $debugdir/split-%j.out
 			#SBATCH -e $debugdir/split-%j.err
 			#SBATCH -J "${groupname}_split_${i}"
+                        $userstring			
 			date
 			echo "Split file: $filename"
 			zcat $i | split -a 3 -l $splitsize -d --additional-suffix=.fastq - $splitdir/$filename
@@ -570,7 +611,10 @@ SPLITEND`
 		#SBATCH -c 1
 		#SBATCH -o $debugdir/count_ligation-%j.out
 		#SBATCH -e $debugdir/count_ligation-%j.err
-		#SBATCH -J "${groupname}${jname}_Count_Ligation"
+		#SBATCH -J "${groupname}_${jname}_Count_Ligation"
+		#SBATCH --mem=5G
+                $userstring			
+
 		date
 		export usegzip=${usegzip}; export name=${name}; export name1=${name1}; export name2=${name2}; export ext=${ext}; export ligation=${ligation}; ${juiceDir}/scripts/countligations.sh
 		date
@@ -588,9 +632,11 @@ CNTLIG`
 		#SBATCH -n 1
 		#SBATCH -c $threads
 		#SBATCH --ntasks=1
-		#SBATCH --mem-per-cpu=$alloc_mem
+		#SBATCH --mem=$alloc_mem
 		#SBATCH -J "${groupname}_align1_${jname}"
 		#SBATCH --threads-per-core=1		
+                $userstring			
+
 		${load_bwa}
 		# Align read1
 		date
@@ -633,9 +679,11 @@ ALGNR1`
 		#SBATCH -n 1
 		#SBATCH -c $threads
 		#SBATCH --ntasks=1
-		#SBATCH --mem-per-cpu=$alloc_mem
+		#SBATCH --mem=$alloc_mem
 		#SBATCH -J "${groupname}_align2_${jname}"
 		#SBATCH --threads-per-core=1		
+                $userstring			
+
 		${load_bwa}
 		date
 		# Align read2
@@ -668,6 +716,12 @@ ALGNR2`
 
 	dependalign="$dependalign:$jid"
 
+	if [ $isVoltron -eq 1 ]
+	then
+	    sortthreadstring="--parallel=\$SLURM_JOB_CPUS_PER_NODE"
+	else
+	    sortthreadstring="--parallel=$threads"
+	fi
 	touchfile3=${tmpdir}/${jname}3
 	# wait for top two, merge
 	jid=`sbatch <<- MRGALL | egrep -o -e "\b[0-9]+$"
@@ -675,13 +729,15 @@ ALGNR2`
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/merge-%j.out
 		#SBATCH -e $debugdir/merge-%j.err
-		#SBATCH --mem-per-cpu=14G
-		#SBATCH -t $queue_time
-		#SBATCH -c 8 
+		#SBATCH --mem=50G
+		#SBATCH -t $long_queue_time
+		#SBATCH -c $threads 
 		#SBATCH --ntasks=1
 		#SBATCH -d $dependalign
 		#SBATCH -J "${groupname}_merge_${jname}"
-		#SBATCH --threads-per-core=1
+
+                $userstring			
+
 		export LC_COLLATE=C
 		date
 		if [ ! -f "${touchfile1}" ] || [ ! -f "${touchfile2}" ]
@@ -691,8 +747,7 @@ ALGNR2`
 			exit 1
 		fi
 		# sort read 1 aligned file by readname
-		sort --parallel=8 -S 14G -T $tmpdir -k1,1 $name1$ext.sam > $name1${ext}_sort.sam
-		#sort -T $tmpdir -k1,1 ${name1}${ext}.sam > ${name1}${ext}_sort.sam
+		sort $sortthreadstring -S 25G -T $tmpdir -k1,1f $name1$ext.sam > $name1${ext}_sort.sam
 		if [ \$? -ne 0 ]
 		then 
 			echo "***! Error while sorting $name1$ext.sam"
@@ -703,8 +758,8 @@ ALGNR2`
 		fi
 		
 		# sort read 2 aligned file by readname 
-		sort --parallel=8 -S 14G -T $tmpdir -k1,1 $name2$ext.sam > $name2${ext}_sort.sam
-		#sort -T $tmpdir -k1,1 $name2$ext.sam > $name2${ext}_sort.sam
+		sort $sortthreadstring -S 25G -T $tmpdir -k1,1f $name2$ext.sam > $name2${ext}_sort.sam
+
 		if [ \$? -ne 0 ]
 		then
 			echo "***! Error while sorting $name2$ext.sam"
@@ -719,8 +774,7 @@ ALGNR2`
 		awk 'NF >= 11{\\\$1 = \\\$1"/2";print}' ${name2}${ext}_sort.sam > ${name2}${ext}_sort1.sam
 
 		# merge the two sorted read end files
-		sort --parallel=8 -S 14G -T $tmpdir -k1,1 -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > $name$ext.sam
-		#sort -T $tmpdir -k1,1 -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > $name$ext.sam
+		sort $sortthreadstring -S 25G -T $tmpdir -k1,1f -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > $name$ext.sam
 		if [ \$? -ne 0 ]
 		then
 			echo "***! Failure during merge of read files"
@@ -731,7 +785,7 @@ ALGNR2`
 		fi
 
 		# call chimeric_blacklist.awk to deal with chimeric reads; sorted file is sorted by read name at this point
-		touch ${name}${ext}_abnorm.sam ${name}${ext}_unmapped.sam
+		touch ${name}${ext}_abnorm.sam ${name}${ext}_unmapped.sam ${name}${ext}_norm.txt
 		awk -v "fname1"=${name}${ext}_norm.txt -v "fname2"=${name}${ext}_abnorm.sam -v "fname3"=${name}${ext}_unmapped.sam -f $juiceDir/scripts/chimeric_blacklist.awk ${name}${ext}.sam
 
 		if [ \$? -ne 0 ] 
@@ -764,7 +818,7 @@ ALGNR2`
 			exit 1 
 		fi
 		# sort by chromosome, fragment, strand, and position
-		sort -S 2G -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $name${ext}.frag.txt > $name${ext}.sort.txt
+		sort $sortthreadstring -S 35G -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $name${ext}.frag.txt > $name${ext}.sort.txt
 		if [ \$? -ne 0 ]   
 		then
 			echo "***! Failure during sort of $name${ext}"
@@ -804,13 +858,15 @@ MRGALL`
 	
 	# check that alignment finished successfully
 	jid=`sbatch <<- EOF
-		#!/usr/bin/bash
+		#!/usr/bin/bash -l
 		#SBATCH -o $debugdir/aligncheck-%j.out
 		#SBATCH -e $debugdir/aligncheck-%j.err
 		#SBATCH -t $queue_time
 		#SBATCH -p $queue
 		#SBATCH -J "${groupname}_check"
 		#SBATCH -d $dependmerge
+                $userstring			
+
 		date
 		echo "Checking $f"
 		if [ ! -e $f ]
@@ -835,8 +891,7 @@ then
         sbatch_wait=""
     fi
     
-    # merge the sorted files into one giant file that is also sorted.      
-    #jid=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
+    # merge the sorted files into one giant file that is also sorted. jid=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
     
     if [ $isVoltron -eq 1 ]
     then  
@@ -844,19 +899,28 @@ then
     else
 	sbatch_time="#SBATCH -t 1440"
     fi
-
+    if [ $isBCM -eq 1 ]
+    then
+	sbatch_cpu_alloc="#SBATCH -c 1"
+	sbatch_mem_alloc="#SBATCH --mem=80G"
+    else
+	sbatch_cpu_alloc="#SBATCH -c 8"
+	sbatch_mem_alloc="#SBATCH --mem=64G"
+    fi
 
 
     jid=`sbatch <<- EOF
-		#!/usr/bin/bash
+		#!/usr/bin/bash -l
 		#SBATCH -o $debugdir/fragmerge-%j.out
 		#SBATCH -e $debugdir/fragmerge-%j.err
-		#SBATCH --mem 256000
+		${sbatch_mem_alloc}
 		${sbatch_time}
 		#SBATCH -p $long_queue
-		#SBATCH -c 8
+		${sbatch_cpu_alloc}
 		#SBATCH -J "${groupname}_fragmerge"
 		${sbatch_wait}
+                $userstring			
+
 		date
 		if [ -f "${errorfile}" ]
 		then
@@ -870,7 +934,7 @@ then
 		fi
 		if [ $isRice -eq 1 ]
 		then
-			if ! ${juiceDir}/scripts/sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt > $outputdir/merged_sort.txt
+			if ! ${juiceDir}/scripts/sort --parallel=48 -S 32G -T ${tmpdir} -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt > $outputdir/merged_sort.txt
 			then
 				echo "***! Some problems occurred somewhere in creating sorted align files."
 				touch $errorfile
@@ -879,7 +943,7 @@ then
 				echo "(-: Finished sorting all sorted files into a single merge."
 			fi
 		else
-			if ! sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt > $outputdir/merged_sort.txt
+			if ! sort --parallel=48 -S 32G -T ${tmpdir} -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt > $outputdir/merged_sort.txt
 			then
 				echo "***! Some problems occurred somewhere in creating sorted align files."
 				touch $errorfile
@@ -918,6 +982,8 @@ then
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_dedup_guard"
 	${sbatch_wait}
+        $userstring			
+
 	date
 DEDUPGUARD`
 
@@ -925,7 +991,7 @@ DEDUPGUARD`
 
     # if jobs succeeded, kill the cleanup job, remove the duplicates from the big sorted file
     jid=`sbatch <<- DEDUP | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
+	#!/bin/bash
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
 	#SBATCH -o $debugdir/dedup-%j.out
@@ -935,6 +1001,8 @@ DEDUPGUARD`
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_dedup"
 	${sbatch_wait}
+        $userstring			
+
 	date
         if [ -f "${errorfile}" ]
         then 
@@ -942,12 +1010,13 @@ DEDUPGUARD`
             exit 1 
         fi 
 	squeue -u $USER -o "%A %T %j %E %R" | column -t
-	awk -v queue=$long_queue -v groupname=$groupname -v debugdir=$debugdir -v dir=$outputdir -v topDir=$topDir -v juicedir=$juiceDir -v site=$site -v genomeID=$genomeID -v genomePath=$genomePath -v user=$USER -v guardjid=$guardjid -f $juiceDir/scripts/split_rmdups.awk $outputdir/merged_sort.txt
+	awk -v queue=$long_queue -v groupname=$groupname -v debugdir=$debugdir -v dir=$outputdir -v topDir=$topDir -v juicedir=$juiceDir -v site=$site -v genomeID=$genomeID -v genomePath=$genomePath -v user=$USER -v guardjid=$guardjid -v justexact=$justexact -f $juiceDir/scripts/split_rmdups.awk $outputdir/merged_sort.txt
 	##Schedule new job to run after last dedup part:
 	##Push guard to run after last dedup is completed:
 	##srun --ntasks=1 -c 1 -p "$queue" -t 1 -o ${debugdir}/dedup_requeue-%j.out -e ${debugdir}/dedup-requeue-%j.err -J "$groupname_msplit0" -d singleton echo ID: $ echo "\${!SLURM_JOB_ID}"; scontrol update JobID=$guardjid dependency=afterok:\$SLURM_JOB_ID
 	squeue -u $USER -o "%A %T %j %E %R" | column -t
 	date
+	
 	scontrol release $guardjid
 DEDUP`
 
@@ -967,6 +1036,8 @@ DEDUP`
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_post_dedup"
 	#SBATCH -d ${dependguard}
+        $userstring			
+
 	date
 	rm -Rf $tmpdir;
 	find $debugdir -type f -size 0 | xargs rm
@@ -986,34 +1057,12 @@ then
     genomePath=$genomeID
 fi
 
-# if early exit, we stop here, once the merged_nodups.txt file is created.
-if [ -n "$earlyexit" ]
-then
-    jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$" 
-	#!/bin/bash
-	#SBATCH -p $queue
-	#SBATCH --mem-per-cpu=2G
-	#SBATCH -o $debugdir/fincln1-%j.out
-	#SBATCH -e $debugdir/fincln1-%j.err
-	#SBATCH -t 1200
-	#SBATCH -c 1
-	#SBATCH --ntasks=1
-	#SBATCH -J "${groupname}_prep_done"     
-	${sbatch_wait}
-	date
-	export splitdir=${splitdir}; export outputdir=${outputdir}; export early=1; ${juiceDir}/scripts/check.sh
-	date
-FINCLN1`
-    echo "(-: Finished adding all jobs... Now is a good time to get that cup of coffee.."
-    exit 0
-fi
-
 #Skip if post-processing only is required
 if [ -z $postproc ]
     then
     # Check that dedupping worked properly
     # in ideal world, we would check this in split_rmdups and not remove before we know they are correct
-    awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash -l\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt;rm %s/split*;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."}}'
+    awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt;rm %s/split*;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."}}'
     jid=`sbatch <<- DUPCHECK | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
@@ -1025,6 +1074,7 @@ if [ -z $postproc ]
 	#SBATCH --mem-per-cpu=1G
 	#SBATCH -J "${groupname}_dupcheck"
 	${sbatch_wait}
+        $userstring			
 
 	date      
 	ls -l ${outputdir}/merged_sort.txt | awk '{printf("%s ", \\\$5)}' > $debugdir/dupcheck-${groupname}
@@ -1033,6 +1083,33 @@ if [ -z $postproc ]
         date                                                                                                           
 DUPCHECK`
     sbatch_wait="#SBATCH -d afterok:$jid"
+
+    jid=`sbatch <<- PRESTATS | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash -l
+	#SBATCH -p $queue
+	#SBATCH -o $debugdir/prestats-%j.out
+	#SBATCH -e $debugdir/prestats-%j.err
+	#SBATCH -t $queue_time
+	#SBATCH -c 1
+	#SBATCH --ntasks=1
+	#SBATCH --mem-per-cpu=1G
+	#SBATCH -J "${groupname}_prestats"
+	${sbatch_wait}
+	$userstring
+
+        date
+        ${load_java}
+        export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"                                                                                                         
+        export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"                                                                                                              
+        
+        tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt                                                                              
+        cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt                                                                
+        ${juiceDir}/scripts/juicer_tools LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt                                                           
+        cp $outputdir/inter.txt $outputdir/inter_30.txt                                                       
+        date
+PRESTATS`
+
+    sbatch_wait0="#SBATCH -d afterok:$jid"
     jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
@@ -1041,9 +1118,10 @@ DUPCHECK`
 		#SBATCH -t $long_queue_time
 		#SBATCH -c 1
 		#SBATCH --ntasks=1
-		#SBATCH --mem-per-cpu=6G
+		#SBATCH --mem=25G
 		#SBATCH -J "${groupname}_stats"
-		${sbatch_wait}
+		${sbatch_wait0}
+                $userstring			
 
 		date
 		if [ -f "${errorfile}" ]
@@ -1051,54 +1129,108 @@ DUPCHECK`
 			echo "***! Found errorfile. Exiting." 
 			exit 1 
 		fi 
-		${load_java}
-		export IBM_JAVA_OPTIONS="-Xmx16384m -Xgcthreads1"
-		tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt 
-
-		${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt
-		cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
-		java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
 		${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt
 
-		tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter_30.txt 
+		date
+STATS`
+    sbatch_wait1="#SBATCH -d afterok:$jid"
 
-		cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter_30.txt
-		java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt
+    dependstats="afterok:$jid"
+    jid=`sbatch <<- STATS30 | egrep -o -e "\b[0-9]+$"
+		#!/bin/bash -l
+		#SBATCH -p $long_queue
+		#SBATCH -o $debugdir/stats30-%j.out
+		#SBATCH -e $debugdir/stats30-%j.err
+		#SBATCH -t $long_queue_time
+		#SBATCH -c 1
+		#SBATCH --ntasks=1
+		#SBATCH --mem=25G
+		#SBATCH -J "${groupname}_stats"
+		${sbatch_wait0}
+                $userstring			
+
 		${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt
+		date
+STATS30`
+
+    dependstats30="afterok:$jid"
+    sbatch_wait1="${sbatch_wait1}:$jid"
+    # This job is waiting on deduping, thus sbatch_wait (vs sbatch_wait0 or 1) 
+    jid=`sbatch <<- CONCATFILES | egrep -o -e "\b[0-9]+$"
+		#!/bin/bash -l
+		#SBATCH -p $long_queue
+		#SBATCH -o $debugdir/stats30-%j.out
+		#SBATCH -e $debugdir/stats30-%j.err
+		#SBATCH -t $long_queue_time
+		#SBATCH -c 1
+		#SBATCH --ntasks=1
+		#SBATCH --mem=25G
+		#SBATCH -J "${groupname}_stats"
+		${sbatch_wait}
+                $userstring			
 
 		cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam
 		cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam
 		awk -f ${juiceDir}/scripts/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
+                #dedup collisions here
 		date
-STATS`
+CONCATFILES`
 
-    dependstats="afterok:$jid"
-
-    jid=`sbatch <<- HIC | egrep -o -e "\b[0-9]+$"
+    # if early exit, we stop here, once the stats are calculated
+    if [ ! -z "$earlyexit" ]
+    then
+	jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$" 
 	#!/bin/bash -l
+	#SBATCH -p $queue
+	#SBATCH --mem=2G
+	#SBATCH -o $debugdir/fincln1-%j.out
+	#SBATCH -e $debugdir/fincln1-%j.err
+	#SBATCH -t 1200
+	#SBATCH -c 1
+	#SBATCH --ntasks=1
+	#SBATCH -J "${groupname}_prep_done"     
+        #SBATCH --mail-type=END,FAIL
+	${sbatch_wait1}
+        $userstring	   
+
+
+	date
+	export splitdir=${splitdir}; export outputdir=${outputdir}; export early=1; ${juiceDir}/scripts/check.sh
+	date
+FINCLN1`
+	echo "(-: Finished adding all jobs... Now is a good time to get that cup of coffee.."
+	exit 0
+    fi
+    
+    jid=`sbatch <<- HIC | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash
 	#SBATCH -p $long_queue
 	#SBATCH -o $debugdir/hic-%j.out
 	#SBATCH -e $debugdir/hic-%j.err	
 	#SBATCH -t $long_queue_time
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH --mem-per-cpu=32G
+	#SBATCH --mem=49G
 	#SBATCH -J "${groupname}_hic"
 	#SBATCH -d $dependstats
+        $userstring			
+
 	${load_java}
-	export IBM_JAVA_OPTIONS="-Xmx48192m -Xgcthreads1"
+	export IBM_JAVA_OPTIONS="-Xmx49152m -Xgcthreads1"
+	export _JAVA_OPTIONS="-Xmx49152m -Xms49152m"
 	date
 	if [ -f "${errorfile}" ]
 	then 
 		echo "***! Found errorfile. Exiting." 
 		exit 1 
 	fi 
+	
 	if [ "$nofrag" -eq 1 ]
 	then 
-		${juiceDir}/scripts/juicer_tools48g pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
+	    ${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
 	else
-		${juiceDir}/scripts/juicer_tools48g pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
-fi
+	    ${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
+	fi
 	date
 HIC`
 
@@ -1112,11 +1244,14 @@ HIC`
 	#SBATCH -t $long_queue_time
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
-	#SBATCH --mem-per-cpu=32G
+	#SBATCH --mem=49G
 	#SBATCH -J "${groupname}_hic30"
-	#SBATCH -d ${dependstats}
+	#SBATCH -d ${dependstats30}
+        $userstring			
+
 	${load_java}
-	export IBM_JAVA_OPTIONS="-Xmx48192m -Xgcthreads1"
+	export IBM_JAVA_OPTIONS="-Xmx49152m -Xgcthreads1"
+	export _JAVA_OPTIONS="-Xmx49152m -Xms49152m"
 	date
         if [ -f "${errorfile}" ]
         then 
@@ -1125,9 +1260,9 @@ HIC`
         fi 
         if [ "$nofrag" -eq 1 ]
         then 
-	    ${juiceDir}/scripts/juicer_tools48g pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
+	    ${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
 	else
-	    ${juiceDir}/scripts/juicer_tools48g pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
+	    ${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
 	fi
 	date
 HIC30`
@@ -1147,14 +1282,16 @@ then
     jid=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
-	#SBATCH --mem-per-cpu=2G
+	#SBATCH --mem-per-cpu=4G
 	${sbatch_req}
 	#SBATCH -o $debugdir/hiccups_wrap-%j.out
 	#SBATCH -e $debugdir/hiccups_wrap-%j.err
-	#SBATCH -t $long_queue_time
+	#SBATCH -t $queue_time
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_hiccups_wrap"
 	${sbatch_wait}
+        $userstring
+
 	${load_gpu}
 	echo "load: $load_gpu"
 	${load_java}
@@ -1179,10 +1316,12 @@ jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
 	#SBATCH --mem-per-cpu=8G
 	#SBATCH -o $debugdir/arrowhead_wrap-%j.out
 	#SBATCH -e $debugdir/arrowhead_wrap-%j.err
-	#SBATCH -t $long_queue_time
+	#SBATCH -t $queue_time
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_arrowhead_wrap"
 	${sbatch_wait}
+        $userstring			
+
 	${load_java}
 	date
         if [ -f "${errorfile}" ]
@@ -1196,7 +1335,7 @@ ARROWS`
 dependarrows="${dependhiccups}:$jid"
 
 jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash
+	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
 	#SBATCH -o $debugdir/fincln-%j.out
@@ -1206,6 +1345,8 @@ jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_prep_done"
 	#SBATCH -d $dependarrows
+        $userstring			
+
 	date
 	export splitdir=${splitdir}; export outputdir=${outputdir}; ${juiceDir}/scripts/check.sh
 	date
