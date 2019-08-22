@@ -84,6 +84,7 @@ shortreadend=0
 # description, default empty
 about=""
 nofrag=1
+mapq0_reads_included=0
 
 ## TODO Change usage to be correct and print nicely
 ## Read arguments                                                     
@@ -120,7 +121,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:a:hs:p:y:z:S:D:ft:b:1:2:" opt; do
+while getopts "d:g:a:hs:p:y:z:S:D:fMt:b:1:2:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -137,6 +138,7 @@ while getopts "d:g:a:hs:p:y:z:S:D:ft:b:1:2:" opt; do
         t) threads=$OPTARG ;;
 	1) read1files=$OPTARG ;;
 	2) read2files=$OPTARG ;;
+	M) mapq0_reads_included=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -402,7 +404,8 @@ then
         # sorted file is sorted by read name at this point
 	touch ${curr_ostem}_collisions.sam ${curr_ostem}_collisions_low_mapq.sam ${curr_ostem}_unmapped.sam ${curr_ostem}_mapq0.sam
 	# chimeric takes in $name$ext
-	awk -v "fname"=${curr_ostem} -f ${juiceDir}/scripts/common/chimeric_blacklist.awk ${curr_ostem}.sam
+	
+	awk -v "fname"=${curr_ostem} -v "mapq0_reads_included"=${mapq0_reads_included} -f ${juiceDir}/scripts/common/chimeric_blacklist.awk ${curr_ostem}.sam
 	if [ $? -ne 0 ]
 	then
             echo "***! Failure during chimera handling of ${curr_ostem}"
