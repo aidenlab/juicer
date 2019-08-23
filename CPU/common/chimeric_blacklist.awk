@@ -86,9 +86,9 @@ BEGIN{
   else {
     # deal with read pair group
     tottot++;
-    if (count==3) {
+    if (count==3 || count==4) {
       # chimeric read
-      for (j=1; j <= 3; j++) {
+      for (j=1; j <= count; j++) {
 	split(c[j], tmp);
 	split(tmp[1],readname,"/");
 	read[j] = readname[2];
@@ -147,63 +147,108 @@ BEGIN{
 	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
 	    pos[j] = pos[j] + cigloc;
           }
-	  # Mitochrondria loops around
-	  if (chr[j] ~ /MT/ && pos[j] >= 16569) {
-	    pos[j] = pos[j] - 16569;
-	  }
 	}
         # blacklist - if 3rd bit set (=4) it means unmapped
         mapped[j] = and(tmp[2],4) == 0; 
       }
-			
-      dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
-      dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
-      dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
-      
-      if (min(dist[12],min(dist[23],dist[13])) < 1000) {
-	# The paired ends look like A/B...B.  Make sure we take A and B.
-	if (read[1] == read[2]) {
-	  # take the unique one "B" for sure
-	  read2 = 3;
-	  # take the end of "A/B" that isn't close to "B"
-	  read1 = dist[13] > dist[23] ? 1:2;
-	}
-	else if (read[1] == read[3]) {
+      if (count == 4) {
+        # looking for A/B...A/B
+	dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
+	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
+	dist[14] = abs(chr[1]-chr[4])*10000000 + abs(pos[1]-pos[4]);
+	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
+	dist[24] = abs(chr[2]-chr[4])*10000000 + abs(pos[2]-pos[4]);
+	dist[34] = abs(chr[3]-chr[4])*10000000 + abs(pos[3]-pos[4]);
+	
+	# A/B, A/B
+	if ((dist[13] < 1000 && dist[24] < 1000) || (dist[14] < 1000 && dist[23] < 1000)) {
+	  read1 = 1;
 	  read2 = 2;
-	  read1 = dist[12] > dist[23] ? 1:3;
 	}
-	else if (read[2] == read[3]) {
-	  read2 = 1;
-	  read1 = dist[12] > dist[13] ? 2:3;
+	else if ((dist[12] < 1000 && dist[34] < 1000)) {
+	  read1 = 1;
+	  read2 = 3;
 	}
 	else {
-	  printf("reads strange\n") > "/dev/stderr"
-	  exit 1
+	  read1 = 0;
 	}
-	
-	if (mapped[read1] && mapped[read2]) {
-	  count_norm++;
-	  if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
-	  #  print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2],qual[read1],qual[read2] > fname1;
-	    print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
+	if (read1 != 0) {
+	  if (mapped[read1] && mapped[read2]) {
+	    count_norm++;
+	    if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
+	      #  print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2],qual[read1],qual[read2] > fname1;
+	      print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
+	    }
+	    else {
+	      #  print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1],qual[read2],qual[read1] > fname1;
+	      print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
+	    }
 	  }
 	  else {
-	  #  print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1],qual[read2],qual[read1] > fname1;
-	    print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
+	    for (i in c) {
+	      print c[i] > fname3;
+	    }	
+	    count_unmapped++;
 	  }
-	}
-	else {
+	}	
+	else { 
+	  # chimeric read with the 4 ends > 1KB apart
+	  count_abnorm++;
 	  for (i in c) {
-	    print c[i] > fname3;
-	  }	
-	  count_unmapped++;
+	    print c[i] > fname2;
+	  }
 	}
       }
       else {
-	# chimeric read with the 3 ends > 1KB apart
-	count_abnorm++;
-	for (i in c) {
-	  print c[i] > fname2;
+	dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
+	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
+	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
+	
+	if (min(dist[12],min(dist[23],dist[13])) < 1000) {
+	  # The paired ends look like A/B...B.  Make sure we take A and B.
+	  if (read[1] == read[2]) {
+	    # take the unique one "B" for sure
+	    read2 = 3;
+	    # take the end of "A/B" that isn't close to "B"
+	    read1 = dist[13] > dist[23] ? 1:2;
+	  }
+	  else if (read[1] == read[3]) {
+	    read2 = 2;
+	    read1 = dist[12] > dist[23] ? 1:3;
+	  }
+	  else if (read[2] == read[3]) {
+	    read2 = 1;
+	    read1 = dist[12] > dist[13] ? 2:3;
+	  }
+	  else {
+	    printf("reads strange\n") > "/dev/stderr"
+	    exit 1
+	  }
+	  
+	  if (mapped[read1] && mapped[read2]) {
+	    count_norm++;
+	    if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
+	      #  print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2],qual[read1],qual[read2] > fname1;
+	      print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
+	    }
+	    else {
+	      #  print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1],qual[read2],qual[read1] > fname1;
+	      print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
+	    }
+	  }
+	  else {
+	    for (i in c) {
+	      print c[i] > fname3;
+	    }	
+	    count_unmapped++;
+	  }
+	}
+	else {
+	  # chimeric read with the 3 ends > 1KB apart
+	  count_abnorm++;
+	  for (i in c) {
+	    print c[i] > fname2;
+	  }
 	}
       }
     }
