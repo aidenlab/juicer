@@ -312,9 +312,6 @@ BEGIN{
 	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
 	    pos[j] = pos[j] + cigloc;
 	  }
-	  if (chr[j] ~ /MT/ && pos[j] >= 16569) {
-	    pos[j] = pos[j] - 16569;
-	  }
 	}
 	j++;
       }
@@ -580,9 +577,6 @@ END{
 	    where = match(tmp[6],/[0-9]+H$/);
 	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
 	    pos[j] = pos[j] + cigloc;
-	  }
-	  if (chr[j] ~ /MT/ && pos[j] >= 16569) {
-	    pos[j] = pos[j] - 16569;
 	  }
 	}
 	j++;
