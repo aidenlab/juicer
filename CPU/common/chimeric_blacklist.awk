@@ -40,7 +40,7 @@
 # one non-ligation junction end is far from the others, are sent to fname"_abnorm".
 #
 # awk -f chimeric_blacklist.awk -v fname="stem"
-# Juicer version 1.6
+# Juicer version 2.0
 
 # returns absolute value
 function abs(value)
