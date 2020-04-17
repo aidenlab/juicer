@@ -897,7 +897,7 @@ then
     then  
 	sbatch_time="#SBATCH -t 10080"
     else
-	sbatch_time="#SBATCH -t 1440"
+	sbatch_time="#SBATCH -t $long_queue_time"
     fi
     if [ $isBCM -eq 1 ]
     then
