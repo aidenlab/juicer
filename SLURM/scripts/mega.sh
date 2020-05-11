@@ -69,7 +69,7 @@ then
 else
     isVoltron=1
     export PATH=/gpfs0/biobuild/biobuilds-2016.11/bin:$PATH 
-    unset MALLOC_ARENA_MAX
+    #unset MALLOC_ARENA_MAX
     load_gpu="CUDA_VISIBLE_DEVICES=0,1,2,3"
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
@@ -246,7 +246,7 @@ then
 #SBATCH -o $logdir/topstats-%j.out
 #SBATCH -e $logdir/topstats-%j.err
 #SBATCH -J "${groupname}_topstats"
-#SBATCH --mem-per-cpu=4G 
+#SBATCH --mem-per-cpu=32G 
 export LC_COLLATE=C
 if ! awk -f ${juiceDir}/scripts/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
 then  
@@ -271,7 +271,7 @@ TOPSTATS`
 #SBATCH -e $logdir/merge-%j.err
 #SBATCH -J "${groupname}_merge"
 #SBATCH -d "${dependtopstats}"
-#SBATCH --mem-per-cpu=8G
+#SBATCH --mem-per-cpu=32G
 if [ ! -f "${touchfile1}" ]
 then
     echo "***! Top stats job failed, type \"scontrol show job $jid1\" to see what happened."
@@ -315,7 +315,7 @@ then
 #SBATCH -o $logdir/inter0-%j.out
 #SBATCH -e $logdir/inter0-%j.err
 #SBATCH -J "${groupname}_inter0"
-#SBATCH --mem-per-cpu=2G
+#SBATCH --mem-per-cpu=32G
 ${dependmerge}
 if [ ! -f "${touchfile2}" ]
 then
@@ -339,7 +339,7 @@ INTER0`
 #SBATCH -o $logdir/inter30-%j.out
 #SBATCH -e $logdir/inter30-%j.err
 #SBATCH -J "${groupname}_inter30"
-#SBATCH --mem-per-cpu=2G 
+#SBATCH --mem-per-cpu=32G 
 ${dependmerge}
 if [ ! -f "${touchfile2}" ]
 then
@@ -364,7 +364,7 @@ INTER30`
 #SBATCH -e $logdir/hic0-%j.err
 #SBATCH -J "${groupname}_hic0"
 #SBATCH -d "${dependinter0}"
-#SBATCH --mem=73G
+#SBATCH --mem-per-cpu=32G
 #source $usePath
 $load_java
 export IBM_JAVA_OPTIONS="-Xmx73728m -Xgcthreads1"

@@ -26,9 +26,8 @@
 # Single CPU version of Juicer.
 #
 # Alignment script. Sets the reference genome and genome ID based on the input
-# arguments (default human, MboI). Optional arguments are description for 
-# stats file, using the short read aligner, read end (to align one read end 
-# using short read aligner), stage to relaunch at, paths to various files if 
+# arguments (default human, none). Optional arguments are description for 
+# stats file, stage to relaunch at, paths to various files if 
 # needed, path to scripts directory, and the top-level directory (default 
 # current directory). In lieu of setting the genome ID, you can instead set the
 # reference sequence and the chrom.sizes file path, but the directory 
@@ -58,10 +57,11 @@
 #             through a "*" in the name because the wildcard was not able to
 #             match any files with the read1str.   
 #set -e ## This is causing problems; need better error detection
+# Juicer version 1.6
 shopt -s extglob
 export LC_ALL=C
 
-juicer_version="1.5.7" 
+juicer_version="1.6" 
 ### LOAD BWA AND SAMTOOLS
 
 
@@ -78,12 +78,9 @@ juiceDir="/opt/juicer"
 # top level directory, can also be set in options
 topDir=$(pwd)
 # restriction enzyme, can also be set in options
-site="MboI"
+site="none"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
-# normally both read ends are aligned with long read aligner; 
-# if one end is short, this is set                 
-shortreadend=0
 # description, default empty
 about=""
 # do not include fragment delimited maps by default
@@ -92,13 +89,11 @@ nofrag=1
 justexact=0
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] [-R end]\n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-r] [-h] [-f] [-j]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] \n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-h] [-f] [-j]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" \n  (default \"$site\")"
 aboutHelp="* [about]: enter description of experiment, enclosed in single quotes"
-shortHelp="* -r: use the short read version of the aligner, bwa aln\n  (default: long read, bwa mem)"
-shortHelp2="* [end]: use the short read aligner on read end, must be one of 1 or 2 "
 stageHelp="* [stage]: must be one of \"merge\", \"dedup\", \"final\", \"postproc\", or \"early\".\n    -Use \"merge\" when alignment has finished but the merged_sort file has not\n     yet been created.\n    -Use \"dedup\" when the files have been merged into merged_sort but\n     merged_nodups has not yet been created.\n    -Use \"final\" when the reads have been deduped into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
 pathHelp="* [chrom.sizes path]: enter path for chrom.sizes file"
 siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
@@ -116,8 +111,6 @@ printHelpAndExit() {
     echo -e "$dirHelp"
     echo -e "$siteHelp"
     echo -e "$aboutHelp"
-    echo -e "$shortHelp"
-    echo -e "$shortHelp2"
     echo -e "$stageHelp"
     echo -e "$pathHelp"
     echo -e "$siteFileHelp"
@@ -130,7 +123,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:R:a:hrs:p:y:z:S:D:fjt:b:" opt; do
+while getopts "d:g:a:hs:p:y:z:S:D:fjet:b:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -148,6 +141,7 @@ while getopts "d:g:R:a:hrs:p:y:z:S:D:fjt:b:" opt; do
 	b) ligation=$OPTARG ;;
         t) threads=$OPTARG ;;
 	j) justexact=1 ;;
+	e) earlyexit=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -159,6 +153,7 @@ then
         dedup) dedup=1 ;;
         early) earlyexit=1 ;;
         final) final=1 ;;
+	chimeric) chimeric=1 ;;
 	postproc) postproc=1 ;; 
         *)  echo "$usageHelp"
 	    echo "$stageHelp"
@@ -174,7 +169,6 @@ then
 	mm10) refSeq="${juiceDir}/references/Mus_musculus_assembly10.fasta";;
 	hg38) refSeq="${juiceDir}/references/Homo_sapiens_assembly38.fasta";;
 	hg19) refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
-	
 	*)  echo "$usageHelp"
             echo "$genomeHelp"
             exit 1
@@ -209,6 +203,7 @@ then
 	DpnII) ligation="GATCGATC";;
 	MboI) ligation="GATCGATC";;
 	NcoI) ligation="CCATGCATGG";;
+        Arima) ligation="'(GAATAATC|GAATACTC|GAATAGTC|GAATATTC|GAATGATC|GACTAATC|GACTACTC|GACTAGTC|GACTATTC|GACTGATC|GAGTAATC|GAGTACTC|GAGTAGTC|GAGTATTC|GAGTGATC|GATCAATC|GATCACTC|GATCAGTC|GATCATTC|GATCGATC|GATTAATC|GATTACTC|GATTAGTC|GATTATTC|GATTGATC)'" ;;
 	none) ligation="XXXX";;
 	*)  ligation="XXXX"
 	    echo "$site not listed as recognized enzyme. Using $site_file as site file"
@@ -222,26 +217,19 @@ then
     nofrag=1;
 fi
 
-## If short read end is set, make sure it is 1 or 2
-case $shortreadend in
-    0) ;;
-    1) ;;
-    2) ;;
-    *)	echo "$usageHelp"
-	echo "$shortHelp2"
-	exit 1
-esac
-
 if [ -z "$site_file" ]
 then
     site_file="${juiceDir}/restriction_sites/${genomeID}_${site}.txt"
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ] && [ "$site" != "none" ]
+if [[ ! -e "$site_file" ]] && [[ "$site" != "none" ]] &&  [[ ! "$site_file" =~ "none" ]]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
     exit 1
+elif [[ "$site" != "none" ]] && [[ ! "$site_file" =~ "none" ]]
+then
+    echo  "Using $site_file as site file"
 fi
 
 ## Set threads for sending appropriate parameters to cluster and string for BWA call
@@ -368,89 +356,24 @@ then
         fi
 
 	source ${juiceDir}/scripts/common/countligations.sh
+	if [ -z "$chimeric" ]
+        then
+        # Align fastq pair
+            echo "bwa mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam"
 
-        # Align read1 
-        if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
-	then
-	    echo "Running command bwa aln -q 15 $threadstring $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam"
-	    bwa aln -q 15 $threadstring $refSeq $name1$ext > $name1$ext.sai && bwa samse $refSeq $name1$ext.sai $name1$ext > $name1$ext.sam 
+            bwa mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam
             if [ $? -ne 0 ]
             then
-                echo "***! Alignment of $name1$ext failed."
-		exit 1
-            else
-                echo "(-: Short align of $name1$ext.sam done successfully"
-            fi
-        else
-            echo "Running command bwa mem $threadstring $refSeq $name1$ext > $name1$ext.sam" 
-            bwa mem $threadstring $refSeq $name1$ext > $name1$ext.sam
-            if [ $? -ne 0 ]
-            then
-                echo "***! Alignment of $name1$ext failed."
+                echo "***! Alignment of $name1$ext $name2$ext failed."
                 exit 1
             else                                                            
-		echo "(-:  Align of $name1$ext.sam done successfully"
+		echo "(-:  Align of $name$ext.sam done successfully"
             fi                                    
         fi                                                              
-        # Align read2
-        if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
-        then
-            echo "Running command bwa aln -q 15 $threadstring $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam "
-            bwa aln -q 15 $threadstring $refSeq $name2$ext > $name2$ext.sai && bwa samse $refSeq $name2$ext.sai $name2$ext > $name2$ext.sam 
-            if [ $? -ne 0 ]
-            then
-		echo "***! Alignment of $name2$ext failed."
-		exit 1
-            else
-		echo "(-: Short align of $name2$ext.sam done successfully"
-            fi
-        else
-            echo "Running command bwa mem $threadstring $refSeq $name2$ext > $name2$ext.sam"
-            bwa mem $threadstring $refSeq $name2$ext > $name2$ext.sam 
-            if [ $? -ne 0 ]
-            then
-		echo "***! Alignment of $name2$ext failed."
-		exit 1
-            else
-		echo "(-: Mem align of $name2$ext.sam done successfully"
-            fi
-	fi
-        # sort read 1 aligned file by readname
-	sort -T $tmpdir -k1,1f $name1$ext.sam > $name1${ext}_sort.sam
-	if [ $? -ne 0 ]
-	then
-            echo "***! Error while sorting $name1$ext.sam"
-            exit 1
-	else
-            echo "(-: Sort read 1 aligned file by readname completed."
-	fi
-        # sort read 2 aligned file by readname
-	sort -T $tmpdir -k1,1f $name2$ext.sam > $name2${ext}_sort.sam
-	if [ $? -ne 0 ]
-	then
-            echo "***! Error while sorting $name2$ext.sam"
-            exit 1
-	else
-            echo "(-: Sort read 2 aligned file by readname completed."
-	fi                           
-        # add read end indicator to readname
-	awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/1"; print}' $name1${ext}_sort.sam > $name1${ext}_sort1.sam
-	awk 'BEGIN{OFS="\t"}NF>=11{$1=$1"/2"; print}' $name2${ext}_sort.sam > $name2${ext}_sort1.sam
-    
-	sort -T $tmpdir -k1,1f -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > ${name}${ext}.sam
-    
-	if [ $? -ne 0 ]
-	then
-            echo "***! Failure during merge of read files"
-            exit 1
-	else
-            rm $name1$ext*.sa* $name2$ext*.sa* 
-            echo "(-: $name$ext.sam created successfully."
-	fi
     
         # call chimeric_blacklist.awk to deal with chimeric reads; 
         # sorted file is sorted by read name at this point
-	touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam
+	touch $name${ext}_abnorm.sam $name${ext}_unmapped.sam  
 	awk -v "fname1"=$name${ext}_norm.txt -v "fname2"=$name${ext}_abnorm.sam -v "fname3"=$name${ext}_unmapped.sam -f ${juiceDir}/scripts/common/chimeric_blacklist.awk $name$ext.sam
 	if [ $? -ne 0 ]
 	then
@@ -459,10 +382,10 @@ then
 	fi
         # if any normal reads were written, find what fragment they correspond to 
         # and store that
-	if [ -e "$name${ext}_norm.txt" ] && [ "$site" != "none" ]
+	if [ -e "$name${ext}_norm.txt" ] && [ "$site" != "none" ] && [ -e "$site_file" ]
 	then
             ${juiceDir}/scripts/common/fragment.pl $name${ext}_norm.txt $name${ext}.frag.txt $site_file                                                                
-	elif [ "$site" == "none" ]
+	elif [ "$site" == "none" ] || [ "$nofrag" -eq 1 ] 
 	then
             awk '{printf("%s %s %s %d %s %s %s %d", $1, $2, $3, 0, $4, $5, $6, 1); for (i=7; i<=NF; i++) {printf(" %s",$i);}printf("\n");}' $name${ext}_norm.txt > $name${ext}.frag.txt
 	else                                                                    
@@ -533,7 +456,8 @@ then
     cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam
     cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam
     awk -f ${juiceDir}/scripts/common/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
-    # Collisions dedupping script goes here
+    # Collisions dedupping: two pass algorithm, ideally would make one pass
+    gawk -v fname=$outputdir/collisions.txt -f ${juiceDir}/scripts/common/collisions_dedup_rearrange_cols.awk $outputdir/collisions.txt | sort -k3,3n -k4,4n -k10,10n -k11,11n -k17,17n -k18,18n -k24,24n -k25,25n -k31,31n -k32,32n | awk -v name=$outputdir/ -f ${juiceDir}/scripts/common/collisions_dups.awk
 fi
 
 if [ -z "$genomePath" ]

@@ -27,13 +27,8 @@
 # Juicer version 1.5
 ls -l splits > ls_splits
 
-awk '($9 ~/_R1/ && $9 ~/fastq$/) || ($9 ~/_R1/ && $9 ~/gz$/) {split($9, a, "_R1");  print a[1]a[2], $9}($9 ~/_R2/ && $9 ~/fastq$/) || ($9 ~/_R2/ && $9 ~/gz$/){split($9,a,"_R2");print a[1]a[2], $9}' ls_splits > fastq.txt
+awk '($9 ~/R1/ && $9 ~/fastq$/) || ($9 ~/R1/ && $9 ~/gz$/) {split($9, a, "R1");  print a[1]a[2], $9}($9 ~/R2/ && $9 ~/fastq$/) || ($9 ~/R2/ && $9 ~/gz$/){split($9,a,"R2");print a[1]a[2], $9}' ls_splits > fastq.txt
 awk '{name="splits/"$1"_norm.txt.res.txt"; if ((getline line < name) > 0){ split(line, a); if (length(a)<6 || a[2] != a[3]+a[4]+a[5]+a[6] || a[2] == 0){print "mv splits/"$2, "not_done; rm -f splits/"$1"*; rm -f splits/"$2"*;"} close(name);}else {print "mv splits/"$2, "not_done; rm -f splits/"$1"*; rm -f splits/"$2"*;"}}' fastq.txt > mv_me.sh
-#for i in splits/*_linecount.txt
-#do 
-#    j=${i%_*} 
-#    paste $i ${j}_norm.txt.res.txt | awk -v fname=$j '{if ($3 != $1/4){print "mv", fname, "not_done"}}'; >> mv_me.sh
-#done
 
 mkdir not_done
 chmod 755 mv_me.sh

@@ -22,7 +22,7 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 ##########
-# Helper script to determine what dups jobs need to be relaunced.  Call using
+# Helper script to determine what dups jobs need to be relaunched.  Call using
 # the same flags as Juicer to have the "tmprun" script be correct
 flags=$*
 ls -l aligned/split* > tmpsplits
@@ -45,12 +45,12 @@ if [ "$res1" -eq "$res2" ]
     groupname="a"`date +%s`
     if [[ -z $failures ]]
     then
-        echo "echo \"cat aligned/*_msplit*_dups.txt > aligned/dups.txt; cat aligned/*_msplit*_merged_nodups.txt > aligned/merged_nodups.txt; cat aligned/*_msplit*_optdups.txt > aligned/opt_dups.txt; rm aligned/*msplit*; rm aligned/split*\" | qsub -o debug/rerundups.out -e debug/rerundups.err -cwd -r y -N ${groupname}done" > tmprun.sh
+        echo "echo \"cat aligned/*_msplit*_dups.txt > aligned/dups.txt; cat aligned/*_msplit*_merged_nodups.txt > aligned/merged_nodups.txt; cat aligned/*_msplit*_optdups.txt > aligned/opt_dups.txt; rm aligned/*msplit*; rm aligned/split*\" | qsub -o debug/rerundups.out -e debug/rerundups.err -cwd -r y -N ${groupname}done -l h_rt=7200" > tmprun.sh
     else
-        awk -v groupname=$groupname 'BEGIN{count=0}$5 != $11{split($10,a,"m"); count++; print  "echo \"awk -f /broad/aidenlab/scripts/dups.awk -v name="a[1]"_m"a[2]"_", $9, "\" | qsub -cwd -o debug/rerundups.out -e debug/rerundups.err -l h_vmem=4g -r y -N",groupname""count}END{holdname=groupname""1; if(count>0){ for (i=2; i<=count; i++) {holdname=holdname","groupname""i} print "echo \"cat aligned/*_msplit*_dups.txt > aligned/dups.txt; cat aligned/*_msplit*_merged_nodups.txt > aligned/merged_nodups.txt; cat aligned/*_msplit*_optdups.txt > aligned/opt_dups.txt; rm aligned/*msplit*; rm aligned/split*;\" | qsub -hold_jid "holdname" -o debug/rerundups.out -e debug/rerundups.err -cwd -r y -l h_vmem=4g -N", groupname"done"}}' tmptest > tmprun.sh
+        awk -v groupname=$groupname 'BEGIN{count=0}$5 != $11{split($10,a,"m"); count++; print  "echo \"awk -f /broad/aidenlab/scripts/dups.awk -v name="a[1]"_m"a[2]"_", $9, "\" | qsub -cwd -o debug/rerundups.out -e debug/rerundups.err -l h_vmem=4g -l h_rt=7200 -r y -N",groupname""count}END{holdname=groupname""1; if(count>0){ for (i=2; i<=count; i++) {holdname=holdname","groupname""i} print "echo \"cat aligned/*_msplit*_dups.txt > aligned/dups.txt; cat aligned/*_msplit*_merged_nodups.txt > aligned/merged_nodups.txt; cat aligned/*_msplit*_optdups.txt > aligned/opt_dups.txt; rm aligned/*msplit*; rm aligned/split*;\" | qsub -hold_jid "holdname" -o debug/rerundups.out -e debug/rerundups.err -cwd -r y -l h_vmem=4g -l h_rt=7200 -N", groupname"done"}}' tmptest > tmprun.sh
     fi
 
-    echo "echo \"/broad/aidenlab/scripts/juicer.sh $flags -S final\" | qsub -q long -o debug/rerundups.out -e debug/rerundups.err -cwd -r y -hold_jid ${groupname}done" >> tmprun.sh;
+    echo "echo \"/broad/aidenlab/scripts/juicer.sh $flags -S final\" | qsub  -o debug/rerundups.out -e debug/rerundups.err -cwd -r y -hold_jid ${groupname}done" >> tmprun.sh;
     chmod 755 tmprun.sh
     echo "Run ./tmprun.sh if everything looks correct";
 #    rm tmpsplits tmpmsplits tmptest tmprun.sh

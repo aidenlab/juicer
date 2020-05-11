@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+
 ##########
 #The MIT License (MIT)
 #
@@ -85,6 +86,11 @@ if (scalar(@ARGV)==0) {
   print STDOUT "No input file specified, reading from input stream\n";
 }
 
+# Remove parenthesis
+$ligation_junction =~ s/\(//;
+$ligation_junction =~ s/\)//;
+
+# with OR | symbol, this won't work, need to explicitly fix
 my $dangling_junction = substr $ligation_junction, length($ligation_junction)/2;
 
 # Global variables for calculating statistics
@@ -127,7 +133,7 @@ my @bins = (10,12,15,19,23,28,35,43,53,66,81,100,123,152,187,231,285,351,433,534
 
 if (index($site_file, "none") != -1) {
    #no restriction enzyme, no need for RE distance
-}
+ }
 else {
   # read in restriction site file and store as multidimensional array
   open FILE, $site_file or die $!;
@@ -260,7 +266,7 @@ while (<>) {
         }
       }
       # read pair contains ligation junction
-      if ($record[10] =~ m/$ligation_junction/ || $record[13] =~ m/$ligation_junction/) {
+      if ($record[10] =~ m/($ligation_junction)/ || $record[13] =~ m/($ligation_junction)/) {
         $ligation++;
       }
     }

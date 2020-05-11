@@ -74,7 +74,14 @@ BEGIN{
   OFS="\t";
   tottot = -1; # will count first non-group
 }
-{
+$0 ~ /^@/{
+  # print SAM header to SAM files
+     header = header""$0"\n";
+}
+$0 !~ /^@/{
+  if (tottot == -1) {
+     header = header"@PG\tID:Juicer\tVN:1.6";
+  }
   # input file is sorted by read name.  Look at read name to group 
   # appropriately
   split($1,a,"/");
@@ -91,7 +98,15 @@ BEGIN{
       for (j=1; j <= count; j++) {
 	split(c[j], tmp);
 	split(tmp[1],readname,"/");
-	read[j] = readname[2];
+	# backwards compatibility
+	# NB: we only care if the read ends match, not the exact number
+	if (length(readname)>1) {
+	    read[j] = readname[2];
+	}
+	else {
+	    # first in pair: 64
+	    read[j] = (and(tmp[2], 64) > 0);
+	}
 	name[j] = tmp[1];
 	
 	# strand; Bit 16 set means reverse strand
@@ -185,6 +200,9 @@ BEGIN{
 	    }
 	  }
 	  else {
+	    if (count_unmapped == -1) {
+	      print header > fname3;
+	    } 
 	    for (i in c) {
 	      print c[i] > fname3;
 	    }	
@@ -193,10 +211,13 @@ BEGIN{
 	}	
 	else { 
 	  # chimeric read with the 4 ends > 1KB apart
-	  count_abnorm++;
+	  if (count_abnorm == -1) {
+	    print header > fname2;
+	  }
 	  for (i in c) {
 	    print c[i] > fname2;
 	  }
+	  count_abnorm++;
 	}
       }
       else {
@@ -237,6 +258,9 @@ BEGIN{
 	    }
 	  }
 	  else {
+	    if (count_unmapped == -1) {
+	      print header > fname3;
+	    }
 	    for (i in c) {
 	      print c[i] > fname3;
 	    }	
@@ -245,19 +269,25 @@ BEGIN{
 	}
 	else {
 	  # chimeric read with the 3 ends > 1KB apart
-	  count_abnorm++;
+	  if (count_abnorm == -1) {
+	    print header > fname2;
+	  }
 	  for (i in c) {
 	    print c[i] > fname2;
 	  }
+	  count_abnorm++;
 	}
       }
     }
     else if (count > 3) {
       # chimeric read > 3, too many to deal with
-      count_abnorm++;
+      if (count_abnorm == -1) {
+	print header > fname2;
+      }
       for (i in c) {
 	print c[i] > fname2;
       }
+      count_abnorm++;
     }
     else if (count == 2) {
       # code here should be same as above, but it's a "normal" read
@@ -328,6 +358,9 @@ print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cig
 	}
       }
       else {
+	if (count_unmapped == -1) {
+          print header > fname3;
+	}
 	for (i in c) {
 	  print c[i] > fname3;
 	}	
@@ -336,6 +369,9 @@ print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cig
     }
     else if (count == 1) {
       # this actually shouldn't happen, but it happens with alternate aligners on occasion
+      if (count_abnorm == -1) {
+	print header > fname2;
+      }
       count_abnorm++;
       for (i in c) {
 	print c[i] > fname2;
@@ -451,6 +487,9 @@ END{
 	    }
 	  }
 	  else {
+	    if (count_unmapped == -1) {
+	      print header > fname3;
+	    }
 	    for (i in c) {
 	      print c[i] > fname3;
 	    }	
@@ -459,6 +498,9 @@ END{
 	}	
 	else { 
 	  # chimeric read with the 4 ends > 1KB apart
+          if (count_abnorm == -1) {
+	    print header > fname2;
+          }
 	  count_abnorm++;
 	  for (i in c) {
 	    print c[i] > fname2;
@@ -503,6 +545,9 @@ END{
 	    }
 	  }
 	  else {
+	    if (count_unmapped == -1) {
+	      print header > fname3;
+	    }
 	    for (i in c) {
 	      print c[i] > fname3;
 	    }	
@@ -511,6 +556,9 @@ END{
 	}
 	else {
 	  # chimeric read with the 3 ends > 1KB apart
+          if (count_abnorm == -1) {
+	    print header > fname2;
+          }
 	  count_abnorm++;
 	  for (i in c) {
 	    print c[i] > fname2;
@@ -520,6 +568,9 @@ END{
     }
     else if (count > 3) {
       # chimeric read > 3, too many to deal with
+      if (count_abnorm == -1) {
+	print header > fname2;
+      }
       count_abnorm++;
       for (i in c) {
 	print c[i] > fname2;
@@ -594,6 +645,9 @@ print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cig
 	}
       }
       else {
+	if (count_unmapped == -1) {
+          print header > fname3;
+	}
 	for (i in c) {
 	  print c[i] > fname3;
 	}	
@@ -602,6 +656,9 @@ print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cig
     }
     else if (count == 1) {
       # this actually shouldn't happen, but it happens with alternate aligners on occasion
+      if (count_abnorm == -1) {
+	print header > fname2;
+      }
       count_abnorm++;
       for (i in c) {
 	print c[i] > fname2;
