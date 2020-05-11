@@ -74,7 +74,14 @@ BEGIN{
   OFS="\t";
   tottot = -1; # will count first non-group
 }
+$0 ~ /^@/{
+  # print SAM header to SAM files
+     header = header""$0"\n";
+}
 $0 !~ /^@/{
+  if (tottot == -1) {
+     header = header"@PG\tID:Juicer\tVN:1.6";
+  }
   # input file is sorted by read name.  Look at read name to group 
   # appropriately
   split($1,a,"/");
@@ -86,213 +93,288 @@ $0 !~ /^@/{
   else {
     # deal with read pair group
     tottot++;
-    if (count==3) {
+    if (count==3 || count==4) {
       # chimeric read
-      for (j=1; j <= 3; j++) {
-				split(c[j], tmp);
-				split(tmp[1],readname,"/");
-				read[j] = readname[2];
-				name[j] = tmp[1];
-
-				# strand; Bit 16 set means reverse strand
-				str[j] = and(tmp[2],16);
-				# chromosome
-				chr[j] = tmp[3];
-				# position
-				pos[j] = tmp[4];
-				# mapq score
-				m[j] = tmp[5];
-				# cigar string
-				cigarstr[j] = tmp[6];
-				# sequence
-				seq[j] = tmp[10];
-        qual[j] = tmp[11];
+      for (j=1; j <= count; j++) {
+	split(c[j], tmp);
+	split(tmp[1],readname,"/");
+	# backwards compatibility
+	# NB: we only care if the read ends match, not the exact number
+	if (length(readname)>1) {
+	    read[j] = readname[2];
+	}
+	else {
+	    # first in pair: 64
+	    read[j] = (and(tmp[2], 64) > 0);
+	}
+	name[j] = tmp[1];
+	
+	# strand; Bit 16 set means reverse strand
+	str[j] = and(tmp[2],16);
+	# chromosome
+	chr[j] = tmp[3];
+	# position
+	pos[j] = tmp[4];
+	# mapq score
+	m[j] = tmp[5];
+	# cigar string
+	cigarstr[j] = tmp[6];
+	# sequence
+	seq[j] = tmp[10];
+        #qual[j] = tmp[11];
         
-				# get rid of soft clipping to know correct position
-				if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
-					split(tmp[6], cigar, "S");
-					pos[j] = pos[j] - cigar[1];
-					if (pos[j] <= 0) {
-						pos[j] = 1;
-					}
-				}
-				# get rid of hard clipping to know correct position
-				else if (str[j] == 0 && tmp[6] ~/^[0-9]+H/) {
-					split(tmp[6], cigar, "H");
-					pos[j] = pos[j] - cigar[1];
-					if (pos[j] <= 0) {
-						pos[j] = 1;
-					}
-				}
-				else if (str[j] == 16) {
-					# count Ms,Ds,Ns,Xs,=s for sequence length 
-					seqlength=0; 
-					currstr=tmp[6];
-					# can look like 15M10S20M, need to count all not just first
-					where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
-					while (where>0) {
-						seqlength+=substr(currstr,where,RLENGTH-1)+0;
-						currstr=substr(currstr,where+RLENGTH);
-						where=match(currstr, /[0-9]+[M|D|N|X|=]/);
-					}
-					pos[j] = pos[j] + seqlength - 1;
-					# add soft clipped bases in for proper position
-					if (tmp[6] ~ /[0-9]+S$/) {
-						where = match(tmp[6],/[0-9]+S$/);
-						cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-						pos[j] = pos[j] + cigloc;
-					}
+	# get rid of soft clipping to know correct position
+	if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
+	  split(tmp[6], cigar, "S");
+	  pos[j] = pos[j] - cigar[1];
+	  if (pos[j] <= 0) {
+	    pos[j] = 1;
+	  }
+	}
+	# get rid of hard clipping to know correct position
+	else if (str[j] == 0 && tmp[6] ~/^[0-9]+H/) {
+	  split(tmp[6], cigar, "H");
+	  pos[j] = pos[j] - cigar[1];
+	  if (pos[j] <= 0) {
+	    pos[j] = 1;
+	  }
+	}
+	else if (str[j] == 16) {
+	  # count Ms,Ds,Ns,Xs,=s for sequence length 
+	  seqlength=0; 
+	  currstr=tmp[6];
+	  # can look like 15M10S20M, need to count all not just first
+	  where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
+	  while (where>0) {
+	    seqlength+=substr(currstr,where,RLENGTH-1)+0;
+	    currstr=substr(currstr,where+RLENGTH);
+	    where=match(currstr, /[0-9]+[M|D|N|X|=]/);
+	  }
+	  pos[j] = pos[j] + seqlength - 1;
+	  # add soft clipped bases in for proper position
+	  if (tmp[6] ~ /[0-9]+S$/) {
+	    where = match(tmp[6],/[0-9]+S$/);
+	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
+	    pos[j] = pos[j] + cigloc;
+	  }
           else if (tmp[6] ~ /[0-9]+H$/) {
-              where = match(tmp[6],/[0-9]+H$/);
-              cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-              pos[j] = pos[j] + cigloc;
+	    where = match(tmp[6],/[0-9]+H$/);
+	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
+	    pos[j] = pos[j] + cigloc;
           }
-					# Mitochrondria loops around
-					if (chr[j] ~ /MT/ && pos[j] >= 16569) {
-						pos[j] = pos[j] - 16569;
-					}
-				}
+	}
         # blacklist - if 3rd bit set (=4) it means unmapped
         mapped[j] = and(tmp[2],4) == 0; 
       }
-			
-      dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
-      dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
-      dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
-      
-      if (min(dist[12],min(dist[23],dist[13])) < 1000) {
-				# The paired ends look like A/B...B.  Make sure we take A and B.
-				if (read[1] == read[2]) {
-					# take the unique one "B" for sure
-					read2 = 3;
-					# take the end of "A/B" that isn't close to "B"
-					read1 = dist[13] > dist[23] ? 1:2;
-				}
-				else if (read[1] == read[3]) {
-					read2 = 2;
-					read1 = dist[12] > dist[23] ? 1:3;
-				}
-				else if (read[2] == read[3]) {
-					read2 = 1;
-					read1 = dist[12] > dist[13] ? 2:3;
-				}
-				else {
-					printf("reads strange\n") > "/dev/stderr"
-					exit 1
-				}
-				
-				if (mapped[read1] && mapped[read2]) {
-					count_norm++;
-					if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
-              print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
-					}
-					else {
-              print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
-					}
-				}
-				else {
-					for (i in c) {
-						print c[i] > fname3;
-					}	
-					count_unmapped++;
-				}
+      if (count == 4) {
+        # looking for A/B...A/B
+	dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
+	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
+	dist[14] = abs(chr[1]-chr[4])*10000000 + abs(pos[1]-pos[4]);
+	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
+	dist[24] = abs(chr[2]-chr[4])*10000000 + abs(pos[2]-pos[4]);
+	dist[34] = abs(chr[3]-chr[4])*10000000 + abs(pos[3]-pos[4]);
+	
+	# A/B, A/B
+	if ((dist[13] < 1000 && dist[24] < 1000) || (dist[14] < 1000 && dist[23] < 1000)) {
+	  read1 = 1;
+	  read2 = 2;
+	}
+	else if ((dist[12] < 1000 && dist[34] < 1000)) {
+	  read1 = 1;
+	  read2 = 3;
+	}
+	else {
+	  read1 = 0;
+	}
+	if (read1 != 0) {
+	  if (mapped[read1] && mapped[read2]) {
+	    count_norm++;
+	    if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
+	      #  print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2],qual[read1],qual[read2] > fname1;
+	      print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
+	    }
+	    else {
+	      #  print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1],qual[read2],qual[read1] > fname1;
+	      print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
+	    }
+	  }
+	  else {
+	    if (count_unmapped == -1) {
+	      print header > fname3;
+	    } 
+	    for (i in c) {
+	      print c[i] > fname3;
+	    }	
+	    count_unmapped++;
+	  }
+	}	
+	else { 
+	  # chimeric read with the 4 ends > 1KB apart
+	  if (count_abnorm == -1) {
+	    print header > fname2;
+	  }
+	  for (i in c) {
+	    print c[i] > fname2;
+	  }
+	  count_abnorm++;
+	}
       }
-			else {
-				# chimeric read with the 3 ends > 1KB apart
-				count_abnorm++;
-				for (i in c) {
-					print c[i] > fname2;
-				}
+      else {
+	dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
+	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
+	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
+	
+	if (min(dist[12],min(dist[23],dist[13])) < 1000) {
+	  # The paired ends look like A/B...B.  Make sure we take A and B.
+	  if (read[1] == read[2]) {
+	    # take the unique one "B" for sure
+	    read2 = 3;
+	    # take the end of "A/B" that isn't close to "B"
+	    read1 = dist[13] > dist[23] ? 1:2;
+	  }
+	  else if (read[1] == read[3]) {
+	    read2 = 2;
+	    read1 = dist[12] > dist[23] ? 1:3;
+	  }
+	  else if (read[2] == read[3]) {
+	    read2 = 1;
+	    read1 = dist[12] > dist[13] ? 2:3;
+	  }
+	  else {
+	    printf("reads strange\n") > "/dev/stderr"
+	    exit 1
+	  }
+	  
+	  if (mapped[read1] && mapped[read2]) {
+	    count_norm++;
+	    if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
+	      #  print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2],qual[read1],qual[read2] > fname1;
+	      print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
+	    }
+	    else {
+	      #  print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1],qual[read2],qual[read1] > fname1;
+	      print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
+	    }
+	  }
+	  else {
+	    if (count_unmapped == -1) {
+	      print header > fname3;
+	    }
+	    for (i in c) {
+	      print c[i] > fname3;
+	    }	
+	    count_unmapped++;
+	  }
+	}
+	else {
+	  # chimeric read with the 3 ends > 1KB apart
+	  if (count_abnorm == -1) {
+	    print header > fname2;
+	  }
+	  for (i in c) {
+	    print c[i] > fname2;
+	  }
+	  count_abnorm++;
+	}
       }
     }
     else if (count > 3) {
       # chimeric read > 3, too many to deal with
-      count_abnorm++;
-      for (i in c) {
-				print c[i] > fname2;
+      if (count_abnorm == -1) {
+	print header > fname2;
       }
+      for (i in c) {
+	print c[i] > fname2;
+      }
+      count_abnorm++;
     }
     else if (count == 2) {
-			# code here should be same as above, but it's a "normal" read
+      # code here should be same as above, but it's a "normal" read
       j = 0;
       for (i in c) {
-				split(c[i], tmp);
-				split(tmp[1],readname,"/");
-				str[j] = and(tmp[2],16);
-				chr[j] = tmp[3];
-				pos[j] = tmp[4];
-				m[j] = tmp[5];
-				cigarstr[j] = tmp[6];
-				seq[j] = tmp[10];
-        qual[j] = tmp[11];
-				name[j] = tmp[1];
-
+	split(c[i], tmp);
+	split(tmp[1],readname,"/");
+	str[j] = and(tmp[2],16);
+	chr[j] = tmp[3];
+	pos[j] = tmp[4];
+	m[j] = tmp[5];
+	cigarstr[j] = tmp[6];
+	seq[j] = tmp[10];
+        #qual[j] = tmp[11];
+	name[j] = tmp[1];
+	
         # blacklist - if 3rd bit set (=4) it means unmapped
         mapped[j] = and(tmp[2],4) == 0; 
-
-				if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
-					split(tmp[6], cigar, "S");
-					pos[j] = pos[j] - cigar[1];
-					if (pos[j] <= 0) {
-						pos[j] = 1;
-					}
-				}
-				else if (str[j] == 0 && tmp[6] ~/^[0-9]+H/) {
-					split(tmp[6], cigar, "H");
-					pos[j] = pos[j] - cigar[1];
-					if (pos[j] <= 0) {
-						pos[j] = 1;
-					}
-				}
-				else if (str[j] == 16) {
-					# count Ms,Ds,Ns,Xs,=s for sequence length 
-					seqlength=0; 
-					currstr=tmp[6];
-					where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
-					while (where>0) {
-						seqlength+=substr(currstr,where,RLENGTH-1)+0;
-						currstr=substr(currstr,where+RLENGTH);
-						where=match(currstr, /[0-9]+[M|D|N|X|=]/);
-					}
-					pos[j] = pos[j] + seqlength - 1;
-					if (tmp[6] ~ /[0-9]+S$/) {
-						where = match(tmp[6],/[0-9]+S$/);
-						cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-						pos[j] = pos[j] + cigloc;
-					}
-					if (tmp[6] ~ /[0-9]+H$/) {
-						where = match(tmp[6],/[0-9]+H$/);
-						cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-						pos[j] = pos[j] + cigloc;
-					}
-					if (chr[j] ~ /MT/ && pos[j] >= 16569) {
-						pos[j] = pos[j] - 16569;
-					}
-				}
-				j++;
+	
+	if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
+	  split(tmp[6], cigar, "S");
+	  pos[j] = pos[j] - cigar[1];
+	  if (pos[j] <= 0) {
+	    pos[j] = 1;
+	  }
+	}
+	else if (str[j] == 0 && tmp[6] ~/^[0-9]+H/) {
+	  split(tmp[6], cigar, "H");
+	  pos[j] = pos[j] - cigar[1];
+	  if (pos[j] <= 0) {
+	    pos[j] = 1;
+	  }
+	}
+	else if (str[j] == 16) {
+	  # count Ms,Ds,Ns,Xs,=s for sequence length 
+	  seqlength=0; 
+	  currstr=tmp[6];
+	  where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
+	  while (where>0) {
+	    seqlength+=substr(currstr,where,RLENGTH-1)+0;
+	    currstr=substr(currstr,where+RLENGTH);
+	    where=match(currstr, /[0-9]+[M|D|N|X|=]/);
+	  }
+	  pos[j] = pos[j] + seqlength - 1;
+	  if (tmp[6] ~ /[0-9]+S$/) {
+	    where = match(tmp[6],/[0-9]+S$/);
+	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
+	    pos[j] = pos[j] + cigloc;
+	  }
+	  if (tmp[6] ~ /[0-9]+H$/) {
+	    where = match(tmp[6],/[0-9]+H$/);
+	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
+	    pos[j] = pos[j] + cigloc;
+	  }
+	}
+	j++;
       }
       if (mapped[0] && mapped[1]) {
-				count_reg++;
-				if (less_than(str[0],chr[0],pos[0],str[1],chr[1],pos[1])) {
-					# ideally we'll get rid of printing out cigar string at some point
-            print str[0],chr[0],pos[0],str[1],chr[1],pos[1],m[0],cigarstr[0],seq[0],m[1],cigarstr[1],seq[1],name[0],name[1] > fname1;
-				}
-				else {
-            print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cigarstr[0],seq[0],name[1],name[0] > fname1;
-				}
+	count_reg++;
+	if (less_than(str[0],chr[0],pos[0],str[1],chr[1],pos[1])) {
+	  # ideally we'll get rid of printing out cigar string at some point
+	  #print str[0],chr[0],pos[0],str[1],chr[1],pos[1],m[0],cigarstr[0],seq[0],m[1],cigarstr[1],seq[1],name[0],name[1],qual[0],qual[1] > fname1;
+	  print str[0],chr[0],pos[0],str[1],chr[1],pos[1],m[0],cigarstr[0],seq[0],m[1],cigarstr[1],seq[1],name[0],name[1] > fname1;
+	}
+	else {
+	  #print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cigarstr[0],seq[0],name[1],name[0],qual[1],qual[0] > fname1;
+print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cigarstr[0],seq[0],name[1],name[0] > fname1;
+	}
       }
       else {
-				for (i in c) {
-					print c[i] > fname3;
-				}	
-				count_unmapped++;
+	if (count_unmapped == -1) {
+          print header > fname3;
+	}
+	for (i in c) {
+	  print c[i] > fname3;
+	}	
+	count_unmapped++;
       }
     }
     else if (count == 1) {
       # this actually shouldn't happen, but it happens with alternate aligners on occasion
+      if (count_abnorm == -1) {
+	print header > fname2;
+      }
       count_abnorm++;
       for (i in c) {
-				print c[i] > fname2;
+	print c[i] > fname2;
       }
     }
     # reset variables
@@ -306,204 +388,282 @@ $0 !~ /^@/{
 END{
     # deal with read pair group
     tottot++;
-    if (count==3) {
+    if (count==3 || count==4) {
       # chimeric read
-      for (j=1; j <= 3; j++) {
-				split(c[j], tmp);
-				split(tmp[1],readname,"/");
-				read[j] = readname[2];
-				name[j] = tmp[1];
-
-				# strand
-				str[j] = and(tmp[2],16);
-				# chromosome
-				chr[j] = tmp[3];
-				# position
-				pos[j] = tmp[4];
-				# mapq score
-				m[j] = tmp[5];
-				# cigar string
-				cigarstr[j] = tmp[6];
-				# sequence
-				seq[j] = tmp[10];
-        qual[j] = tmp[11];
-				# get rid of soft clipping to know correct position
-				if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
-					split(tmp[6], cigar, "S");
-					pos[j] = pos[j] - cigar[1];
-					if (pos[j] <= 0) {
-						pos[j] = 1;
-					}
-				}
-				else if (str[j] == 0 && tmp[6] ~/^[0-9]+H/) {
-					split(tmp[6], cigar, "H");
-					pos[j] = pos[j] - cigar[1];
-					if (pos[j] <= 0) {
-						pos[j] = 1;
-					}
-				}
-				else if (str[j] == 16) {
-					# count Ms,Ds,Ns,Xs,=s for sequence length 
-					seqlength=0; 
-					currstr=tmp[6];
-					# can look like 15M10S20M, need to count all not just first
-					where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
-					while (where>0) {
-						seqlength+=substr(currstr,where,RLENGTH-1)+0;
-						currstr=substr(currstr,where+RLENGTH);
-						where=match(currstr, /[0-9]+[M|D|N|X|=]/);
-					}
-					pos[j] = pos[j] + seqlength - 1;
-					# add soft clipped bases in for proper position
-					if (tmp[6] ~ /[0-9]+S$/) {
-						where = match(tmp[6],/[0-9]+S$/);
-						cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-						pos[j] = pos[j] + cigloc;
-					}
-					if (tmp[6] ~ /[0-9]+H$/) {
-						where = match(tmp[6],/[0-9]+H$/);
-						cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-						pos[j] = pos[j] + cigloc;
-					}
-					# Mitochrondria loops around
-					if (chr[j] ~ /MT/ && pos[j] >= 16569) {
-						pos[j] = pos[j] - 16569;
-					}
-				}
-        mapped[j] = and(tmp[2],4) == 0;
+      for (j=1; j <= count; j++) {
+	split(c[j], tmp);
+	split(tmp[1],readname,"/");
+	read[j] = readname[2];
+	name[j] = tmp[1];
+	
+	# strand; Bit 16 set means reverse strand
+	str[j] = and(tmp[2],16);
+	# chromosome
+	chr[j] = tmp[3];
+	# position
+	pos[j] = tmp[4];
+	# mapq score
+	m[j] = tmp[5];
+	# cigar string
+	cigarstr[j] = tmp[6];
+	# sequence
+	seq[j] = tmp[10];
+        #qual[j] = tmp[11];
+        
+	# get rid of soft clipping to know correct position
+	if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
+	  split(tmp[6], cigar, "S");
+	  pos[j] = pos[j] - cigar[1];
+	  if (pos[j] <= 0) {
+	    pos[j] = 1;
+	  }
+	}
+	# get rid of hard clipping to know correct position
+	else if (str[j] == 0 && tmp[6] ~/^[0-9]+H/) {
+	  split(tmp[6], cigar, "H");
+	  pos[j] = pos[j] - cigar[1];
+	  if (pos[j] <= 0) {
+	    pos[j] = 1;
+	  }
+	}
+	else if (str[j] == 16) {
+	  # count Ms,Ds,Ns,Xs,=s for sequence length 
+	  seqlength=0; 
+	  currstr=tmp[6];
+	  # can look like 15M10S20M, need to count all not just first
+	  where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
+	  while (where>0) {
+	    seqlength+=substr(currstr,where,RLENGTH-1)+0;
+	    currstr=substr(currstr,where+RLENGTH);
+	    where=match(currstr, /[0-9]+[M|D|N|X|=]/);
+	  }
+	  pos[j] = pos[j] + seqlength - 1;
+	  # add soft clipped bases in for proper position
+	  if (tmp[6] ~ /[0-9]+S$/) {
+	    where = match(tmp[6],/[0-9]+S$/);
+	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
+	    pos[j] = pos[j] + cigloc;
+	  }
+          else if (tmp[6] ~ /[0-9]+H$/) {
+	    where = match(tmp[6],/[0-9]+H$/);
+	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
+	    pos[j] = pos[j] + cigloc;
+          }
+	}
+        # blacklist - if 3rd bit set (=4) it means unmapped
+        mapped[j] = and(tmp[2],4) == 0; 
       }
-			
-      dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
-      dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
-      dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
-      
-      if (min(dist[12],min(dist[23],dist[13])) < 1000) {
-				# The paired ends look like A/B...B.  Make sure we take A and B.
-				if (read[1] == read[2]) {
-					# take the unique one "B" for sure
-					read2 = 3;
-					# take the end of "A/B" that isn't close to "B"
-					read1 = dist[13] > dist[23] ? 1:2;
-				}
-				else if (read[1] == read[3]) {
-					read2 = 2;
-					read1 = dist[12] > dist[23] ? 1:3;
-				}
-				else if (read[2] == read[3]) {
-					read2 = 1;
-					read1 = dist[12] > dist[13] ? 2:3;
-				}
-				else {
-					printf("reads strange\n") > "/dev/stderr"
-					exit 1
-				}
-				
-				if (mapped[read1] && mapped[read2]) {
-					count_norm++;
-					if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
-              print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
-					}
-					else {
-              print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
-					}
-				}
-				else {
-					for (i in c) {
-						print c[i] > fname3;
-					}	
-					count_unmapped++;
-				}
+      if (count == 4) {
+        # looking for A/B...A/B
+	dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
+	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
+	dist[14] = abs(chr[1]-chr[4])*10000000 + abs(pos[1]-pos[4]);
+	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
+	dist[24] = abs(chr[2]-chr[4])*10000000 + abs(pos[2]-pos[4]);
+	dist[34] = abs(chr[3]-chr[4])*10000000 + abs(pos[3]-pos[4]);
+	
+	# A/B, A/B
+	if ((dist[13] < 1000 && dist[24] < 1000) || (dist[14] < 1000 && dist[23] < 1000)) {
+	  read1 = 1;
+	  read2 = 2;
+	}
+	else if ((dist[12] < 1000 && dist[34] < 1000)) {
+	  read1 = 1;
+	  read2 = 3;
+	}
+	else {
+	  read1 = 0;
+	}
+	if (read1 != 0) {
+	  if (mapped[read1] && mapped[read2]) {
+	    count_norm++;
+	    if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
+	      #  print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2],qual[read1],qual[read2] > fname1;
+	      print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
+	    }
+	    else {
+	      #  print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1],qual[read2],qual[read1] > fname1;
+	      print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
+	    }
+	  }
+	  else {
+	    if (count_unmapped == -1) {
+	      print header > fname3;
+	    }
+	    for (i in c) {
+	      print c[i] > fname3;
+	    }	
+	    count_unmapped++;
+	  }
+	}	
+	else { 
+	  # chimeric read with the 4 ends > 1KB apart
+          if (count_abnorm == -1) {
+	    print header > fname2;
+          }
+	  count_abnorm++;
+	  for (i in c) {
+	    print c[i] > fname2;
+	  }
+	}
       }
-			else {
-				# chimeric read with the 3 ends > 1KB apart
-				count_abnorm++;
-				for (i in c) {
-					print c[i] > fname2;
-				}
+      else {
+	dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
+	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
+	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
+	
+	if (min(dist[12],min(dist[23],dist[13])) < 1000) {
+	  # The paired ends look like A/B...B.  Make sure we take A and B.
+	  if (read[1] == read[2]) {
+	    # take the unique one "B" for sure
+	    read2 = 3;
+	    # take the end of "A/B" that isn't close to "B"
+	    read1 = dist[13] > dist[23] ? 1:2;
+	  }
+	  else if (read[1] == read[3]) {
+	    read2 = 2;
+	    read1 = dist[12] > dist[23] ? 1:3;
+	  }
+	  else if (read[2] == read[3]) {
+	    read2 = 1;
+	    read1 = dist[12] > dist[13] ? 2:3;
+	  }
+	  else {
+	    printf("reads strange\n") > "/dev/stderr"
+	    exit 1
+	  }
+	  
+	  if (mapped[read1] && mapped[read2]) {
+	    count_norm++;
+	    if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
+	      #  print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2],qual[read1],qual[read2] > fname1;
+	      print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
+	    }
+	    else {
+	      #  print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1],qual[read2],qual[read1] > fname1;
+	      print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
+	    }
+	  }
+	  else {
+	    if (count_unmapped == -1) {
+	      print header > fname3;
+	    }
+	    for (i in c) {
+	      print c[i] > fname3;
+	    }	
+	    count_unmapped++;
+	  }
+	}
+	else {
+	  # chimeric read with the 3 ends > 1KB apart
+          if (count_abnorm == -1) {
+	    print header > fname2;
+          }
+	  count_abnorm++;
+	  for (i in c) {
+	    print c[i] > fname2;
+	  }
+	}
       }
     }
     else if (count > 3) {
       # chimeric read > 3, too many to deal with
+      if (count_abnorm == -1) {
+	print header > fname2;
+      }
       count_abnorm++;
       for (i in c) {
-				print c[i] > fname2;
+	print c[i] > fname2;
       }
     }
     else if (count == 2) {
-			# code here should be same as above, but it's a "normal" read
+      # code here should be same as above, but it's a "normal" read
       j = 0;
       for (i in c) {
-				split(c[i], tmp);
-				split(tmp[1],readname,"/");
-				str[j] = and(tmp[2],16);
-				chr[j] = tmp[3];
-				pos[j] = tmp[4];
-				m[j] = tmp[5];
-				cigarstr[j] = tmp[6];
-				seq[j] = tmp[10];
-        qual[j] = tmp[11];
-				name[j] = tmp[1];
-				
-
-				if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
-					split(tmp[6], cigar, "S");
-					pos[j] = pos[j] - cigar[1];
-					if (pos[j] <= 0) {
-						pos[j] = 1;
-					}
-				}
-				else if (str[j] == 0 && tmp[6] ~/^[0-9]+H/) {
-					split(tmp[6], cigar, "H");
-					pos[j] = pos[j] - cigar[1];
-					if (pos[j] <= 0) {
-						pos[j] = 1;
-					}
-				}
-				else if (str[j] == 16) {
-					# count Ms,Ds,Ns,Xs,=s for sequence length 
-					seqlength=0; 
-					currstr=tmp[6];
-					where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
-					while (where>0) {
-						seqlength+=substr(currstr,where,RLENGTH-1)+0;
-						currstr=substr(currstr,where+RLENGTH);
-						where=match(currstr, /[0-9]+[M|D|N|X|=]/);
-					}
-					pos[j] = pos[j] + seqlength - 1;
-					if (tmp[6] ~ /[0-9]+S$/) {
-						where = match(tmp[6],/[0-9]+S$/);
-						cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-						pos[j] = pos[j] + cigloc;
-					}
-					if (tmp[6] ~ /[0-9]+H$/) {
-						where = match(tmp[6],/[0-9]+H$/);
-						cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-						pos[j] = pos[j] + cigloc;
-					}
-					if (chr[j] ~ /MT/ && pos[j] >= 16569) {
-						pos[j] = pos[j] - 16569;
-					}
-				}
-        mapped[j] = and(tmp[2],4) == 0;
-				j++;
+	split(c[i], tmp);
+	split(tmp[1],readname,"/");
+	str[j] = and(tmp[2],16);
+	chr[j] = tmp[3];
+	pos[j] = tmp[4];
+	m[j] = tmp[5];
+	cigarstr[j] = tmp[6];
+	seq[j] = tmp[10];
+        #qual[j] = tmp[11];
+	name[j] = tmp[1];
+	
+        # blacklist - if 3rd bit set (=4) it means unmapped
+        mapped[j] = and(tmp[2],4) == 0; 
+	
+	if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
+	  split(tmp[6], cigar, "S");
+	  pos[j] = pos[j] - cigar[1];
+	  if (pos[j] <= 0) {
+	    pos[j] = 1;
+	  }
+	}
+	else if (str[j] == 0 && tmp[6] ~/^[0-9]+H/) {
+	  split(tmp[6], cigar, "H");
+	  pos[j] = pos[j] - cigar[1];
+	  if (pos[j] <= 0) {
+	    pos[j] = 1;
+	  }
+	}
+	else if (str[j] == 16) {
+	  # count Ms,Ds,Ns,Xs,=s for sequence length 
+	  seqlength=0; 
+	  currstr=tmp[6];
+	  where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
+	  while (where>0) {
+	    seqlength+=substr(currstr,where,RLENGTH-1)+0;
+	    currstr=substr(currstr,where+RLENGTH);
+	    where=match(currstr, /[0-9]+[M|D|N|X|=]/);
+	  }
+	  pos[j] = pos[j] + seqlength - 1;
+	  if (tmp[6] ~ /[0-9]+S$/) {
+	    where = match(tmp[6],/[0-9]+S$/);
+	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
+	    pos[j] = pos[j] + cigloc;
+	  }
+	  if (tmp[6] ~ /[0-9]+H$/) {
+	    where = match(tmp[6],/[0-9]+H$/);
+	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
+	    pos[j] = pos[j] + cigloc;
+	  }
+	}
+	j++;
       }
       if (mapped[0] && mapped[1]) {
-				count_reg++;
-				if (less_than(str[0],chr[0],pos[0],str[1],chr[1],pos[1])) {
-					# ideally we'll get rid of printing out cigar string at some point
-            print str[0],chr[0],pos[0],str[1],chr[1],pos[1],m[0],cigarstr[0],seq[0],m[1],cigarstr[1],seq[1],name[0],name[1] > fname1;
-				}
-				else {
-            print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cigarstr[0],seq[0],name[1],name[0] > fname1;
-				}
+	count_reg++;
+	if (less_than(str[0],chr[0],pos[0],str[1],chr[1],pos[1])) {
+	  # ideally we'll get rid of printing out cigar string at some point
+	  #print str[0],chr[0],pos[0],str[1],chr[1],pos[1],m[0],cigarstr[0],seq[0],m[1],cigarstr[1],seq[1],name[0],name[1],qual[0],qual[1] > fname1;
+	  print str[0],chr[0],pos[0],str[1],chr[1],pos[1],m[0],cigarstr[0],seq[0],m[1],cigarstr[1],seq[1],name[0],name[1] > fname1;
+	}
+	else {
+	  #print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cigarstr[0],seq[0],name[1],name[0],qual[1],qual[0] > fname1;
+print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cigarstr[0],seq[0],name[1],name[0] > fname1;
+	}
       }
       else {
-				for (i in c) {
-					print c[i] > fname3;
-				}	
-				count_unmapped++;
+	if (count_unmapped == -1) {
+          print header > fname3;
+	}
+	for (i in c) {
+	  print c[i] > fname3;
+	}	
+	count_unmapped++;
       }
     }
-    
-  printf("%d %d %d %d %d\n", tottot, count_unmapped, count_reg, count_norm, count_abnorm) >> fname1".res.txt";
+    else if (count == 1) {
+      # this actually shouldn't happen, but it happens with alternate aligners on occasion
+      if (count_abnorm == -1) {
+	print header > fname2;
+      }
+      count_abnorm++;
+      for (i in c) {
+	print c[i] > fname2;
+      }
+    }
+  resfile=fname1".res.txt";
+  printf("%d %d %d %d %d\n", tottot, count_unmapped, count_reg, count_norm, count_abnorm) >> resfile;
 }

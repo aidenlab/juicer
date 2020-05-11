@@ -101,6 +101,10 @@ $1 != p1 || $2 != p2 || $4 != p4 || $5 != p5 || $6 != p6 || $8 != p8 || abs($3-p
 						}
 						else dups[k]++; #places a 1 at dups[k]
 					}
+					if (abs(pos1[j]-pos1[k])>wobble1) {
+						#print "test", pos1[j], pos1[k]
+						break
+					}
 				}
 			}
 		}
@@ -178,6 +182,11 @@ END {
 						else { 
 							dups[k]++;
 						}
+					}
+					if (abs(pos1[j]-pos1[k])>wobble1) {
+						#print "test", pos1[j], pos1[k]
+						break
+					
 					}
 				}
 			}

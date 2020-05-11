@@ -26,7 +26,7 @@
 # Single CPU version of Juicer.
 #
 # Alignment script. Sets the reference genome and genome ID based on the input
-# arguments (default human, MboI). Optional arguments are description for 
+# arguments (default human, none). Optional arguments are description for 
 # stats file, stage to relaunch at, paths to various files if 
 # needed, path to scripts directory, and the top-level directory (default 
 # current directory). In lieu of setting the genome ID, you can instead set the
@@ -57,7 +57,9 @@
 #             through a "*" in the name because the wildcard was not able to
 #             match any files with the read1str.   
 #set -e ## This is causing problems; need better error detection
+# Juicer version 1.6
 shopt -s extglob
+export LC_ALL=C
 juicer_version="1.6" 
 ### LOAD BWA AND SAMTOOLS
 bwa_cmd="bwa"
@@ -75,12 +77,9 @@ juiceDir="/aidenlab"
 # top level directory, can also be set in options
 topDir=$(pwd)
 # restriction enzyme, can also be set in options
-site="MboI"
+site="none"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
-# normally both read ends are aligned with long read aligner; 
-# if one end is short, this is set                 
-shortreadend=0
 # description, default empty
 about=""
 nofrag=1
@@ -88,7 +87,7 @@ mapq0_reads_included=0
 
 ## TODO Change usage to be correct and print nicely
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] [-R end]\n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-r] [-h] [-x]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site] [-a about] \n                 [-S stage] [-p chrom.sizes path] [-y restriction site file]\n                 [-z reference genome file] [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-h] [-f] [-j]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" \n  (default \"$site\")"
@@ -121,7 +120,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:a:hs:p:y:z:S:D:fMt:b:1:2:" opt; do
+while getopts "d:g:a:hs:p:y:z:S:D:fMjet:b:1:2:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -139,6 +138,8 @@ while getopts "d:g:a:hs:p:y:z:S:D:fMt:b:1:2:" opt; do
 	1) read1files=$OPTARG ;;
 	2) read2files=$OPTARG ;;
 	M) mapq0_reads_included=1 ;;
+	j) justexact=1 ;;
+	e) earlyexit=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -154,6 +155,8 @@ then
 	alignonly) alignonly=1 ;;
 	chimericonly) chimericonly=1 ;;
 	deduponly) deduponly=1 ;;
+	chimeric) chimeric=1 ;;
+	postproc) postproc=1 ;; 
         *)  echo "$usageHelp"
 	    echo "$stageHelp"
 	    exit 1
@@ -202,6 +205,7 @@ then
 	DpnII) ligation="GATCGATC";;
 	MboI) ligation="GATCGATC";;
 	NcoI) ligation="CCATGCATGG";;
+        Arima) ligation="'(GAATAATC|GAATACTC|GAATAGTC|GAATATTC|GAATGATC|GACTAATC|GACTACTC|GACTAGTC|GACTATTC|GACTGATC|GAGTAATC|GAGTACTC|GAGTAGTC|GAGTATTC|GAGTGATC|GATCAATC|GATCACTC|GATCAGTC|GATCATTC|GATCGATC|GATTAATC|GATTACTC|GATTAGTC|GATTATTC|GATTGATC)'" ;;
 	none) ligation="XXXX";;
 	*)  ligation="XXXX"
 	    echo "$site not listed as recognized enzyme. Using $site_file as site file"
@@ -221,10 +225,13 @@ then
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ] && [ "$nofrag" -ne 1 ]
+if [[ ! -e "$site_file" ]] && [[ "$site" != "none" ]] &&  [[ ! "$site_file" =~ "none" ]]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
     exit 1
+elif [[ "$site" != "none" ]] && [[ ! "$site_file" =~ "none" ]]
+then
+    echo  "Using $site_file as site file"
 fi
 
 ## Set threads for sending appropriate parameters to cluster and string for BWA call
@@ -387,17 +394,19 @@ then
 
 	curr_ostem=${ostem}_${i}
 	source ${juiceDir}/scripts/common/countligations.sh
-
-        # Align reads
-        echo "Running command $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > ${curr_ostem}.sam" 
-        $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > ${curr_ostem}.sam
-        if [ $? -ne 0 ]
+	if [ -z "$chimeric" ]
         then
-            echo "***! Alignment of $file1 $file2 failed."
-            exit 1
-        else                                                            
-	    echo "(-:  Align of ${curr_ostem}.sam done successfully"
-        fi
+          # Align reads
+            echo "Running command $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > ${curr_ostem}.sam" 
+            $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > ${curr_ostem}.sam
+            if [ $? -ne 0 ]
+            then
+		echo "***! Alignment of $file1 $file2 failed."
+		exit 1
+            else                                                            
+		echo "(-:  Align of ${curr_ostem}.sam done successfully"
+            fi
+	fi
 #	samtools view -hb $name$ext.sam > $name$ext.bam
 	export LC_ALL=C
         # call chimeric_blacklist.awk to deal with chimeric reads; 

@@ -25,12 +25,14 @@
 #
 # Small helper script to count reads with ligation junction
 # Juicer version 2.0
+export LC_ALL=C
+export LC_COLLATE=C
 if [ "$usegzip" -eq 1 ]
 then 
-    num1=$(paste <(gunzip -c $file1) <(gunzip -c $file2) | grep -cE $ligation)
+    num1=$(paste <(gunzip -c $file1) <(gunzip -c $file2) | awk '!((NR+2)%4)' | grep -cE $ligation)
     num2=$(gunzip -c $file1 | wc -l | awk '{print $1}')
 else
-    num1=$(paste $file1 $file2 | grep -cE $ligation)
+    num1=$(paste $file1 $file2 | awk '!((NR+2)%4)' | grep -cE $ligation)
     num2=$(wc -l $file1 | awk '{print $1}')
 fi
 echo -ne "$num1 " > ${curr_ostem}_norm.txt.res.txt

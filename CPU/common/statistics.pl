@@ -133,7 +133,7 @@ my @bins = (10,12,15,19,23,28,35,43,53,66,81,100,123,152,187,231,285,351,433,534
 
 if (index($site_file, "none") != -1) {
    #no restriction enzyme, no need for RE distance
-}
+ }
 else {
   # read in restriction site file and store as multidimensional array
     open FILE, $site_file or die $!;

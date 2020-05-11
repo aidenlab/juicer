@@ -7,6 +7,9 @@ assignees: ''
 
 ---
 
+**Are you sure this is a bug?**
+If unsure, please post your question/situation to the forum first: aidenlab.org/forum.html
+
 **Describe the bug**
 A clear and concise description of what the bug is.
 

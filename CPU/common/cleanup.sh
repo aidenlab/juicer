@@ -38,7 +38,7 @@ then
 	for i in fastq/*.fastq
 	do
             gzip $i
-	    done
+	done
     fi
     gzip aligned/merged_nodups.txt
     gzip aligned/dups.txt

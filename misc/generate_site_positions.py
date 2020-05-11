@@ -230,7 +230,7 @@ def process_input(params):
       if counter > 0:
         g.write(' ' + str(counter)) # Close the previous sequence here.
 
-      firststr=re.split('\s*',line[1:])
+      firststr=re.split('\s+',line[1:])
       g.write(endl+firststr[0])
 
       segment = ''
