@@ -113,7 +113,7 @@ Usage: juicer.sh [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]
                  [-a about] [-R end] [-S stage] [-p chrom.sizes path]
                  [-y restriction site file] [-z reference genome file]
                  [-C chunk size] [-D Juicer scripts directory]
-                 [-Q queue time limit] [-L long queue time limit] [-r] [-h] [-x]
+                 [-Q queue time limit] [-L long queue time limit] [-e] [-h] [-x]
 * [genomeID] must be defined in the script, e.g. "hg19" or "mm10" (default
   "hg19"); alternatively, it can be defined using the -z command
 * [topDir] is the top level directory (default
@@ -125,12 +125,10 @@ Usage: juicer.sh [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]
 * [long queue] is the queue for running longer jobs such as the hic file
   creation (default "long")
 * [site] must be defined in the script, e.g.  "HindIII" or "MboI"
-  (default "MboI")
+  (default "none")
 * [about]: enter description of experiment, enclosed in single quotes
-* -r: use the short read version of the aligner, bwa aln
-  (default: long read, bwa mem)
-* [end]: use the short read aligner on read end, must be one of 1 or 2
-* [stage]: must be one of "merge", "dedup", "final", "postproc", or "early".
+* [stage]: must be one of "chimeric", "merge", "dedup", "final", "postproc", or "early".
+    -Use "chimeric" when alignments are done but chimeric handling has not finished
     -Use "merge" when alignment has finished but the merged_sort file has not
      yet been created.
     -Use "dedup" when the files have been merged into merged_sort but
@@ -156,7 +154,8 @@ Usage: juicer.sh [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]
   (default 1200)
 * [long queue time limit]: time limit for long queue, i.e. -W 168:00 is one week
   (default 3600)
-* -x: exclude fragment-delimited maps from hic file creation
+* -f: include fragment-delimited maps from hic file creation
+* -e: early exit
 * -h: print this help and exit
 ```
 
