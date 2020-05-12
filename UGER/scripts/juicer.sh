@@ -252,6 +252,7 @@ then
         DpnII) ligation="GATCGATC";;
         MboI) ligation="GATCGATC";;
         NcoI) ligation="CCATGCATGG";;
+        Arima) ligation="'(GAATAATC|GAATACTC|GAATAGTC|GAATATTC|GAATGATC|GACTAATC|GACTACTC|GACTAGTC|GACTATTC|GACTGATC|GAGTAATC|GAGTACTC|GAGTAGTC|GAGTATTC|GAGTGATC|GATCAATC|GATCACTC|GATCAGTC|GATCATTC|GATCGATC|GATTAATC|GATTACTC|GATTAGTC|GATTATTC|GATTGATC)'";;
         none) ligation="XXXX";;
         *)  ligation="XXXX"
             echo "$site not listed as recognized enzyme. Using $site_file as site file"
@@ -512,7 +513,7 @@ SPLITEND
         fi
         touchfile=${tmpdir}/${jname}
 
-        myjid=$(qsub -terse -o ${debugdir}/count_ligations-${groupname}-${jname}.out -e ${debugdir}/count_ligations-${groupname}-${jname}.err -q ${queue} -r y -l h_rt=${queue_time} -N ${groupname}${jname}countligations -v usegzip=${usegzip},name=${name},name1=${name1},name2=${name2},ext=${ext},ligation=${ligation} ${juiceDir}/scripts/countligations.sh)
+        myjid=$(qsub -terse -o ${debugdir}/count_ligations-${groupname}-${jname}.out -e ${debugdir}/count_ligations-${groupname}-${jname}.err -q ${queue} -r y -l h_rt=${queue_time} -N ${groupname}${jname}countligations -v usegzip=${usegzip},name=${name},name1=${name1},name2=${name2},ext=${ext},ligation="${ligation}" ${juiceDir}/scripts/countligations.sh)
         echo "Count ligations $jname job $myjid" >> ${debugdir}/jobs-${groupname}.out
         if [ -z $chimeric ] 
         then
