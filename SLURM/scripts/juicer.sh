@@ -633,7 +633,7 @@ SPLITEND`
                 $userstring			
 
 		date
-		export usegzip=${usegzip}; export name=${name}; export name1=${name1}; export name2=${name2}; export ext=${ext}; export ligation=${ligation}; ${juiceDir}/scripts/countligations.sh
+		export usegzip=${usegzip}; export name=${name}; export name1=${name1}; export name2=${name2}; export ext=${ext}; export ligation="${ligation}"; ${juiceDir}/scripts/countligations.sh
 		date
 CNTLIG`
 	dependcount="$jid"
