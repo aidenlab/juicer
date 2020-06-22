@@ -457,7 +457,7 @@ then
     cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam
     awk -f ${juiceDir}/scripts/common/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
     # Collisions dedupping: two pass algorithm, ideally would make one pass
-    gawk -v fname=$outputdir/collisions.txt -f ${juiceDir}/scripts/common/collisions_dedup_rearrange_cols.awk $outputdir/collisions.txt | sort -k3,3n -k4,4n -k10,10n -k11,11n -k17,17n -k18,18n -k24,24n -k25,25n -k31,31n -k32,32n | awk -v name=$outputdir/ -f ${juiceDir}/scripts/common/collisions_dups.awk
+    gawk -v fname=$outputdir/collisions.txt -f ${juiceDir}/scripts/common/collisions_dedup_rearrange_cols.awk $outputdir/collisions.txt | sort -T $tmpdir -k3,3n -k4,4n -k10,10n -k11,11n -k17,17n -k18,18n -k24,24n -k25,25n -k31,31n -k32,32n | awk -v name=$outputdir/ -f ${juiceDir}/scripts/common/collisions_dups.awk
 fi
 
 if [ -z "$genomePath" ]
