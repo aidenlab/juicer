@@ -339,6 +339,9 @@ $0 !~ /^@/{
 	  # flag mapq0_reads_included can be set to include mapq0 reads in merged_nodups
 	  if ((m[read1]==0 || m[read2]==0) && (mapq0_reads_included == 0)) {
             # mapq0
+	    if (count_mapq0 == 0) {
+	      print header > mapq0;
+	    }
 	    for (j=1; j <= count; j++) {
 	      print c[j] > mapq0;
 	    }
@@ -653,6 +656,9 @@ END{
 	# flag mapq0_reads_included can be set to include mapq0 reads in merged_nodups
 	if ((m[read1]==0 || m[read2]==0) && (mapq0_reads_included == 0)) {
 	  # mapq0
+	  if (count_mapq0 == 0) {
+	    print header > mapq0;
+	  }
 	  for (j=1; j <= count; j++) {
 	    print c[j] > mapq0;
 	  }
