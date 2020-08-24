@@ -202,6 +202,7 @@ printHelpAndExit() {
     echo -e "$userHelp"
     echo -e "$earlyexitHelp"
     echo -e "$gemHelp"
+    echo -e "$justHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
