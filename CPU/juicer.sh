@@ -537,7 +537,7 @@ if [ -z $postproc ]
 	time ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
     fi
 
-    if samtools view $sthreadstring ${outputdir}/merged_dedup.sam > ${outputdir}/merged_dedup.bam
+    if samtools view -b $sthreadstring ${outputdir}/merged_dedup.sam > ${outputdir}/merged_dedup.bam
     then
 	rm ${outputdir}/merged_dedup.sam
 	rm ${outputdir}/merged_sort.bam
