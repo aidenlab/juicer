@@ -45,7 +45,7 @@
 # restriction enzyme site.
 #
 # Usage:	statistics.pl [infile or stream]
-# Juicer 1.5
+# Juicer 2.0
 
 use File::Basename;
 use POSIX;
@@ -128,6 +128,7 @@ my $total_current = 0;
 my $under_mapq = 0;
 my $intra_fragment = 0;
 my $unique = 0;
+my $is_short = 0;
 # logspace bins
 my @bins = (10,12,15,19,23,28,35,43,53,66,81,100,123,152,187,231,285,351,433,534,658,811,1000,1233,1520,1874,2310,2848,3511,4329,5337,6579,8111,10000,12328,15199,18738,23101,28480,35112,43288,53367,65793,81113,100000,123285,151991,187382,231013,284804,351119,432876,533670,657933,811131,1000000,1232847,1519911,1873817,2310130,2848036,3511192,4328761,5336699,6579332,8111308,10000000,12328467,15199111,18738174,23101297,28480359,35111917,43287613,53366992,65793322,81113083,100000000,123284674,151991108,187381742,231012970,284803587,351119173,432876128,533669923,657933225,811130831,1000000000,1232846739,1519911083,1873817423,2310129700,2848035868,3511191734,4328761281,5336699231,6579332247,8111308308,10000000000);
 
@@ -149,8 +150,12 @@ else {
 #open FILE, $infile or die $!;
 while (<>) {
   $unique++;
-	my @record = split;
-	my $num_records = scalar(@record);
+  my @record = split;
+  my $num_records = scalar(@record);
+  if ($num_records == 8) {
+      $is_short=1;
+  }
+
   # don't count as Hi-C contact if fails mapq or intra fragment test
   my $countme = 1;
 
@@ -158,12 +163,12 @@ while (<>) {
     $intra_fragment++;
     $countme = 0;
   }
-	elsif ($num_records > 8) {
-		my $mapq_val = min($record[8],$record[11]);
-    if ($mapq_val < $mapq_threshold) {
-      $under_mapq++;
-      $countme = 0;
-    }
+  elsif ($num_records > 8) {
+      my $mapq_val = min($record[8],$record[11]);
+      if ($mapq_val < $mapq_threshold) {
+	  $under_mapq++;
+	  $countme = 0;
+      }
   }
 
 
@@ -328,24 +333,25 @@ if ($unique==0) {
 	$unique=1;
 }
 
-print FILE "Intra-fragment Reads: " . commify($intra_fragment);
-if ($seq == 1) {
-  printf FILE " (%0.2f\% / ", $intra_fragment*100/$reads; 
-}
-else {
-  print FILE "(";
-}
-printf FILE "%0.2f\%)\n", $intra_fragment*100/$unique; 
+#print FILE "Intra-fragment Reads: " . commify($intra_fragment);
+#if ($seq == 1) {
+#  printf FILE " (%0.2f\% / ", $intra_fragment*100/$reads; 
+#}
+#else {
+#  print FILE "(";
+#}
+#printf FILE "%0.2f\%)\n", $intra_fragment*100/$unique; 
 
-print FILE "Below MAPQ Threshold: " . commify($under_mapq);
-if ($seq == 1) {
-  printf FILE " (%0.2f\% / ", $under_mapq*100/$reads; 
+if ($is_short != 1) {
+    print FILE "Below MAPQ Threshold: " . commify($under_mapq);
+    if ($seq == 1) {
+	printf FILE " (%0.2f\% / ", $under_mapq*100/$reads; 
+    }
+    else {
+	print FILE "(";
+    }
+    printf FILE "%0.2f\%)\n", $under_mapq*100/$unique; 
 }
-else {
-  print FILE "(";
-}
-printf FILE "%0.2f\%)\n", $under_mapq*100/$unique; 
-
 print FILE "Hi-C Contacts: " . commify($total_current);
 if ($seq == 1) {
   printf FILE " (%0.2f\% / ", $total_current*100/$reads; 

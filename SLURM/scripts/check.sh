@@ -37,19 +37,7 @@ then
     exit 1
 fi
 
-# Check the sizes of merged_sort versus the dups/no dups files to be sure
-# no reads were lost
-total=1
-total2=0
-total=`ls -l ${outputdir}/merged_sort.txt | awk '{print $5}'`
-total2=`ls -l ${outputdir}/merged_nodups.txt ${outputdir}/dups.txt ${outputdir}/opt_dups.txt | awk '{sum = sum + $5}END{print sum}'`
-
-if [ -z $total ] || [ -z $total2 ] || [ $total -ne $total2 ]
-then
-    echo "***! Error! The sorted file and dups/no dups files do not add up, or were empty. Merge or dedupping likely failed, restart pipeline with -S merge or -S dedup"
-    echo "Dups don't add up.  Check ${outputdir} for results"
-    exit 1
-fi
+# could add flagstat check here
 
 wctotal=`cat ${splitdir}/*_linecount.txt | awk '{sum+=$1}END{print sum/4}'`
 check2=`cat ${splitdir}/*norm*res* | awk '{s2+=$2;}END{print s2}'`
