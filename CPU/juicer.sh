@@ -547,7 +547,7 @@ if [ -z $postproc ]
     export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
     tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt
     cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
-    awk 'NR==FNR{split($0,a,":");}FNR!=NR{sum+=$1}END{split(a[2],b); tot=b[1]; print "Unique Reads: ", int(tot-sum); print "Duplicates:",sum}' $outputdir/inter.txt $outputdir/*_count >> $outputdir/inter.txt 
+    awk 'NR==FNR{if ($1 ~ /Alignable/){split($0,a,":"); split(a[2],b); gsub(",","", b[1]); tot=int(b[1]);}}FNR!=NR{sum+=$1}END{print "Unique Reads: ",int(tot-sum); print "Duplicates:",sum}' $outputdir/inter.txt $outputdir/*_count >> $outputdir/inter.txt
     cp $outputdir/inter.txt $outputdir/inter_30.txt
     perl ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt $outputdir/merged0.txt
     perl ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt $outputdir/merged30.txt
