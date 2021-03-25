@@ -104,7 +104,7 @@ then
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
     # XXX verify / change me
-    juiceDir="/storage/aiden/home/suhasr/juicer2.0/"
+    juiceDir="/gpfs0/juicer"
     load_bwa="unset PYTHONPATH; conda activate"
     # default queue, can also be set in options via -q
     queue="mhgcp"
@@ -122,7 +122,7 @@ else
     load_samtools="spack load samtools arch=\`spack arch\`"
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
-    juiceDir="/gpfs0/work/suhas/scripts/juicer2.0/"
+    juiceDir="/gpfs0/juicer"
     # default queue, can also be set in options
     queue="commons"
     queue_time="2880"
@@ -412,8 +412,8 @@ then
     threadHic30String=""
     threadNormString=""
 else
-    threadHicString="-n --threads $threadsHic -i ${outputdir}/merged_nodups_index.txt -t ${outputdir}/HIC_tmp"
-    threadHic30String="-n --threads $threadsHic -i ${outputdir}/merged_nodups_index.txt -t ${outputdir}/HIC30_tmp"
+    threadHicString="-n --threads $threadsHic -i ${outputdir}/merged0_index.txt -t ${outputdir}/HIC_tmp"
+    threadHic30String="-n --threads $threadsHic -i ${outputdir}/merged30_index.txt -t ${outputdir}/HIC30_tmp"
     threadNormString="--threads $threadsHic"
 fi
 
@@ -955,12 +955,10 @@ then
     genomePath=$genomeID
 fi
 
-#Skip if post-processing only is required
-if [ -z $postproc ]
+#Skip if only final or post-processing only is required
+if [ -z $postproc ] && [ -z $final ]
     then
-    ### The below is probably no longer necessary / should be done differently
     # Check that dedupping worked properly
-    # in ideal world, we would check this in split_rmdups and not remove before we know they are correct
     awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash -l\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*; rm %s/split*;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."}}'
     jid=`sbatch <<- DUPCHECK | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
@@ -999,11 +997,6 @@ DUPCHECK`
 	${load_samtools}
 
 	samtools view -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged0.txt 
-
-	if [[ $threadsHic -gt 1 ]]
-	then
-	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged0.txt 500000 > ${outputdir}/merged0_index.txt
-	fi
         date                                                                                                           
 MERGED0`
 
@@ -1023,11 +1016,6 @@ MERGED0`
 	${load_samtools}
 
 	samtools view -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=30 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged30.txt 
-
-	if [[ $threadsHic -gt 1 ]]
-	then
-	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
-	fi
         date                                                                                                           
 MERGED30`
     sbatch_wait2="#SBATCH -d afterok:$jid2"
@@ -1125,7 +1113,16 @@ STATS30`
 
     dependstats30="afterok:$jid"
     sbatch_wait1="${sbatch_wait1}:$jid"
+    sbatch_waitstats="#SBATCH -d $dependstats"
+    sbatch_waitstats30="#SBATCH -d $dependstats30"
+else
+    sbatch_wait1=""
+    sbatch_waitstats=""
+    sbatch_waitstats30=""
+fi
 
+if [ -z $postproc ] 
+then
     # if early exit, we stop here, once the stats are calculated
     if [ ! -z "$earlyexit" ]
     then
@@ -1160,7 +1157,7 @@ FINCLN1`
 	#SBATCH --ntasks=1
 	#SBATCH --mem=150G
 	#SBATCH -J "${groupname}_hic"
-	#SBATCH -d $dependstats
+	${sbatch_waitstats}
         $userstring			
 
 	${load_java}
@@ -1173,6 +1170,14 @@ FINCLN1`
 		exit 1 
 	fi 
 	mkdir ${outputdir}"/HIC_tmp"
+
+	# multithreaded and index doesn't exist yet
+	if [[ $threadsHic -gt 1 ]] && [[ ! -s ${outputdir}/merged0_index.txt ]] 
+	then
+	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged0.txt 500000 > ${outputdir}/merged0_index.txt
+	fi
+
+
 	if [ "$nofrag" -eq 1 ]
 	then 
 	    time ${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged0.txt $outputdir/inter.hic $genomePath
@@ -1201,8 +1206,8 @@ HIC`
 	#SBATCH --ntasks=1
 	#SBATCH --mem=150G
 	#SBATCH -J "${groupname}_hic30"
-	#SBATCH -d ${dependstats30}
-        $userstring			
+	${sbatch_waitstats30}
+        $userstring	
 
 	${load_java}
 	export IBM_JAVA_OPTIONS="-Xmx150000m -Xgcthreads1"
@@ -1214,6 +1219,12 @@ HIC`
             exit 1 
         fi 
 	mkdir ${outputdir}"/HIC30_tmp"
+	# multithreaded and index doesn't exist yet
+	if [[ $threadsHic -gt 1 ]] && [[ ! -s ${outputdir}/merged30_index.txt ]] 
+	then
+	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
+	fi
+
         if [ "$nofrag" -eq 1 ]
         then 
 	    time ${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
