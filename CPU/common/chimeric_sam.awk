@@ -43,8 +43,8 @@
 # awk -f chimeric_sam.awk -v stem=output 
 # Juicer version 2.0
 function bsearch(array,len,target) {  
-    low=1;
-    high=length(array);
+    low=0;
+    high=length(array)-1;
     while(low<=high){
         mid=int((low+high)/2);
         if (array[mid] < target) low=mid+1;
@@ -155,12 +155,19 @@ BEGIN{
       while ((getline < site_file) > 0) {
 	  gsub(/_/, "", $1);
 	  for (i=2; i<=NF; i++) {
-	      chromosomes[$1][i-1]=$i;
+	      chromosomes[$1][i-2]=$i;
 	  }
 	  if (length(NF)>fraglen) {
 	      fraglen=length(NF);
 	  }
       }
+      if (fraglen==0) {
+	  print "!** Error while reading site file",site_file,"!" > "/dev/stderr";
+	  exit 1;
+      }
+#      print length(chromosomes["MT"]); 24
+#      print chromosomes["MT"][23]; value
+
   }
   else fragstr = "0_1";
   # fragment str always 0_1 with site="none"
@@ -340,16 +347,9 @@ $0 !~ /^@/{
 #	      print str[read1],chr[read1],interiorpos1,str[read2],chr[read2],interiorpos2,m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],"2$",pos[read1],pos[read2] > fname1;
 	      
 	      if (length(site_file) > 0) {
-		  if (chr[read1] in chromosomes)
-		      frag1 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
-		  else
-		      frag1 = 1;
-		  if (chr[read2] in chromosomes)
-		      frag2 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
-		  else
-		      frag2 = 1;
-		  # for backwards compatibility with perl, which is 0-indexed
-		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d", frag1-1,frag2-1);
+		  frag1 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
+		  frag2 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
+		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d", frag1,frag2);
 	      }
 
 	      # chromosome block string to sort on
@@ -369,16 +369,9 @@ $0 !~ /^@/{
 #	      print str[read2],chr[read2],interiorpos2,str[read1],chr[read1],interiorpos1,m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],"2$",pos[read2],pos[read1] > fname1;
 
 	      if (length(site_file) > 0) {
-		  if (chr[read2] in chromosomes)
-		      frag1 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
-		  else
-		      frag1 = 1;
-		  if (chr[read1] in chromosomes)
-		      frag2 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
-		  else
-		      frag2 = 1;
-		  # for backwards compatibility with perl, which is 0-indexed
-		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d", frag1-1,frag2-1);
+		  frag1 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
+		  frag2 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
+		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d", frag1,frag2);
 	      }
 
 	      # chromosome block string to sort on
@@ -462,16 +455,9 @@ $0 !~ /^@/{
 #	      print str[read1],chr[read1],interiorpos1,str[read2],chr[read2],interiorpos2,m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],"1$",pos[read1],pos[read2] > fname1;
 
 	      if (length(site_file) > 0) {
-		  if (chr[read1] in chromosomes)
-		      frag1 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
-		  else
-		      frag1 = 1;
-		  if (chr[read2] in chromosomes)
-		      frag2 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
-		  else
-		      frag2 = 1;
-		  # for backwards compatibility with perl, which is 0-indexed
-		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1-1,frag2-1);
+		  frag1 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
+		  frag2 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
+		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
 	      }
 	      # chromosome block string to sort on
 	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[read1],pos[read2]);
@@ -488,16 +474,9 @@ $0 !~ /^@/{
 #	      print str[read2],chr[read2],adjust(pos[interiorread2],str[interiorread2],cigarstr[interiorread2],notprimary[interiorread2]),str[read1],chr[read1],adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]),m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],"1$",pos[read2],pos[read1] > fname1;
 
 	      if (length(site_file) > 0) {
-		  if (chr[read2] in chromosomes)
-		      frag1 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
-		  else
-		      frag1 = 1;
-		  if (chr[read1] in chromosomes)
-		      frag2 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
-		  else
-		      frag2 = 1;
-		  # for backwards compatibility with perl, which is 0-indexed
-		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1-1,frag2-1);
+		  frag1 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
+		  frag2 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
+		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
 	      }
 
 	      # chromosome block string to sort on
@@ -599,23 +578,22 @@ $0 !~ /^@/{
 	interiorpos2=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
 
 	if (length(site_file) > 0) {
-	    if (chr[0] in chromosomes)
-		frag1 = bsearch(chromosomes[chr[0]], length(chromosomes[chr[0]]),pos[0]);
-	    else
-		frag1 = 1;
-	    if (chr[1] in chromosomes)
-		frag2 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
-	    else 
-		frag2 = 1;
+	    frag1 = bsearch(chromosomes[chr[0]], length(chromosomes[chr[0]]),pos[0]);
+	    frag2 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
+	    if (printme) {print "HERE"; print frag1,frag2; print length(chromosomes[chr[0]]), length(chromosomes[chr[1]])}
+	    # this happens with circular chromosomes (MT)
+	    # only adjusting here since it matters for internal position
+	    if (frag1 >= length(chromosomes[chr[0]])) 
+		frag1 = length(chromosomes[chr[0]])-1;
+	    if (frag2 >= length(chromosomes[chr[1]])) 
+		frag2 = length(chromosomes[chr[1]])-1;
+
 	    # adjust internal position based on cutting site
-	    # the indexing discrepancy is because indexes start at 0 in perl
-	    # for backwards compatibility, the "frag number" in the cb string is as before
-	    # in awk, indexes start at 1 so need to index into the array appropriately
 	    if (str[0] == 0) {
 		interiorpos1 = chromosomes[chr[0]][frag1];
 	    }
 	    else {
-		if (frag1 == 1) {
+		if (frag1 == 0) {
 		    interiorpos1 = 0;
 		}
 		else {
@@ -626,7 +604,7 @@ $0 !~ /^@/{
 		interiorpos2 = chromosomes[chr[1]][frag2];
 	    }
 	    else {
-		if (frag2 == 1) {
+		if (frag2 == 0) {
 		    interiorpos2 = 0;
 		}
 		else {
@@ -849,16 +827,9 @@ END{
 #	      print str[read1],chr[read1],interiorpos1,str[read2],chr[read2],interiorpos2,m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],"2$",pos[read1],pos[read2] > fname1;
 	      
 	      if (length(site_file) > 0) {
-		  if (chr[read1] in chromosomes)
-		      frag1 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
-		  else
-		      frag1 = 1;
-		  if (chr[read2] in chromosomes)
-		      frag2 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
-		  else
-		      frag2 = 1;
-		  # for backwards compatibility with perl, which is 0-indexed
-		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1-1,frag2-1);
+		  frag1 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
+		  frag2 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
+		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
 	      }
 
 	      # chromosome block string to sort on
@@ -877,16 +848,9 @@ END{
 #	      print str[read2],chr[read2],interiorpos2,str[read1],chr[read1],interiorpos1,m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],"2$",pos[read2],pos[read1] > fname1;
 
 	      if (length(site_file) > 0) {
-		  if (chr[read2] in chromosomes)
-		      frag1 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
-		  else
-		      frag1 = 1;
-		  if (chr[read1] in chromosomes)
-		      frag2 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
-		  else
-		      frag2 = 1;
-		  # for backwards compatibility with perl, which is 0-indexed		  
-		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1-1,frag2-1);
+		  frag1 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
+		  frag2 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
+		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
 	      }
 
 	      # chromosome block string to sort on
@@ -970,16 +934,9 @@ END{
 #	      print str[read1],chr[read1],interiorpos1,str[read2],chr[read2],interiorpos2,m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],"1$",pos[read1],pos[read2] > fname1;
 
 	      if (length(site_file) > 0) {
-		  if (chr[read1] in chromosomes)
-		      frag1 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
-		  else
-		      frag1 = 1;
-		  if (chr[read2] in chromosomes)
-		      frag2 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
-		  else
-		      frag2 = 1;
-		  # for backwards compatibility with perl, which is 0-indexed
-		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1-1,frag2-1);
+		  frag1 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
+		  frag2 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
+		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
 	      }
 	      # chromosome block string to sort on
 	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[read1],pos[read2]);
@@ -996,14 +953,9 @@ END{
 #	      print str[read2],chr[read2],adjust(pos[interiorread2],str[interiorread2],cigarstr[interiorread2],notprimary[interiorread2]),str[read1],chr[read1],adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]),m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],"1$",pos[read2],pos[read1] > fname1;
 
 	      if (length(site_file) > 0) {
-		  if (chr[read2] in chromosomes)
-		      frag1 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
-		  else frag1 = 1;
-		  if (chr[read1] in chromosomes)
-		      frag2 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
-		  else frag2 = 1;
-		  # for backwards compatibility with perl, which is 0-indexed
-		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1-1,frag2-1);
+		  frag1 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
+		  frag2 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
+		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
 	      }
 
 	      # chromosome block string to sort on
@@ -1105,23 +1057,22 @@ END{
 	interiorpos2=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
 
 	if (length(site_file) > 0) {
-	    if (chr[0] in chromosomes)
-		frag1 = bsearch(chromosomes[chr[0]], length(chromosomes[chr[0]]),pos[0]);
-	    else
-		frag1 = 1;
-	    if (chr[1] in chromosomes)
-		frag2 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
-	    else
-		frag2 = 1;
+	    frag1 = bsearch(chromosomes[chr[0]], length(chromosomes[chr[0]]),pos[0]);
+	    frag2 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
+
+	    # this happens with circular chromosomes (MT)
+	    # only adjusting here since it matters for internal position
+	    if (frag1 >= length(chromosomes[chr[0]])) 
+		frag1 = length(chromosomes[chr[0]])-1;
+	    if (frag2 >= length(chromosomes[chr[1]])) 
+		frag2 = length(chromosomes[chr[1]])-1;
+
 	    # adjust internal position based on cutting site
-	    # the indexing discrepancy is because indexes start at 0 in perl
-	    # for backwards compatibility, the "frag number" in the cb string is as before
-	    # in awk, indexes start at 1 so need to index into the array appropriately
 	    if (str[0] == 0) {
 		interiorpos1 = chromosomes[chr[0]][frag1];
 	    }
 	    else {
-		if (frag1 == 1) {
+		if (frag1 == 0) {
 		    interiorpos1 = 0;
 		}
 		else {
@@ -1132,7 +1083,7 @@ END{
 		interiorpos2 = chromosomes[chr[1]][frag2];
 	    }
 	    else {
-		if (frag2 == 1) {
+		if (frag2 == 0) {
 		    interiorpos2 = 0;
 		}
 		else {
@@ -1196,6 +1147,7 @@ END{
       }
     }
     resfile=fname1".res.txt";
+    if (innerpairs == 0) innerpairs=1;
     avginsertsize=insertsizesum/innerpairs;
     printf("%d %d %d %d %d %f\n", tottot, count_unmapped, count_reg, count_norm, count_abnorm, avginsertsize) >> resfile;
 }

@@ -1073,7 +1073,7 @@ BAMRM`
         export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
         tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt
 	cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
-	awk 'NR==FNR{if (\\\$1 ~ /Alignable/){split(\\\$0,a,":");split(a[2],b); gsub(",","", b[1]); tot=int(b[1]);} }FNR!=NR{sum+=\\\$1}END{print "Unique Reads: ", int(tot-sum); print "Duplicates:",sum}' $outputdir/inter.txt $debugdir/*_count >> $outputdir/inter.txt 
+	awk 'NR==FNR{if (\\\$1 ~ /Alignable/){split(\\\$0,a,":");split(a[2],b); gsub(",","", b[1]); tot=int(b[1]);} }FNR!=NR{sum+=\\\$1}END{print "Unique Reads: ", int(tot-sum); print "Duplicates:",sum}' $outputdir/inter.txt $debugdir/${groupname}*_count >> $outputdir/inter.txt 
         cp $outputdir/inter.txt $outputdir/inter_30.txt                                                       
         date
 PRESTATS`
