@@ -323,7 +323,7 @@ then
 		else
 		    echo -e "---  Using already created files in $splitdir\n"
 		fi
-		testname=$(ls -l ${fastqdir} | awk 'NR==1{print $9}')
+		testname=$(ls -lgG ${fastqdir} | awk 'NR==1{print $7}')
 		if [ "${testname: -3}" == ".gz" ]
 		then
 		    read1=${splitdir}"/*${read1str}*.fastq.gz"
