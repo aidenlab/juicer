@@ -353,13 +353,13 @@ countjobs=0
 jobIDstring=""
 #check the total fastq input files size, determine the threads number
 #threads value could be customized according to user's job and cluster resources
-fastqsize=$(ls -lL ${fastqdir} | awk '{sum+=$5}END{print sum}')
+fastqsize=$(ls -lgGL ${fastqdir} | awk '{sum+=$3}END{print sum}')
 if [ "$fastqsize" -gt "2592410750" ]
 then
     threads=16
 fi
 
-testname=$(ls -l ${fastqdir} | awk 'NR==1;{print $9}')
+testname=$(ls -lgG ${fastqdir} | awk 'NR==1;{print $7}')
 if [ "${testname: -3}" == ".gz" ]
 then
     skipsplit=1

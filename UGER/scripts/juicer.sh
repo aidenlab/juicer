@@ -367,14 +367,14 @@ $load_cluster
 # If chunk size sent in, split. Otherwise check size before splitting
 if [ -z $splitme ]
 then
-    fastqsize=`ls -lL ${fastqdir} | awk '{sum+=$5}END{print sum}'`
+    fastqsize=`ls -lgGL ${fastqdir} | awk '{sum+=$3}END{print sum}'`
     if [ "$fastqsize" -gt "2592410750" ]
     then
         splitme=1
     fi
 fi
 
-testname=`ls -l ${fastqdir} | awk 'NR==1{print $9}'`
+testname=`ls -lgG ${fastqdir} | awk 'NR==1{print $7}'`
 if [[ "${testname: -3}" == ".gz" ]]
 then
     read1=${splitdir}"/*${read1str}*.fastq.gz"
@@ -475,7 +475,7 @@ SPLITEND
         ## No need to re-split fastqs if they already exist
         echo -e "---  Using already created files in $splitdir\n"
         # unzipped files will have .fastq extension, softlinked gz 
-        testname=$(ls -l ${splitdir} | awk '$9~/fastq$/||$9~/gz$/{print $9; exit}')
+        testname=$(ls -lgG ${splitdir} | awk '$7~/fastq$/||$7~/gz$/{print $7; exit}')
         if [ "${testname: -3}" == ".gz" ]
         then
             read1=${splitdir}"/*${read1str}*.fastq.gz"

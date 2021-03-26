@@ -41,8 +41,8 @@ fi
 # no reads were lost
 total=1
 total2=0
-total=`ls -l ${outputdir}/merged_sort.txt | awk '{print $5}'`
-total2=`ls -l ${outputdir}/merged_nodups.txt ${outputdir}/dups.txt ${outputdir}/opt_dups.txt | awk '{sum = sum + $5}END{print sum}'`
+total=`ls -lgG ${outputdir}/merged_sort.txt | awk '{print $3}'`
+total2=`ls -lgG ${outputdir}/merged_nodups.txt ${outputdir}/dups.txt ${outputdir}/opt_dups.txt | awk '{sum = sum + $3}END{print sum}'`
 
 if [ -z $total ] || [ -z $total2 ] || [ $total -ne $total2 ]
 then
