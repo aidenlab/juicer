@@ -279,8 +279,8 @@ then
     threadHic30String=""
     threadNormString=""
 else
-    threadHicString="-n --threads $threadsHic -i ${outputdir}/merged0_index.txt -t ${outputdir}/HIC_tmp"
-    threadHic30String="-n --threads $threadsHic -i ${outputdir}/merged30_index.txt -t ${outputdir}/HIC30_tmp"
+    threadHicString="--threads $threadsHic -i ${outputdir}/merged0_index.txt -t ${outputdir}/HIC_tmp"
+    threadHic30String="--threads $threadsHic -i ${outputdir}/merged30_index.txt -t ${outputdir}/HIC30_tmp"
     threadNormString="--threads $threadsHic"
 fi
 
