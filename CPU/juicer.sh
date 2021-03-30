@@ -568,7 +568,7 @@ if [ -z $postproc ]
     fi
     if [[ $threadsHic -gt 1 ]]
     then 
-	time ${juiceDir}/scripts/common/juicer_tools addNorm -r 100,100,100 -k VC,VC_SQRT,SCALE $threadNormString ${outputdir}/inter.hic
+	time ${juiceDir}/scripts/common/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic
     fi
     rm -R ${outputdir}"/HIC_tmp"
     date
@@ -581,7 +581,7 @@ if [ -z $postproc ]
     fi
     if [[ $threadsHic -gt 1 ]]
     then 
-	time ${juiceDir}/scripts/common/juicer_tools addNorm -r 100,100,100 -k VC,VC_SQRT,SCALE $threadNormString ${outputdir}/inter_30.hic
+	time ${juiceDir}/scripts/common/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
     fi
     rm -R ${outputdir}"/HIC30_tmp"
     # POSTPROCESSING 
