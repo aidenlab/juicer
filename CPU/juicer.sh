@@ -562,14 +562,12 @@ if [ -z $postproc ]
     mkdir ${outputdir}"/HIC_tmp"
     if [ "$nofrag" -eq 1 ]
     then 
-	time ${juiceDir}/scripts/common/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged0.txt $outputdir/inter.hic $genomePath
+	time ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged0.txt $outputdir/inter.hic $genomePath
     else
-	time ${juiceDir}/scripts/common/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged0.txt $outputdir/inter.hic $genomePath 
+	time ${juiceDir}/scripts/common/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged0.txt $outputdir/inter.hic $genomePath 
     fi
     if [[ $threadsHic -gt 1 ]]
     then 
-	chmod +x ${outputdir}/inter.hiccatOutputs.sh
-	${outputdir}/inter.hiccatOutputs.sh > ${outputdir}/inter.hic
 	time ${juiceDir}/scripts/common/juicer_tools addNorm -r 100,100,100,100 -k VC,VC_SQRT,KR,SCALE $threadNormString ${outputdir}/inter.hic
     fi
     rm -R ${outputdir}"/HIC_tmp"
@@ -577,14 +575,12 @@ if [ -z $postproc ]
     mkdir ${outputdir}"/HIC30_tmp"
     if [ "$nofrag" -eq 1 ]
     then 
-	time ${juiceDir}/scripts/common/juicer_tools pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
+	time ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
     else
-	time ${juiceDir}/scripts/common/juicer_tools pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
+	time ${juiceDir}/scripts/common/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
     fi
     if [[ $threadsHic -gt 1 ]]
     then 
-	chmod +x ${outputdir}/inter_30.hiccatOutputs.sh
-	${outputdir}/inter_30.hiccatOutputs.sh > ${outputdir}/inter_30.hic
 	time ${juiceDir}/scripts/common/juicer_tools addNorm -r 100,100,100,100 -k VC,VC_SQRT,KR,SCALE $threadNormString ${outputdir}/inter_30.hic
     fi
     rm -R ${outputdir}"/HIC30_tmp"
