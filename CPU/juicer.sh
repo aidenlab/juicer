@@ -134,7 +134,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:a:hs:p:y:z:S:D:b:A:t:jfecT:1:2:" opt; do
+while getopts "d:g:a:hs:p:y:z:S:D:b:t:jfecT:1:2:i:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -154,6 +154,7 @@ while getopts "d:g:a:hs:p:y:z:S:D:b:A:t:jfecT:1:2:" opt; do
 	j) justexact=1 ;;
 	e) earlyexit=1 ;;
 	T) threadsHic=$OPTARG ;;
+	i) sampleName=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -264,6 +265,13 @@ if [ -n "$read2files" ] && [ -z "$read1files" ]
 then
     echo "***! When fastqs for read2 are specified with \"-2\", corresponding read1 fastqs must be specified with \"-1\" "
     exit 1
+fi
+
+### If not set in options, set samplename based on directory name
+if [ -z "$sampleName" ]
+then
+    sampleName=$(basename $(readlink -f "$topDir"))
+    sampleName=$(echo $sampleName | sed 's/@//' | sed 's/ //')
 fi
 
 ## Directories to be created and regex strings for listing files
@@ -383,13 +391,15 @@ then
 else
     echo -ne 'Experiment description: ' >> $headfile
 fi
+echo -ne "Sample name $sampleName;"  >> $headfile
 # Get version numbers of all software   
-echo -ne "Juicer version $juicer_version;" >> $headfile
+echo -ne " Juicer version $juicer_version;" >> $headfile
 $bwa_cmd 2>&1 | awk '$1=="Version:"{printf(" BWA %s; ", $2)}' >> $headfile
 echo -ne "$threads threads; " >> $headfile
 java -version 2>&1 | awk 'NR==1{printf("%s; ", $0);}' >> $headfile
 ${juiceDir}/scripts/common/juicer_tools -V 2>&1 | awk '$1=="Juicer" && $2=="Tools"{printf("%s; ", $0);}' >> $headfile
 echo "$0 $@" >> $headfile
+
 
 ## ALIGN FASTQ IN SINGLE END MODE, SORT BY READNAME, HANDLE CHIMERIC READS     
 
@@ -415,6 +425,8 @@ then
 	name1=${name}${read1str}
 	name2=${name}${read2str}	
 	jname=$(basename "$name")${ext}
+	rgtag="@RG\tID:${sampleName}\tLB:NULL\tPL:ILLUMINA\tSM:NULL"
+	
 	if [ ${file1: -3} == ".gz" ]
 	then
 	    usegzip=1
@@ -424,7 +436,7 @@ then
 	if [ -z "$chimeric" ]
 	then
 	    echo "Running command $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > $name$ext.sam"
-	    $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > $name$ext.sam
+	    $bwa_cmd mem -SP5M -R "${rgtag}" $threadstring $refSeq $file1 $file2 > $name$ext.sam
 	    if [ $? -ne 0 ]
 	    then
 		echo "***! Alignment of $file1 $file2 failed."
@@ -432,6 +444,8 @@ then
 	    else
 		echo "(-:  Align of $name$ext.sam done successfully"
 	    fi
+	else
+	    echo "Using already aligned reads $name$ext.sam";
         fi
 
 	# call chimeric script to deal with chimeric reads; sorted file is sorted by read name at this point		
@@ -443,13 +457,12 @@ then
 	    awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/common/adjust_insert_size.awk $name$ext.sam2 | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
 	fi
 
-	if [[ -s ${name}${ext}.bam  ]] 
-	then    
-	    rm $name$ext.sam* 
-	else
+	if [ $? -ne 0 ]
+	then
 	    echo "***! Failure during chimera handling of $name${ext}"
-	    exit 1   
-	    
+	    exit 1 
+	else  
+	    rm $name$ext.sam* 
 	fi  
     done # done looping over all fastq split files
 fi  # Not in merge, dedup,  or final stage, i.e. need to split and align files.
