@@ -10,7 +10,18 @@ BEGIN{
     use_external_pos=1;
   }
 }
-$(NF-1) ~ /^rt:/  && ($(NF-1) ~ /:0$/ || $(NF-1) ~ /:2$/ || $(NF-1) ~ /:4$/ || $(NF-1) ~ /:1$/ || $(NF-1) ~ /:3$/|| $(NF-1) ~ /:5$/) {
+{
+    processme=0;
+}
+$0 ~ /rt:/ {
+    for (ind=12; ind<=NF; ind++) {
+	if ($(ind) ~ /^rt:/) {
+	    split($(ind), rt_str, ":");
+	    if (int(rt_str[3]) <= 5) processme=1;
+	} 
+    }
+}
+processme != 0 {
     if (length(saved_seq)==0) {
 	saved_seq = $10;
 	saved_mq = $5;
@@ -19,7 +30,12 @@ $(NF-1) ~ /^rt:/  && ($(NF-1) ~ /:0$/ || $(NF-1) ~ /:2$/ || $(NF-1) ~ /:4$/ || $
 	next;
     }
     else {
-	split($NF, cb_str, ":");
+	for (ind=12; ind<=NF; ind++) {
+	    if ($(ind) ~ /^cb:/) {
+		split($(ind), cb_str, ":");
+	    }
+	}
+
 	split(cb_str[3], cb, "_");
 
 	# fragment and strand from cb string
@@ -39,7 +55,11 @@ $(NF-1) ~ /^rt:/  && ($(NF-1) ~ /:0$/ || $(NF-1) ~ /:2$/ || $(NF-1) ~ /:4$/ || $
 		split($i, mp, ":");
 	    }
 	}	
-	split($(NF-1),rt,":");
+	for (ind=12; ind<=NF; ind++) {
+	    if ($(ind) ~ /^rt:/) {
+		split($(ind), rt, ":");
+	    }
+	}
 	if (rt[3]%2==0) {
 	    chr1 = $3;
 	    chr2 = saved_chr;
