@@ -270,8 +270,7 @@ fi
 ### If not set in options, set samplename based on directory name
 if [ -z "$sampleName" ]
 then
-    sampleName=$(basename $(readlink -f "$topDir"))
-    sampleName=$(echo $sampleName | sed 's/@//' | sed 's/ //')
+    sampleName="NULL"
 fi
 
 ## Directories to be created and regex strings for listing files
