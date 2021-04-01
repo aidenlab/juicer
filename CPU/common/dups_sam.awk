@@ -68,9 +68,9 @@ BEGIN {
 # header
 $0 ~ /^@/{print}
 # read we're not considering (chimeric ambiguous or unmapped)
-$0 !~ /^@/ && $NF !~ /^cb:/{print}
+$0 !~ /^@/ && $0 !~ /cb:/{print}
 # read we consider
-$0 !~ /^@/ && $NF ~ /^cb:/ && pname == $1 {
+$0 !~ /^@/ && $0 ~ /cb:/ && pname == $1 {
     # save lines associated with readname
     # maximum possible is 4 since maximum chimeric count=4
     # saved1 should already have first line in it
@@ -85,7 +85,7 @@ $0 !~ /^@/ && $NF ~ /^cb:/ && pname == $1 {
     }
 }
 # handle previous read, this is a new read group
-$0 !~ /^@/ && $NF ~ /^cb:/ && pname != $1 {
+$0 !~ /^@/ && $0 ~ /cb:/ && pname != $1 {
     split(saved1[pname],line);
     # the below happens once, when nothing is saved yet
     if (length(line) == 0) {
@@ -94,11 +94,17 @@ $0 !~ /^@/ && $NF ~ /^cb:/ && pname != $1 {
 	rname[0]=$1;
 	next;
     }
-    if (line[length(line)] !~ /^cb:/) {
-	print "!!Error!! cb field not set" > "/dev/stderr";
-	exit;
+    setcb=0;
+    for (ind=12; ind<=length(line); ind++) {
+      if (line[ind] ~ /^cb:/) {
+	split(line[ind], cb_str, ":");
+	setcb=1;
+      }
     }
-    split(line[length(line)], cb_str, ":");
+    if (!setcb) {
+      print "!!Error!! cb field not set" > "/dev/stderr";
+      exit;
+    }
     split(cb_str[3], cb, "_");
     # check for potential duplicate: chromosome, fragment, strand  match, first position (sorted) within wobble1 
     if (cb[1] == p1 && cb[2] == p2 && int(cb[3]) == p3 && int(cb[4]) == p4 && cb[5] == p5 && cb[6] == p6 && abs(int(cb[7])-p7)<=wobble1) {
@@ -180,7 +186,11 @@ $0 !~ /^@/ && $NF ~ /^cb:/ && pname != $1 {
 END {
     # same code as above, just process final potential duplicate array
     split(saved1[pname],line);
-    split(line[length(line)], cb_str, ":");
+    for (ind=12; ind<=length(line); ind++) {
+      if (line[ind] ~ /^cb:/) {
+	split(line[ind], cb_str, ":");
+      }
+    }
     split(cb_str[3], cb, "_");
     rname[i]=line[1];
     pos1[i]=int(cb[7]);
