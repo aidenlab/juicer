@@ -480,7 +480,7 @@ then
 	mv $donesplitdir/* $splitdir/.
     fi
     
-    if ! samtools merge -t cb -n $sthreadstring $outputdir/merged_sort.bam  $splitdir/*.bam
+    if ! samtools merge -c -t cb -n $sthreadstring $outputdir/merged_sort.bam  $splitdir/*.bam
     then
 	echo "***! Some problems occurred somewhere in creating sorted align files."
 	exit 1
