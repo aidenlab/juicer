@@ -212,7 +212,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:t:jfecT:" opt; do
+while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfecT:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -236,6 +236,7 @@ while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:t:jfecT:" opt; do
 	j) justexact=1 ;;
 	e) earlyexit=1 ;;
 	T) threadsHic=$OPTARG ;;
+	i) sampleName=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -308,7 +309,6 @@ if [ -z "$ligation" ]; then
 	NheI) ligation="GCTAGCTAGC";;
 	StyI) ligation="CCWWGCWWGG";;
 	XhoI) ligation="CTCGATCGAG";;
-	merge) ligation="GATCGATC";;
 	BglII) ligation="AGATCGATCT";;
 	CviJI) ligation="'(AGCC|GGCT|AGCT|GGCC|GGGG|GGGA|AGGG|CCCT|CCCC|TCCC|AGAG|CTCT)'";;
 	MboI+MseI) ligation="'(GATCGATC|TTATAA)'";;
@@ -326,6 +326,7 @@ if [ -z "$ligation" ]; then
         CviAII+Csp6I) ligation="'(CATATG|GTATAC|CATTAC|GTAATG)'";;
         Csp6I+CviAII) ligation="'(CATATG|GTATAC|CATTAC|GTAATG)'";;
         Csp6I+CviAII+MseI) ligation="'(CATATG|CATTAA|CATTAC|TTAATG|TTATAA|TTATAC|GTATAC|GTATAA|GTAATG)'";;
+	Arima) ligation="'(GAATAATC|GAATACTC|GAATAGTC|GAATATTC|GAATGATC|GACTAATC|GACTACTC|GACTAGTC|GACTATTC|GACTGATC|GAGTAATC|GAGTACTC|GAGTAGTC|GAGTATTC|GAGTGATC|GATCAATC|GATCACTC|GATCAGTC|GATCATTC|GATCGATC|GATTAATC|GATTACTC|GATTAGTC|GATTATTC|GATTGATC)'" ;;
 	none) ligation="XXXX";;
 	*)  ligation="XXXX"
 	    echo "$site not listed as recognized enzyme."
@@ -354,7 +355,7 @@ then
     echo  "Using $site_file as site file"
 fi
 
-## Set threads for sending appropriate parameters to cluster and string for BWA call
+## Set threads for sending appropriate parameters to cluster and string for BWA/Samtools call
 if [ -z "$threads" ]
 then
     # default is 8 threads; may need to adjust
@@ -551,7 +552,7 @@ then
     then
 	echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with site file $site_file"
     else
-        echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with no fragment delimited maps."
+        echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with no site file."
     fi
     
     ## Split fastq files into smaller portions for parallelizing alignment 
@@ -735,14 +736,12 @@ ALGNR1`
 			awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/adjust_insert_size.awk $name$ext.sam2 | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
 		fi
 
-		if [[ -s ${name}${ext}.bam  ]] 
-		then    
-			rm $name$ext.sam* 
-		else
+		if [ \$? -ne 0 ]
 			echo "***! Failure during chimera handling of $name${ext}"
 			touch $errorfile
 			exit 1   
-
+		else
+			rm $name$ext.sam* 
 		fi  
 		
 		touch $touchfile

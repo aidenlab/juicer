@@ -67,14 +67,15 @@ qsub <<STATS0
 
 	date +"%Y-%m-%d %H:%M:%S"
 	$load_java
+        $load_samtools
 	export _JAVA_OPTIONS=-Xmx16384m; 
 	export LC_ALL=en_US.UTF-8
 
+        samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged0.txt  
 	tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt 
-	${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt
 	cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
 	java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
-	${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt
+	${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt $outputdir/merged0.txt
 
 STATS0
 
@@ -91,38 +92,46 @@ qsub <<STATS30
 	
 	date +"%Y-%m-%d %H:%M:%S"
 	$load_java
+        $load_samtools
 	export _JAVA_OPTIONS=-Xmx16384m; 
 	export LC_ALL=en_US.UTF-8
+        samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=30 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged30.txt  
 	echo -e 'Experiment description: $about' > $outputdir/inter_30.txt; 
 	tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter_30.txt 
 	cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter_30.txt
 	java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt
-	${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt
+	${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt $outputdir/merged30.txt
 
 STATS30
-
-
-qsub <<- ABNORMAL
-	#PBS -S /bin/bash
-	#PBS -q $queue
-	#PBS -l nodes=1:ppn=1:AMD
-	#PBS -l mem=60gb
-	#PBS -l $long_walltime
-	#PBS -o ${logdir}/\${timestamp}_abnormal_${groupname}.log
-	#PBS -j oe
-	#PBS -N abnorm_${groupname}
-	\$waitstring22
-	
-	cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam
-	cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam
-	awk -f ${juiceDir}/scripts/collisions.awk $outputdir/abnormal.sam > $outputdir/collisions.txt
-ABNORMAL
 
 jID_stats0=\$( qstat | grep stats0${groupname} | cut -d ' ' -f 1)
 
 wait
 echo "this is the value of jID_stats: \${jID_stats}"
 timestamp=\$(date +"%s" | cut -c 4-10)
+qsub <<- BAMRM
+	#PBS -S /bin/bash
+	#PBS -q $queue
+	#PBS -l nodes=1:ppn=1:AMD
+	#PBS -l mem=60gb
+	#PBS -l $long_walltime
+	#PBS -o ${logdir}/\${timestamp}_hic0_${groupname}.log
+	#PBS -j oe
+	#PBS -N bamrm_${groupname}
+	#PBS -W depend=afterok:\${jID_stats0}
+	
+	date +"%Y-%m-%d %H:%M:%S"
+        $load_samtools
+	export _JAVA_OPTIONS=-Xmx16384m
+
+        if samtools view -b $sthreadstring ${outputdir}/merged_dedup.sam > ${outputdir}/merged_dedup.bam
+        then 
+           rm ${outputdir}/merged_dedup.sam
+           rm ${outputdir}/merged_sort.bam
+        fi
+BAMRM
+
+
 echo "start submitting hic job"
 qsub <<- HICWORK
 	#PBS -S /bin/bash
@@ -139,11 +148,12 @@ qsub <<- HICWORK
 	echo "finished stats job,now launching the hic job."    
 	${load_java}
 	export _JAVA_OPTIONS=-Xmx16384m
+
 	if [ \"$nofrag\" -eq 1 ]
 	then 
-		${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
+		${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged0.txt $outputdir/inter.hic $genomePath
 	else 
-		${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomePath
+		${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged0.txt $outputdir/inter.hic $genomePath
 	fi
 HICWORK
 jID_stats30=\$( qstat | grep stats30${groupname} | cut -d ' ' -f 1)
@@ -164,15 +174,11 @@ qsub <<- HIC30WORK
 	$load_java
 	export _JAVA_OPTIONS=-Xmx16384m
 	export LC_ALL=en_US.UTF-8
-	echo -e 'Experiment description: $about' > $outputdir/inter_30.txt
-	cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter_30.txt
-	java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt
-	${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt
 	if [  \"$nofrag\" -eq 1 ]
 	then 
-	${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
+	${juiceDir}/scripts/juicer_tools pre -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
 	else 
-		${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomePath
+		${juiceDir}/scripts/juicer_tools pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
 	fi
 HIC30WORK
 
