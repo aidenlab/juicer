@@ -528,31 +528,50 @@ fi
 #Skip if post-processing only is required
 if [ -z $postproc ]
     then
-
-    # Check that dedupping worked properly
-    # in ideal world, we would check this in split_rmdups and not remove before we know they are correct
-    size1=$(samtools view -h ${outputdir}/merged_sort.bam | wc -l | awk '{print $1}')
-    size2=$(wc -l ${outputdir}/merged_dedup.sam | awk '{print $1}')
+    # if we haven't already zipped up merged_dedup
+    if [ ! -s  ${outputdir}/merged_dedup.bam ]
+    then 
+        # Check that dedupping worked properly
+        # in ideal world, we would check this in split_rmdups and not remove before we know they are correct
+	size1=$(samtools view -h ${outputdir}/merged_sort.bam | wc -l | awk '{print $1}')
+	size2=$(wc -l ${outputdir}/merged_dedup.sam | awk '{print $1}')
 	
-    if [ $size1 -ne $size2 ]
-    then
-	echo "***! Error! The sorted file and dups/no dups files do not add up, or were empty."
-	exit 1
+	if [ $size1 -ne $size2 ]
+	then
+	    echo "***! Error! The sorted file and dups/no dups files do not add up, or were empty."
+	    exit 1
+	fi
+	samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged0.txt
+	samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=30 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged30.txt
+    else
+	if [ ! -s ${outputdir}/merged0.txt ] 
+	then
+	    samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.bam | awk -v mapq=1 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged0.txt
+	fi
+	if [ ! -s ${outputdir}/merged30.txt ]
+	then
+	    samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.bam | awk -v mapq=30 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged30.txt
+	fi
     fi
-
-    samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged0.txt
-    samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=30 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged30.txt
 
     if [[ $threadsHic -gt 1 ]]
     then
-	time ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged0.txt 500000 > ${outputdir}/merged0_index.txt
-	time ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
+	if [ ! -s ${outputdir}/merged0_index.txt ]
+	then
+	    time ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged0.txt 500000 > ${outputdir}/merged0_index.txt
+	fi
+	if [ ! -s ${outputdir}/merged30_index.txt ]
+	then
+	    time ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
+	fi
     fi
 
-    if samtools view -b $sthreadstring ${outputdir}/merged_dedup.sam > ${outputdir}/merged_dedup.bam
-    then
-	rm ${outputdir}/merged_dedup.sam
-	rm ${outputdir}/merged_sort.bam
+    if [ ! -s  ${outputdir}/merged_dedup.bam ]
+	if samtools view -b $sthreadstring ${outputdir}/merged_dedup.sam > ${outputdir}/merged_dedup.bam
+	then
+	    rm ${outputdir}/merged_dedup.sam
+	    rm ${outputdir}/merged_sort.bam
+	fi
     fi
 
     export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"
