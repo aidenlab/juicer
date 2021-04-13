@@ -74,7 +74,7 @@ qsub <<STATS0
         samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged0.txt  
 	tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt 
 	cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
-	java -cp ${juiceDir}/scripts/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
+	${juiceDir}/scripts/juicer_tools LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt
 	${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt $outputdir/merged0.txt
 
 STATS0
