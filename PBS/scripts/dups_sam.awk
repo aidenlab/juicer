@@ -184,61 +184,69 @@ $0 !~ /^@/ && $0 ~ /cb:/ && pname != $1 {
     saved1[$1]=$0;
 } # pname != $1
 END {
-    # same code as above, just process final potential duplicate array
     split(saved1[pname],line);
-    for (ind=12; ind<=length(line); ind++) {
-      if (line[ind] ~ /^cb:/) {
-	split(line[ind], cb_str, ":");
-      }
-    }
-    split(cb_str[3], cb, "_");
-    rname[i]=line[1];
-    pos1[i]=int(cb[7]);
-    pos2[i]=int(cb[8]);
-    i++;
-
-    # size of potential duplicate array is bigger than 1
-    if (i > 1) {
-	for (j=0; j<i; j++) {
-	    # only consider reads that aren't already marked duplicate
-	    # (no daisy-chaining)
-	    if (!(j in dups)) {
-		for (k=j+1; k<i; k++) {
-		    # check each item in array against all the rest 
-		    if (tooclose(pos1[j],pos1[k],pos2[j],pos2[k])) {
-			dups[k]++; #places a 1 at dups[k]
-		    }
-		    if (abs(pos1[j]-pos1[k])>wobble1) {
-			break
+    # length of line is 0 if all the reads did not have cb tag set
+    # this happens when processing many reads, the first reads in sorted
+    # cb order do not have the cb tag set since they are chimeric ambiguous
+    if (length(line) != 0) {
+	for (ind=12; ind<=length(line); ind++) {
+	    if (line[ind] ~ /^cb:/) {
+		split(line[ind], cb_str, ":");
+		setcb=1;
+	    }
+	}
+	if (!setcb) {
+	    print "!!Error!! cb field not set" > "/dev/stderr";
+	    exit;
+	}
+	split(cb_str[3], cb, "_");
+	rname[i]=line[1];
+	pos1[i]=int(cb[7]);
+	pos2[i]=int(cb[8]);
+	i++;
+	
+	# size of potential duplicate array is bigger than 1
+	if (i > 1) {
+	    for (j=0; j<i; j++) {
+		# only consider reads that aren't already marked duplicate
+		# (no daisy-chaining)
+		if (!(j in dups)) {
+		    for (k=j+1; k<i; k++) {
+			# check each item in array against all the rest 
+			if (tooclose(pos1[j],pos1[k],pos2[j],pos2[k])) {
+			    dups[k]++; #places a 1 at dups[k]
+			}
+			if (abs(pos1[j]-pos1[k])>wobble1) {
+			    break
+			}
 		    }
 		}
 	    }
-	}
-	# markdups 
-	for (j=0; j<i; j++) {
-	    if (j in dups) {
-		count_dups++;
-		markduplicate(saved1[rname[j]]);
-		markduplicate(saved2[rname[j]]);
-		if (rname[j] in saved3) markduplicate(saved3[rname[j]]);
-		if (rname[j] in saved4) markduplicate(saved4[rname[j]]);
+	    # markdups 
+	    for (j=0; j<i; j++) {
+		if (j in dups) {
+		    count_dups++;
+		    markduplicate(saved1[rname[j]]);
+		    markduplicate(saved2[rname[j]]);
+		    if (rname[j] in saved3) markduplicate(saved3[rname[j]]);
+		    if (rname[j] in saved4) markduplicate(saved4[rname[j]]);
+		}
+		else {
+		    print saved1[rname[j]];
+		    print saved2[rname[j]];
+		    if (rname[j] in saved3) print saved3[rname[j]];
+		    if (rname[j] in saved4) print saved4[rname[j]];
+		}
 	    }
-	    else {
-		print saved1[rname[j]];
-		print saved2[rname[j]];
-		if (rname[j] in saved3) print saved3[rname[j]];
-		if (rname[j] in saved4) print saved4[rname[j]];
-	    }
-	    
 	}
+	# size of potential duplicate array is 1, by definition not a duplicate
+	else if (i==1) {
+	    print saved1[rname[0]];
+	    print saved2[rname[0]];
+	    if (rname[0] in saved3) print saved3[rname[0]];
+	    if (rname[0] in saved4) print saved4[rname[0]];
+	}
+	print count_dups > fname;
     }
-    # size of potential duplicate array is 1, by definition not a duplicate
-    else if (i==1) {
-	print saved1[rname[0]];
-	print saved2[rname[0]];
-	if (rname[0] in saved3) print saved3[rname[0]];
-	if (rname[0] in saved4) print saved4[rname[0]];
-    }
-    print count_dups > fname;
 }
 
