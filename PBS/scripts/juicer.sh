@@ -77,7 +77,7 @@ echo "$0 $@"
 # set global tmpdir so no problems with /var/tmp
 ## use cluster load commands:
 #usePath=""
-load_bwa="module load bwa/0.7.15"
+load_bwa="module load bwa/0.7.17"
 load_java='module load java/jdk1.8.0_131'
 load_samtools="module load samtools"
 #load_cluster=""
@@ -106,8 +106,10 @@ EMAIL='#PBS -M xxx@gmail.com'
 # if your fastq files look different, change this value
 read1str="_R1"
 read2str="_R2"
+
 # default number of threads
-threads=8
+#threads=8
+threads=1
 # default memory allocation
 alloc_mem=$(($threads * 8000))
 # default max memory allocation
@@ -129,7 +131,7 @@ groupname="C$(date "+%s"|cut -c 6-11)"
 # top level directory, can also be set in options
 topDir=$(pwd)
 # restriction enzyme, can also be set in options
-site="MboI"
+site="none"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
 # normally both read ends are aligned with long read aligner;
@@ -137,7 +139,7 @@ genomeID="hg19"
 shortreadend=0
 # description, default empty
 about=""
-nofrag=0
+nofrag=1
 
 ## Read arguments
 usageHelp="Usage: ${0##*/} [-W group_list=genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads] [-T threadsHic]\n                 [-e] [-h] [-f] [-j]"
@@ -434,8 +436,8 @@ then
                 #PBS -S /bin/bash
                 #PBS -q $queue
                 #PBS -l $walltime
-                #PBS -l nodes=1:ppn=1:AMD
-                #PBS -l mem=20gb
+                #PBS -l nodes=1:ppn=1
+                #PBS -l mem=2gb
                 ${EMAIL}
                 #PBS -m a
                 #PBS -o ${logdir}/${timestamp}_split_${filename}_${groupname}.log
@@ -460,8 +462,8 @@ SPLITEND
             #PBS -S /bin/bash
             #PBS -q $queue
             #PBS -l $walltime
-            #PBS -l nodes=1:ppn=1:AMD
-            #PBS -l mem=20gb
+            #PBS -l nodes=1:ppn=1
+            #PBS -l mem=2gb
             ${EMAIL}
             #PBS -m a
             #PBS -o ${logdir}/${timestamp}_move_${groupname}.log
@@ -500,7 +502,7 @@ SPLITMV
     #PBS -S /bin/bash
     #PBS -q $queue
     #PBS -l $walltime
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=6gb
     #PBS -o ${logdir}/${timestamp}_alnwrap_${groupname}.log
     #PBS -j oe
@@ -530,7 +532,7 @@ SPLITMV
         #PBS -S /bin/bash
         #PBS -q $queue
         #PBS -l $walltime
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=4gb
         ${EMAIL}
         #PBS -m a
@@ -575,7 +577,7 @@ CNTLIG
         #PBS -S /bin/bash
         #PBS -q $queue
         #PBS -l $walltime
-        #PBS -l nodes=1:ppn=${threads}:AMD
+        #PBS -l nodes=1:ppn=${threads}
         #PBS -l mem=\${alloc_mem}
         ${EMAIL}
         #PBS -m a
@@ -613,7 +615,7 @@ ALGNR1
         #PBS -S /bin/bash
         #PBS -q $queue
         #PBS -l $long_walltime
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=24gb
         ${EMAIL}
         #PBS -m a
@@ -665,7 +667,7 @@ MRGALL
     qsub <<- CKALIGNFAIL
     #PBS -S /bin/bash
     #PBS -q $queue  
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=2gb
     #PBS -l $walltime
     ${EMAIL}
@@ -683,7 +685,7 @@ CKALIGNFAIL
     qsub <<- CKALIGNFAILCLN
     #PBS -S /bin/bash
     #PBS -q $queue  
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=4gb
     #PBS -l $walltime
     ${EMAIL}
@@ -721,7 +723,7 @@ then
     qsub <<MRGSRTWRAP
     #PBS -S /bin/bash
     #PBS -q $queue  
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=24gb
     #PBS -l $walltime
     ${EMAIL}
@@ -747,7 +749,7 @@ then
     qsub <<MRGSRT
         #PBS -S /bin/bash
         #PBS -q $queue  
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=24gb
         #PBS -l $walltime
         ${EMAIL}
@@ -778,7 +780,7 @@ MRGSRT
         qsub <<MRGSRTFAILCK
         #PBS -S /bin/bash
         #PBS -q $queue  
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=2gb
         #PBS -l $walltime
         ${EMAIL}
@@ -811,7 +813,7 @@ then
     qsub <<RMDUPWRAP
     #PBS -S /bin/bash
     #PBS -q $queue  
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=4gb
     #PBS -l $walltime
     ${EMAIL}
@@ -833,7 +835,7 @@ then
     qsub <<RMDUPLICATE
         #PBS -S /bin/bash
         #PBS -q $queue  
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=4gb
         #PBS -l $walltime
         ${EMAIL}
@@ -880,7 +882,7 @@ then
 		qsub <<SUPERWRAP1
         #PBS -S /bin/bash
         #PBS -q $queue
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=1gb
         #PBS -l $walltime
         ${EMAIL}
@@ -926,7 +928,7 @@ SUPERWRAP1
     #PBS -S /bin/bash
     #PBS -q $queue
     #PBS -l $walltime
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=4gb
     #PBS -o ${logdir}/${timestamp}_super_wrap2_${groupname}.log
     #PBS -j oe
@@ -963,7 +965,7 @@ else
     #PBS -S /bin/bash
     #PBS -q $queue
     #PBS -l $walltime
-    #PBS -l nodes=1:ppn=1:AMD 
+    #PBS -l nodes=1:ppn=1 
     #PBS -l mem=1gb
     #PBS -o ${logdir}/${timestamp}_prep_done_${groupname}.out
     #PBS -j oe
@@ -981,7 +983,7 @@ else
         #PBS -S /bin/bash
         #PBS -q $queue
         #PBS -l $walltime
-        #PBS -l nodes=1:ppn=1:AMD 
+        #PBS -l nodes=1:ppn=1 
         #PBS -l mem=1gb
         #PBS -o ${logdir}/\${timestamp}_done_${groupname}.log
         #PBS -j oe

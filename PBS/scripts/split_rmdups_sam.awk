@@ -45,10 +45,10 @@ BEGIN{
       cmd |& getline jID_osplit;
       sname=sprintf("%s_msplit%04d_", groupname, name);
       if (justexact) {
-	sysstring1=sprintf("qsub -l %s -o %s_%s.log -j oe -W group_list=cu_10027 -A cu_10027 -q %s -N DDuP%s%s -l mem=4gb -l nodes=1:ppn=1:thinnode -W depend=afterok:%s <<-EOF\nawk -f  %s/scripts/dups_sam.awk -v nowobble=1 -v fname=%s/%s_count %s/split%04d >  %s/%s;\nEOF\n", walltime, outfile, sname, queue, name, groupname, jID_osplit, juicedir, dir, sname, dir, name, dir, name, dir, sname);
+	sysstring1=sprintf("qsub -l %s -o %s_%s.log -j oe -q %s -N DDuP%s%s -l mem=4gb -l nodes=1:ppn=1 -W depend=afterok:%s <<-EOF\nawk -f  %s/scripts/dups_sam.awk -v nowobble=1 -v fname=%s/%s_count %s/split%04d >  %s/%s;\nEOF\n", walltime, outfile, sname, queue, name, groupname, jID_osplit, juicedir, dir, sname, dir, name, dir, name, dir, sname);
       }
       else {
-	sysstring1=sprintf("qsub -l %s -o %s_%s.log -j oe -W group_list=cu_10027 -A cu_10027 -q %s -N DDuP%s%s -l mem=4gb -l nodes=1:ppn=1:thinnode -W depend=afterok:%s <<-EOF\nawk -f  %s/scripts/dups_sam.awk -v fname=%s/%s_count %s/split%04d >  %s/%s;\nEOF\n", walltime, outfile, sname, queue, name, groupname, jID_osplit ,juicedir, dir, sname, dir, name, dir, name, dir, sname);
+	sysstring1=sprintf("qsub -l %s -o %s_%s.log -j oe -q %s -N DDuP%s%s -l mem=4gb -l nodes=1:ppn=1 -W depend=afterok:%s <<-EOF\nawk -f  %s/scripts/dups_sam.awk -v fname=%s/%s_count %s/split%04d >  %s/%s;\nEOF\n", walltime, outfile, sname, queue, name, groupname, jID_osplit ,juicedir, dir, sname, dir, name, dir, name, dir, sname);
       }
       system(sysstring1);
       cmd1=sprintf("qstat | grep DDuP%s%s | cut -d ' ' -f 1 | cut -d '.' -f 1-2",name,groupname);
@@ -85,12 +85,12 @@ END {
   sname=sprintf("%s_msplit%04d_", groupname, name);
   print "This is the begining of END step, submitting _dedup job in END step";
   if (justexact) {
-    sysstring2=sprintf("qsub -l %s -o %s_%s_dedup%s.log -j oe -q %s -N DDuP%s%s -W depend=afterok:%s <<-EOF\nawk -f  %s/scripts/dups_sam.awk -v nowobble=1 -v fname=%s/%s_count %s/split%04d >  %s/%s;\nEOF\n", walltime, outfile, sname, name, queue, name, groupname, jID_osplit, juicedir, dir, sname, dir, name, dir, name, dir, sname);
+    sysstring1=sprintf("qsub -l %s -o %s_%s.log -j oe -q %s -N DDuP%s%s -l mem=4gb -l nodes=1:ppn=1 -W depend=afterok:%s <<-EOF\nawk -f  %s/scripts/dups_sam.awk -v nowobble=1 -v fname=%s/%s_count %s/split%04d >  %s/%s;\nEOF\n", walltime, outfile, sname, queue, name, groupname, jID_osplit, juicedir, dir, sname, dir, name, dir, name, dir, sname);
   }
   else {
-    sysstring2=sprintf("qsub -l %s -o %s_%s_dedup%s.log -j oe -q %s -N DDuP%s%s -W depend=afterok:%s <<-EOF\nawk -f  %s/scripts/dups_sam.awk -v fname=%s/%s_count %s/split%04d >  %s/%s;\nEOF\n", walltime, outfile, sname, name, queue, name, groupname, jID_osplit, juicedir, dir, sname, dir, name, dir, name, dir, sname);
+    sysstring1=sprintf("qsub -l %s -o %s_%s.log -j oe -q %s -N DDuP%s%s -l mem=4gb -l nodes=1:ppn=1 -W depend=afterok:%s <<-EOF\nawk -f  %s/scripts/dups_sam.awk -v fname=%s/%s_count %s/split%04d >  %s/%s;\nEOF\n", walltime, outfile, sname, queue, name, groupname, jID_osplit ,juicedir, dir, sname, dir, name, dir, name, dir, sname);
   }
-
+  
   system(sysstring2);
   sname=sprintf("%s_msplit%04d_", groupname, name);
 
