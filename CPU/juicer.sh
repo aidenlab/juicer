@@ -533,7 +533,7 @@ if [ -z $postproc ]
     then 
         # Check that dedupping worked properly
         # in ideal world, we would check this in split_rmdups and not remove before we know they are correct
-	size1=$(samtools view -h ${outputdir}/merged_sort.bam | wc -l | awk '{print $1}')
+	size1=$(samtools view $sthreadstring -h ${outputdir}/merged_sort.bam | wc -l | awk '{print $1}')
 	size2=$(wc -l ${outputdir}/merged_dedup.sam | awk '{print $1}')
 	
 	if [ $size1 -ne $size2 ]
