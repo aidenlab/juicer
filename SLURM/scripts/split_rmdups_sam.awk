@@ -42,10 +42,10 @@
       sname = sprintf("%s_msplit%04d", groupname, name);
       sscriptname = sprintf("%s/.%s.slurm", debugdir, sname);
       if (justexact) {
-	printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk -v nowobble=1 -v fname=%s/%s_count  %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, debugdir, sname, dir, name, dir, sname, tot) > sscriptname;
+	printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk -v nowobble=1 %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, dir, name, dir, sname, tot) > sscriptname;
       }
       else {
-	printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk -v fname=%s/%s_count %s/split%04d > %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, debugdir, sname, dir, name, dir, sname, tot) > sscriptname;
+	printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk %s/split%04d > %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, dir, name, dir, sname, tot) > sscriptname;
       }
       sysstring = sprintf("sbatch %s", sscriptname);
       system(sysstring);
@@ -74,11 +74,10 @@ END {
     sname = sprintf("%s_msplit%04d", groupname, name);
     sscriptname = sprintf("%s/.%s.slurm", debugdir, sname);
     if (justexact) {
-	printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk -v nowobble=1 -v fname=%s/%s_count %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, debugdir, sname, dir, name, dir, sname, tot) > sscriptname;
-
+      printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk -v nowobble=1 %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, dir, name, dir, sname, tot) > sscriptname;
     }
     else {
-	printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk -v fname=%s/%s_count %s/split%04d > %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, debugdir, sname, dir, name, dir, sname, tot) > sscriptname;
+      printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk %s/split%04d > %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, dir, name, dir, sname, tot) > sscriptname;
     }
     sysstring = sprintf("sbatch %s", sscriptname);
     system(sysstring);

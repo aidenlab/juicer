@@ -24,6 +24,14 @@
 ##########
 # Script to read in individual split outputs and put stats together
 # Juicer version 2.0
+# Number of dups must be sent in via -v dups=# or printed in file fname
+BEGIN {
+  if (length(fname)>0) {
+    while (getline < fname) {
+      dups=$1;
+    }
+  }
+}
 {
   tot+=$2; # total reads
   unm+=$3; # unmapped
@@ -33,8 +41,19 @@
   lowc+=$7; # low mapq collisions 
   mapq0+=$8; # mapq0
   lig+=$1; #ligations
+  singleton+=$9; #single alignment reads
+  insertsize+=$10; #average insert size
 }
 END{
   if (tot==0) tot=1;
-  printf("Sequenced Read Pairs:  %'d\n Normal Paired: %'d (%0.2f%)\n Chimeric Paired: %'d (%0.2f%)\n Collisions: %'d (%0.2f%)\n Low MAPQ Collisions: %'d (%0.2f%)\n Unmapped: %'d (%0.2f%)\n MAPQ 0: %'d (%0.2f%)\n Ligation Motif Present: %'d (%0.2f%)\nAlignable (Normal+Chimeric Paired): %'d (%0.2f%)\n", tot, norm, norm*100/tot, chim, chim*100/tot, coll, coll*100/tot, lowc, lowc*100/tot, unm, unm*100/tot, mapq0, mapq0*100/tot, lig, lig*100/tot, norm+chim, (norm+chim)*100/tot);
+  if (ligation!~/XXXX/) {
+    printf("Sequenced Read Pairs:  %'d\n Normal Paired: %'d (%0.2f%)\n Chimeric Paired: %'d (%0.2f%)\n Collisions: %'d (%0.2f%)\n Low MAPQ Collisions: %'d (%0.2f%)\n Unmapped: %'d (%0.2f%)\n MAPQ 0: %'d (%0.2f%)\n Ligation Motif Present: %'d (%0.2f%)\nSingle Alignment: %'d (%0.2f%)\n Average insert size: %0.2f\n Alignable (Normal+Chimeric Paired): %'d (%0.2f%)\n", tot, norm, norm*100/tot, chim, chim*100/tot, coll, coll*100/tot, lowc, lowc*100/tot, unm, unm*100/tot, mapq0, mapq0*100/tot, lig, lig*100/tot, singleton, singleton*100/tot, insertsize/NR, norm+chim, (norm+chim)*100/tot);
+  }
+  else {
+    printf("Sequenced Read Pairs:  %'d\n Normal Paired: %'d (%0.2f%)\n Chimeric Paired: %'d (%0.2f%)\n Collisions: %'d (%0.2f%)\n Low MAPQ Collisions: %'d (%0.2f%)\n Unmapped: %'d (%0.2f%)\n MAPQ 0: %'d (%0.2f%)\n Ligation Motif Present: N/A\nSingle Alignment: %'d (%0.2f%)\n Average insert size: %0.2f\n Alignable (Normal+Chimeric Paired): %'d (%0.2f%)\n", tot, norm, norm*100/tot, chim, chim*100/tot, coll, coll*100/tot, lowc, lowc*100/tot, unm, unm*100/tot, mapq0, mapq0*100/tot, singleton, singleton*100/tot, insertsize/NR, norm+chim, (norm+chim)*100/tot);
+  }
+  uniq=norm+chim-dups;
+  alignable=norm+chim;
+  if (alignable==0) alignable=1;
+  printf("Unique Reads:  %'d (%0.2f%,%0.2f%)\nDuplicates:  %'d (%0.2f%,%0.2f%)\")\n", uniq, uniq*100/alignable, uniq*100/tot, dups, dups*100/alignable, dups*100/tot);
 }

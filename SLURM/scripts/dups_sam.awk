@@ -246,7 +246,7 @@ END {
 	    if (rname[0] in saved3) print saved3[rname[0]];
 	    if (rname[0] in saved4) print saved4[rname[0]];
 	}
-	print count_dups > fname;
+	#print count_dups > fname;
     }
 }
 

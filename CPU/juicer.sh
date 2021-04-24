@@ -499,9 +499,9 @@ if [ -z $final ] && [ -z $postproc ]
 then
     if [ $justexact -eq 1 ]
     then
-	samtools view $sthreadstring -h $outputdir/merged_sort.bam | awk -f $juiceDir/scripts/common/dups_sam.awk -v nowobble=1 -v fname=$outputdir/dup_count > $outputdir/merged_dedup.sam
+	samtools view $sthreadstring -h $outputdir/merged_sort.bam | awk -f $juiceDir/scripts/common/dups_sam.awk -v nowobble=1 > $outputdir/merged_dedup.sam
     else
-	samtools view $sthreadstring -h $outputdir/merged_sort.bam | awk -f $juiceDir/scripts/common/dups_sam.awk -v fname=$outputdir/dup_count > $outputdir/merged_dedup.sam
+	samtools view $sthreadstring -h $outputdir/merged_sort.bam | awk -f $juiceDir/scripts/common/dups_sam.awk  > $outputdir/merged_dedup.sam
     fi
     if [ $? -ne 0 ]
     then
@@ -577,8 +577,10 @@ if [ -z $postproc ]
     export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"
     export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
     tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt
-    cat $splitdir/*.res.txt | awk -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
-    awk 'NR==FNR{if ($1 ~ /Alignable/){split($0,a,":"); split(a[2],b); gsub(",","", b[1]); tot=int(b[1]);}}FNR!=NR{sum+=$1}END{print "Unique Reads: ",int(tot-sum); print "Duplicates:",sum}' $outputdir/inter.txt $outputdir/*_count >> $outputdir/inter.txt
+
+    dups=$(samtools view -c -f 1089 -F 256 merged_dedup.sam)
+    cat $splitdir/*.res.txt | awk -v ligation=$ligation -v dups=$dups -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
+
     cp $outputdir/inter.txt $outputdir/inter_30.txt
     perl ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt $outputdir/merged0.txt
     perl ${juiceDir}/scripts/common/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt $outputdir/merged30.txt
