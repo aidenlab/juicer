@@ -46,14 +46,14 @@ END{
   if (tot==0) tot=1;
   printf("Sequenced Read Pairs:  %'d\n Normal Paired: %'d (%0.2f%)\n Chimeric Paired: %'d (%0.2f%)\n Chimeric Ambiguous: %'d (%0.2f%)\n Unmapped: %'d (%0.2f%)\n", tot, norm, norm*100/tot, chim, chim*100/tot, coll, coll*100/tot, unm, unm*100/tot);
   if (ligation ~ /XXXX/) {
-    printf("  Ligation Motif Present: N/A\n");
+    printf(" Ligation Motif Present: N/A\n");
   }
   else {
     printf(" Ligation Motif Present: %'d (%0.2f%)\n", lig, lig*100/tot);
   }
   alignable=norm+chim;
-  printf(" Single Alignment: %'d (%0.2f%)\n Average insert size: %0.2f\n Alignable (Normal+Chimeric Paired): %'d (%0.2f%)\n",  singleton, singleton*100/tot, insertsize/NR, alignable, alignable*100/tot);
+  printf(" Single Alignment: %'d (%0.2f%)\n Average insert size: %0.2f\nAlignable (Normal+Chimeric Paired): %'d (%0.2f%)\n",  singleton, singleton*100/tot, insertsize/NR, alignable, alignable*100/tot);
   uniq=alignable-dups;
   if (alignable==0) alignable=1;
-  printf("Unique Reads:  %'d (%0.2f%,%0.2f%)\nDuplicates:  %'d (%0.2f%,%0.2f%)\")\n", uniq, uniq*100/alignable, uniq*100/tot, dups, dups*100/alignable, dups*100/tot);
+  printf("Unique Reads: %'d (%0.2f%, %0.2f%)\nDuplicates: %'d (%0.2f%, %0.2f%)\n", uniq, uniq*100/alignable, uniq*100/tot, dups, dups*100/alignable, dups*100/tot);
 }

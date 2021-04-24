@@ -1001,8 +1001,8 @@ DUPCHECK`
 	$userstring
 	${load_samtools}
 
-	samtools view -F 1024 -O sam $sthreadstring ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged0.txt 
-        date                                                                                                           
+	samtools view -F 1024 -O sam $sthreadstring ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged0.txt
+        date
 MERGED0`
 
     sbatch_wait1="#SBATCH -d afterok:$jid1"
@@ -1020,8 +1020,8 @@ MERGED0`
 	$userstring
 	${load_samtools}
 
-	samtools view -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=30 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged30.txt 
-        date                                                                                                           
+	samtools view -F 1024 -O sam $sthreadstring ${outputdir}/merged_dedup.sam | awk -v mapq=30 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged30.txt 
+        date
 MERGED30`
     sbatch_wait2="#SBATCH -d afterok:$jid2"
 
@@ -1065,10 +1065,13 @@ BAMRM`
         export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"
         export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
         tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt
-	samtools view $sthreadstring -c -f 1089 -F 256 merged_dedup.sam > $outputdir/tmp
+	samtools view $sthreadstring -c -f 1089 -F 256 $outputdir/merged_dedup.*am > $outputdir/tmp
 	
 	cat $splitdir/*.res.txt | awk -v fname=$outputdir/tmp -v ligation=$ligation -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
+	awk 'FNR==NR{dups=$1}FNR!=NR{if (\\\$1 ~ /Alignable/){split(\\\$0,a,":");split(a[2],b); gsub(",","", b[1]); tot=int(b[1]); print tot-dups}}' $outputdir/tmp $outputdir/inter.txt >> $outputdir/tmp
+	${juiceDir}/scripts/juicer_tools FastLibraryComplexity $outputdir/tmp | awk '\\\$0 ~ /Library/' >> $outputdir/inter.txt
         cp $outputdir/inter.txt $outputdir/inter_30.txt
+	rm $outputdir/tmp
         date
 PRESTATS`
 
