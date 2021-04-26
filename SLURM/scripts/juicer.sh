@@ -1066,12 +1066,10 @@ BAMRM`
         export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
         tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt
 	samtools view $sthreadstring -c -f 1089 -F 256 $outputdir/merged_dedup.*am > $outputdir/tmp
-	
+	cp  $outputdir/tmp  $outputdir/tmp2 
 	cat $splitdir/*.res.txt | awk -v fname=$outputdir/tmp -v ligation=$ligation -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
-	awk 'FNR==NR{dups=$1}FNR!=NR{if (\\\$1 ~ /Alignable/){split(\\\$0,a,":");split(a[2],b); gsub(",","", b[1]); tot=int(b[1]); print tot-dups}}' $outputdir/tmp $outputdir/inter.txt >> $outputdir/tmp
-	${juiceDir}/scripts/juicer_tools FastLibraryComplexity $outputdir/tmp | awk '\\\$0 ~ /Library/' >> $outputdir/inter.txt
+
         cp $outputdir/inter.txt $outputdir/inter_30.txt
-	rm $outputdir/tmp
         date
 PRESTATS`
 
@@ -1095,8 +1093,11 @@ PRESTATS`
 		then 
 			echo "***! Found errorfile. Exiting." 
 			exit 1 
-		fi 
-		perl ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt $outputdir/merged0.txt
+		fi
+		wc -l $outputdir/merged0.txt >> $outputdir/tmp
+		awk 'FNR==NR{if (NR==1) dups=\\\$1; else mapq=\\\$1;}FNR!=NR{if (\\\$1 ~ /Sequenced/){split(\\\$0,a,":");split(a[2],b);gsub(",","", b[1]);all=int(b[1]);  } if (\\\$1 ~ /Alignable/){split(\\\$0,a,":");split(a[2],b); gsub(",","", b[1]); tot=int(b[1]); uniq=tot-dups;}}END{printf("Below MAPQ Threshold: %d (%0.2f%, %0.2f%)\n", uniq-mapq, 100*(uniq-mapq)/uniq, 100*(uniq-mapq)/all);}' $outputdir/tmp $outputdir/inter.txt >> $outputdir/inter.txt
+		${juiceDir}/scripts/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter.txt $outputdir/merged0.txt $genomeID
+		rm $outputdir/tmp
 
 		date
 STATS`
@@ -1115,8 +1116,11 @@ STATS`
 		#SBATCH -J "${groupname}_stats30"
 		${sbatch_wait00}
                 $userstring			
+		wc -l $outputdir/merged30.txt >> $outputdir/tmp2
+		awk 'FNR==NR{if (NR==1) dups=\\\$1; else mapq=\\\$1;}FNR!=NR{if (\\\$1 ~ /Sequenced/){split(\\\$0,a,":");split(a[2],b);gsub(",","", b[1]);all=int(b[1]);  } if (\\\$1 ~ /Alignable/){split(\\\$0,a,":");split(a[2],b); gsub(",","", b[1]); tot=int(b[1]); uniq=tot-dups;}}END{printf("Below MAPQ Threshold: %d (%0.2f%, %0.2f%)\n", uniq-mapq, 100*(uniq-mapq)/uniq, 100*(uniq-mapq)/all);}' $outputdir/tmp2 $outputdir/inter30.txt >> $outputdir/inter30.txt
+		${juiceDir}/scripts/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter30.txt $outputdir/merged30.txt $genomeI
+		rm $outputdir/tmp2
 
-		perl ${juiceDir}/scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt $outputdir/merged30.txt
 		date
 STATS30`
 
