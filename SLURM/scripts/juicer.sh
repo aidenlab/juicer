@@ -1066,62 +1066,56 @@ BAMRM`
         export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
         tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt
 	samtools view $sthreadstring -c -f 1089 -F 256 $outputdir/merged_dedup.*am > $outputdir/tmp
-	cp  $outputdir/tmp  $outputdir/tmp2 
 	cat $splitdir/*.res.txt | awk -v fname=$outputdir/tmp -v ligation=$ligation -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
 
         cp $outputdir/inter.txt $outputdir/inter_30.txt
+	rm $outputdir/tmp
+
         date
 PRESTATS`
 
     sbatch_wait0="${sbatch_wait1}:$jid"
     sbatch_wait00="${sbatch_wait2}:$jid"
     jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
-		#!/bin/bash -l
-		#SBATCH -p $long_queue
-		#SBATCH -o $debugdir/stats-%j.out
-		#SBATCH -e $debugdir/stats-%j.err
-		#SBATCH -t $long_queue_time
-		#SBATCH -c 1
-		#SBATCH --ntasks=1
-		#SBATCH --mem=25G
-		#SBATCH -J "${groupname}_stats"
-		${sbatch_wait0}
-                $userstring			
+	#!/bin/bash -l
+	#SBATCH -p $long_queue
+	#SBATCH -o $debugdir/stats-%j.out
+	#SBATCH -e $debugdir/stats-%j.err
+	#SBATCH -t $long_queue_time
+	#SBATCH -c 1
+	#SBATCH --ntasks=1
+	#SBATCH --mem=25G
+	#SBATCH -J "${groupname}_stats"
+	${sbatch_wait0}
+        $userstring			
 
-		date
-		if [ -f "${errorfile}" ]
-		then 
-			echo "***! Found errorfile. Exiting." 
-			exit 1 
-		fi
-		wc -l $outputdir/merged0.txt >> $outputdir/tmp
-		awk 'FNR==NR{if (NR==1) dups=\\\$1; else mapq=\\\$1;}FNR!=NR{if (\\\$1 ~ /Sequenced/){split(\\\$0,a,":");split(a[2],b);gsub(",","", b[1]);all=int(b[1]);  } if (\\\$1 ~ /Alignable/){split(\\\$0,a,":");split(a[2],b); gsub(",","", b[1]); tot=int(b[1]); uniq=tot-dups;}}END{printf("Below MAPQ Threshold: %d (%0.2f%, %0.2f%)\n", uniq-mapq, 100*(uniq-mapq)/uniq, 100*(uniq-mapq)/all);}' $outputdir/tmp $outputdir/inter.txt >> $outputdir/inter.txt
-		${juiceDir}/scripts/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter.txt $outputdir/merged0.txt $genomeID
-		rm $outputdir/tmp
-
-		date
+	date
+	if [ -f "${errorfile}" ]
+	then 
+		echo "***! Found errorfile. Exiting." 
+		exit 1 
+	fi
+	${juiceDir}/scripts/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter.txt $outputdir/merged0.txt $genomeID
+	date
 STATS`
     sbatch_wait1="#SBATCH -d afterok:$jid"
 
     dependstats="afterok:$jid"
     jid=`sbatch <<- STATS30 | egrep -o -e "\b[0-9]+$"
-		#!/bin/bash -l
-		#SBATCH -p $long_queue
-		#SBATCH -o $debugdir/stats30-%j.out
-		#SBATCH -e $debugdir/stats30-%j.err
-		#SBATCH -t $long_queue_time
-		#SBATCH -c 1
-		#SBATCH --ntasks=1
-		#SBATCH --mem=25G
-		#SBATCH -J "${groupname}_stats30"
-		${sbatch_wait00}
-                $userstring			
-		wc -l $outputdir/merged30.txt >> $outputdir/tmp2
-		awk 'FNR==NR{if (NR==1) dups=\\\$1; else mapq=\\\$1;}FNR!=NR{if (\\\$1 ~ /Sequenced/){split(\\\$0,a,":");split(a[2],b);gsub(",","", b[1]);all=int(b[1]);  } if (\\\$1 ~ /Alignable/){split(\\\$0,a,":");split(a[2],b); gsub(",","", b[1]); tot=int(b[1]); uniq=tot-dups;}}END{printf("Below MAPQ Threshold: %d (%0.2f%, %0.2f%)\n", uniq-mapq, 100*(uniq-mapq)/uniq, 100*(uniq-mapq)/all);}' $outputdir/tmp2 $outputdir/inter30.txt >> $outputdir/inter30.txt
-		${juiceDir}/scripts/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter30.txt $outputdir/merged30.txt $genomeI
-		rm $outputdir/tmp2
-
-		date
+	#!/bin/bash -l
+	#SBATCH -p $long_queue
+	#SBATCH -o $debugdir/stats30-%j.out
+	#SBATCH -e $debugdir/stats30-%j.err
+	#SBATCH -t $long_queue_time
+	#SBATCH -c 1
+	#SBATCH --ntasks=1
+	#SBATCH --mem=25G
+	#SBATCH -J "${groupname}_stats30"
+	${sbatch_wait00}
+	$userstring			
+	wc -l $outputdir/merged30.txt >> $outputdir/tmp2
+	${juiceDir}/scripts/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter30.txt $outputdir/merged30.txt $genomeID
+	date
 STATS30`
 
     dependstats30="afterok:$jid"

@@ -577,16 +577,10 @@ if [ -z $postproc ]
     export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"
     export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
     tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt
-    dups=$(samtools view -c -f 1089 -F 256 merged_dedup.sam)
+    dups=$(samtools view -c -f 1089 -F 256 $outputdir/merged_dedup.bam)
     cat $splitdir/*.res.txt | awk -v ligation=$ligation -v dups=$dups -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
     cp $outputdir/inter.txt $outputdir/inter_30.txt
 
-    mapq0=$(wc -l $outputdir/merged0.txt | awk '{print $1}')
-    mapq30=$(wc -l $outputdir/merged30.txt | awk '{print $1}')
-
-    awk -v dups=$dups -v mapq=$mapq0 '{if ($1 ~ /Sequenced/){split($0,a,":");split(a[2],b);gsub(",","", b[1]);all=int(b[1]);  } if ($1 ~ /Alignable/){split($0,a,":");split(a[2],b); gsub(",","", b[1]); tot=int(b[1]); uniq=tot-dups;}}END{printf("Below MAPQ Threshold: %d (%0.2f%, %0.2f%)\n", uniq-mapq, 100*(uniq-mapq)/uniq, 100*(uniq-mapq)/all);}' $outputdir/inter.txt >> $outputdir/inter.txt
-    awk -v dups=$dups -v mapq=$mapq30 '{if ($1 ~ /Sequenced/){split($0,a,":");split(a[2],b);gsub(",","", b[1]);all=int(b[1]);  } if ($1 ~ /Alignable/){split($0,a,":");split(a[2],b); gsub(",","", b[1]); tot=int(b[1]); uniq=tot-dups;}}END{printf("Below MAPQ Threshold: %d (%0.2f%, %0.2f%)\n", uniq-mapq, 100*(uniq-mapq)/uniq, 100*(uniq-mapq)/all);}' $outputdir/inter30.txt >> $outputdir/inter30.txt
-              
     ${juiceDir}/scripts/common/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter.txt $outputdir/merged0.txt $genomeID
     ${juiceDir}/scripts/common/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter30.txt $outputdir/merged30.txt $genomeID
 
