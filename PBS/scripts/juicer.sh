@@ -559,17 +559,6 @@ CNTLIG
         echo "jID_cntlig \${countjobs} id is \${jID_cntlig}"
         ## Align read1
         # align read1 fastq
-        # allocate memory for alignment according to threads number
-        # set-up the max memory according to the cluster set-up
-        # this local cluster uses shared mem per node when in resource quest
-        alloc_mem_value=\$(( $threads * 5 ))
-        alloc_mem=\${alloc_mem_value}"gb"
-        #set the max mem cap accordingly to ensure the job resource request meet the cluster-setup
-        if [ \$alloc_mem_value -gt 240 ]
-        then
-            alloc_mem=240gb
-        fi
-
         echo "starting alignment"
 
         timestamp=\$(date +"%s" | cut -c 4-10)
@@ -879,7 +868,7 @@ then
         fi
         echo "waitstring0 is: $waitstring0"
         timestamp=$(date +"%s" | cut -c 4-10)
-		qsub <<SUPERWRAP1
+	qsub <<SUPERWRAP1
         #PBS -S /bin/bash
         #PBS -q $queue
         #PBS -l nodes=1:ppn=1
