@@ -567,6 +567,7 @@ if [ -z $postproc ]
     fi
 
     if [ ! -s  ${outputdir}/merged_dedup.bam ]
+    then
 	if samtools view -b $sthreadstring ${outputdir}/merged_dedup.sam > ${outputdir}/merged_dedup.bam
 	then
 	    rm ${outputdir}/merged_dedup.sam
