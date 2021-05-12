@@ -1204,7 +1204,7 @@ then
 	${load_samtools}
 	date
 
-	samtools view $sthreadstring -O SAM -F 1024 $outputdir/merged_dedup.*am | awk -v mnd=1 -f sam_to_pre.awk > ${outputdir}/merged_nodups.txt 
+	samtools view $sthreadstring -O SAM -F 1024 $outputdir/merged_dedup.*am | awk -v mnd=1 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged_nodups.txt 
 	date
 MND`
 	    sbatch_wait1="afterok:$jid"
@@ -1225,12 +1225,9 @@ MND`
         $userstring	   
 	date
 	export splitdir=${splitdir}; export outputdir=${outputdir}; export early=1; 
-	if ${juiceDir}/scripts/check.sh
-	then
-		if $cleanup
-		then 
-		   ${juiceDir}/scripts/cleanup.sh
-		fi
+	if ${juiceDir}/scripts/check.sh && $cleanup
+	then 
+	   ${juiceDir}/scripts/cleanup.sh
 	fi
 	date
 FINCLN1`
