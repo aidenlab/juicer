@@ -263,6 +263,11 @@ then
 	mm9)	refSeq="${juiceDir}/references/Mus_musculus_assembly9_norandom.fasta";;
 	mm10)	refSeq="${juiceDir}/references/Mus_musculus_assembly10/v0/Mus_musculus_assembly10.fasta";;
 	hg38)	refSeq="${juiceDir}/references/hg38/hg38.fa";;
+	GRCh38) 
+	    refSeq="${juiceDir}/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna"
+	    site_file="${juiceDir}/restriction_sites/ENCFF132WAM.txt"
+	    genomeID="hg38"
+	    ;;
 	hg19)	refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
 	hg18)	refSeq="${juiceDir}/references/hg18.fasta";;
 	*)	echo "$usageHelp"
@@ -279,17 +284,21 @@ else
     fi
 fi
 
-## Check that refSeq exists 
-if [ ! -e "$refSeq" ]; then
-    echo "***! Reference sequence $refSeq does not exist";
-    exit 1;
-fi
-
-## Check that index for refSeq exists
-if [[ ! -e "${refSeq}.bwt" ]] 
+## Alignment checks; not necessary if later stages
+if [[ -z "$chimeric" && -z "$merge" &&  -z "$final" && -z "$dedup" && -z "$postproc" ]] 
 then
-    echo "***! Reference sequence $refSeq does not appear to have been indexed. Please run bwa index on this file before running juicer.";
-    exit 1;
+    ## Check that refSeq exists 
+    if [ ! -e "$refSeq" ]; then
+	echo "***! Reference sequence $refSeq does not exist";
+	exit 1;
+    fi
+
+    ## Check that index for refSeq exists
+    if [[ ! -e "${refSeq}.bwt" ]] 
+    then
+	echo "***! Reference sequence $refSeq does not appear to have been indexed. Please run bwa index on this file before running juicer.";
+	exit 1;
+    fi
 fi
 
 ## Set ligation junction based on restriction enzyme
@@ -413,29 +422,56 @@ then
     threadHic30String=""
     threadNormString=""
 else
-    threadHicString="--threads $threadsHic -i ${outputdir}/merged0_index.txt -t ${outputdir}/HIC_tmp"
+    threadHicString="--threads $threadsHic -i ${outputdir}/merged1_index.txt -t ${outputdir}/HIC_tmp"
     threadHic30String="--threads $threadsHic -i ${outputdir}/merged30_index.txt -t ${outputdir}/HIC30_tmp"
     threadNormString="--threads $threadsHic"
 fi
 
-## Check that fastq directory exists and has proper fastq files
-if [ ! -d "$topDir/fastq" ]; then
-    echo "Directory \"$topDir/fastq\" does not exist."
-    echo "Create \"$topDir/fastq\" and put fastq files to be aligned there."
-    echo "Type \"juicer.sh -h\" for help"
-    exit 1
-else 
-    if stat -t ${fastqdir} >/dev/null 2>&1
-    then
-	echo "(-: Looking for fastq files...fastq files exist"
-    else
-	if [ ! -d "$splitdir" ]; then 
-	    echo "***! Failed to find any files matching ${fastqdir}"
-	    echo "***! Type \"juicer.sh -h \" for help"
-	    exit 1		
+## Alignment checks; not necessary if later stages
+if [[ -z "$chimeric" && -z "$merge" &&  -z "$final" && -z "$dedup" && -z "$postproc" ]] 
+then
+    ## Check that fastq directory exists and has proper fastq files
+    if [ ! -d "$topDir/fastq" ]; then
+	echo "Directory \"$topDir/fastq\" does not exist."
+	echo "Create \"$topDir/fastq\" and put fastq files to be aligned there."
+	echo "Type \"juicer.sh -h\" for help"
+	exit 1
+    else 
+	if stat -t ${fastqdir} >/dev/null 2>&1
+	then
+	    echo "(-: Looking for fastq files...fastq files exist"
+	else
+	    if [ ! -d "$splitdir" ]; then 
+		echo "***! Failed to find any files matching ${fastqdir}"
+		echo "***! Type \"juicer.sh -h \" for help"
+		exit 1		
+	    fi
 	fi
     fi
+
+    testname=$(ls -lgG ${fastqdir} | awk 'NR==1{print $7}')
+    if [ "${testname: -3}" == ".gz" ]
+    then
+	read1=${splitdir}"/*${read1str}*.fastq.gz"
+	gzipped=1
+    else
+	read1=${splitdir}"/*${read1str}*.fastq"
+    fi
+elif [[ -n "$chimeric" ]]
+then
+    read1=${splitdir}"/*.sam"
 fi
+
+## Create split directory
+if [ -d "$splitdir" ]; then
+    splitdirexists=1
+elif  [[ -n "$chimeric" ]]; then
+    echo "***! Chimeric stage requires already aligned files in ${splitdir}"  
+    exit 1 
+else
+    mkdir "$splitdir" || { echo "***! Unable to create ${splitdir}, check permissions." ; exit 1; }
+fi
+
 
 ## Create output directory, only if not in postproc, dedup or final stages
 if [[ -d "$outputdir" && -z "$final" && -z "$dedup" && -z "$postproc" ]] 
@@ -447,13 +483,6 @@ else
     if [[ -z "$final" && -z "$dedup" && -z "$postproc" ]]; then
         mkdir "$outputdir" || { echo "***! Unable to create ${outputdir}, check permissions." ; exit 1; } 
     fi
-fi
-
-## Create split directory
-if [ -d "$splitdir" ]; then
-    splitdirexists=1
-else
-    mkdir "$splitdir" || { echo "***! Unable to create ${splitdir}, check permissions." ; exit 1; }
 fi
 
 ## Create temporary directory, used for sort later
@@ -481,15 +510,6 @@ then
 	    splitme=1
 	fi
     fi
-fi
-
-testname=$(ls -lgG ${fastqdir} | awk 'NR==1{print $7}')
-if [ "${testname: -3}" == ".gz" ]
-then
-    read1=${splitdir}"/*${read1str}*.fastq.gz"
-    gzipped=1
-else
-    read1=${splitdir}"/*${read1str}*.fastq"
 fi
 
 if [ -z "$user" ]
@@ -618,12 +638,15 @@ SPLITEND`
 	# unzipped files will have .fastq extension, softlinked gz 
         testname=$(ls -lgG ${splitdir} | awk '$7~/fastq$/||$7~/gz$/{print $7; exit}')
 
-        if [[ ${testname: -3} == ".gz" ]]
-        then
-            read1=${splitdir}"/*${read1str}*.fastq.gz"
-        else
-	    read1=${splitdir}"/*${read1str}*.fastq"
-        fi
+	if [[ -z "$chimeric" ]]
+	then
+            if [[ ${testname: -3} == ".gz" ]]
+            then
+		read1=${splitdir}"/*${read1str}*.fastq.gz"
+            else
+		read1=${splitdir}"/*${read1str}*.fastq"
+            fi
+	fi
     fi
     
     ## Launch job. Once split/move is done, set the parameters for the launch. 
@@ -648,15 +671,18 @@ SPLITEND`
 	name1=${name}${read1str}
 	name2=${name}${read2str}	
 	jname=$(basename "$name")${ext}
-        usegzip=0
-        if [ "${ext: -3}" == ".gz" ]
-        then
-            usegzip=1
-	fi
-	touchfile=${tmpdir}/${jname}
 
-	# count ligations
-	jid=`sbatch <<- CNTLIG |  egrep -o -e "\b[0-9]+$"
+	if [ -z "$chimeric" ]
+	then
+            usegzip=0
+            if [ "${ext: -3}" == ".gz" ]
+            then
+		usegzip=1
+	    fi
+	    touchfile=${tmpdir}/${jname}
+
+	    # count ligations
+	    jid=`sbatch <<- CNTLIG |  egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
 		#SBATCH -p $queue
 		#SBATCH -t $queue_time
@@ -671,10 +697,8 @@ SPLITEND`
 		export usegzip=${usegzip}; export name=${name}; export name1=${name1}; export name2=${name2}; export ext=${ext}; export ligation=${ligation}; ${juiceDir}/scripts/countligations.sh
 		date
 CNTLIG`
-	dependcount="$jid"
-
-	if [ -z "$chimeric" ]
-	then
+	    dependcount="$jid"
+	    
 	    # align fastqs
 	    jid=`sbatch <<- ALGNR1 | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
@@ -707,7 +731,28 @@ CNTLIG`
 ALGNR1`
 	    dependalign="afterok:$jid:$dependcount"
 	else
-	    dependalign="afterok:$dependcount"
+	    name=${i%.sam}
+	    ext=""
+	    jid=`sbatch <<- CNTLINE |  egrep -o -e "\b[0-9]+$"
+		#!/bin/bash -l
+		#SBATCH -p $queue
+		#SBATCH -t $queue_time
+		#SBATCH -c 1
+		#SBATCH -o $debugdir/count_line-%j.out
+		#SBATCH -e $debugdir/count_line-%j.err
+		#SBATCH -J "${groupname}_${jname}_Count_Line"
+		#SBATCH --mem=5G
+		${load_awk}
+		${load_samtools}
+                $userstring			
+
+		date
+		echo -ne "0 " > ${name}${ext}_norm.txt.res.txt
+		samtools flagstat $i | awk '\\\$0~/paired in sequencing/{print \\\$1*2; exit}' > ${i}_linecount.txt
+		date
+CNTLINE`
+
+	    dependalign="afterok:$jid"
 	fi
 
 	# wait for alignment, chimeric read handling
@@ -718,7 +763,7 @@ ALGNR1`
 		#SBATCH -e $debugdir/merge-%j.err
 		#SBATCH --mem=40G
 		#SBATCH -t $long_queue_time
-		#SBATCH -c 12
+		#SBATCH -c $threads
 		#SBATCH --ntasks=1
 		#SBATCH -d $dependalign
 		#SBATCH -J "${groupname}_merge_${jname}"
@@ -987,23 +1032,23 @@ if [ -z $postproc ] && [ -z $final ]
 DUPCHECK`
 
     sbatch_wait="#SBATCH -d afterok:$jid"
-    jid1=`sbatch <<- MERGED0 | egrep -o -e "\b[0-9]+$" 
+    jid1=`sbatch <<- MERGED1 | egrep -o -e "\b[0-9]+$" 
 	#!/bin/bash -l
 	#SBATCH -p $queue
-	#SBATCH -o $debugdir/merged0-%j.out
-	#SBATCH -e $debugdir/merged0-%j.err
+	#SBATCH -o $debugdir/merged1-%j.out
+	#SBATCH -e $debugdir/merged1-%j.err
 	#SBATCH -t $queue_time
 	${sbatch_cpu_alloc}
 	#SBATCH --ntasks=1
 	#SBATCH --mem-per-cpu=10G
-	#SBATCH -J "${groupname}_merged0"
+	#SBATCH -J "${groupname}_merged1"
 	${sbatch_wait}
 	$userstring
 	${load_samtools}
 
-	samtools view -F 1024 -O sam $sthreadstring ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged0.txt
+	samtools view -F 1024 -O sam $sthreadstring ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged1.txt
         date
-MERGED0`
+MERGED1`
 
     sbatch_wait1="#SBATCH -d afterok:$jid1"
     jid2=`sbatch <<- MERGED30 | egrep -o -e "\b[0-9]+$" 
@@ -1095,7 +1140,7 @@ PRESTATS`
 		echo "***! Found errorfile. Exiting." 
 		exit 1 
 	fi
-	${juiceDir}/scripts/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter.txt $outputdir/merged0.txt $genomeID
+	${juiceDir}/scripts/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
 	date
 STATS`
     sbatch_wait1="#SBATCH -d afterok:$jid"
@@ -1179,22 +1224,19 @@ FINCLN1`
 	mkdir ${outputdir}"/HIC_tmp"
 
 	# multithreaded and index doesn't exist yet
-	if [[ $threadsHic -gt 1 ]] && [[ ! -s ${outputdir}/merged0_index.txt ]] 
+	if [[ $threadsHic -gt 1 ]] && [[ ! -s ${outputdir}/merged1_index.txt ]] 
 	then
-	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged0.txt 500000 > ${outputdir}/merged0_index.txt
+	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged1.txt 500000 > ${outputdir}/merged1_index.txt
 	fi
 
 
 	if [ "$nofrag" -eq 1 ]
 	then 
-	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged0.txt $outputdir/inter.hic $genomePath
+	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
 	else
-	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged0.txt $outputdir/inter.hic $genomePath
+	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
 	fi
-	if [[ $threadsHic -gt 1 ]]
-	then 
-	   time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic 
-	fi
+	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic 
 	rm -R ${outputdir}"/HIC_tmp"
 	date
 HIC`
@@ -1236,10 +1278,7 @@ HIC`
 	else
 	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
 	fi
-	if [[ $threadsHic -gt 1 ]]
-	then 
-	    time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
-	fi
+	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
 	rm -R ${outputdir}"/HIC30_tmp"
 	date
 HIC30`
