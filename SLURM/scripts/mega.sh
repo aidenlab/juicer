@@ -572,7 +572,7 @@ else
 #SBATCH -J "${groupname}_done"
 #SBATCH -d "${dependmerge}"
 
-rm -r ${tmpdir}
+rm -fr ${tmpdir}
 rm -f $touchfile1 $touchfile2 $touchfile3 $touchfile4 
 echo "(-: Successfully completed making mega map. Done. :-)"
 FINAL`
