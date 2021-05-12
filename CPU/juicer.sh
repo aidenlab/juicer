@@ -184,6 +184,11 @@ then
 	mm9)	refSeq="${juiceDir}/references/Mus_musculus_assembly9_norandom.fasta";;
 	mm10)	refSeq="${juiceDir}/references/Mus_musculus_assembly10/v0/Mus_musculus_assembly10.fasta";;
 	hg38)	refSeq="${juiceDir}/references/hg38/hg38.fa";;
+	GRCh38) 
+	    refSeq="${juiceDir}/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna"
+	    site_file="${juiceDir}/restriction_sites/ENCFF132WAM.txt"
+	    genomeID="hg38"
+		;; 
 	hg19)	refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
 	hg18)	refSeq="${juiceDir}/references/hg18.fasta";;
 	*)	echo "$usageHelp"
@@ -286,7 +291,7 @@ then
     threadHic30String=""
     threadNormString=""
 else
-    threadHicString="--threads $threadsHic -i ${outputdir}/merged0_index.txt -t ${outputdir}/HIC_tmp"
+    threadHicString="--threads $threadsHic -i ${outputdir}/merged1_index.txt -t ${outputdir}/HIC_tmp"
     threadHic30String="--threads $threadsHic -i ${outputdir}/merged30_index.txt -t ${outputdir}/HIC30_tmp"
     threadNormString="--threads $threadsHic"
 fi
@@ -435,7 +440,7 @@ then
 	if [ -z "$chimeric" ]
 	then
 	    echo "Running command $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > $name$ext.sam"
-	    $bwa_cmd mem -SP5M -R "${rgtag}" $threadstring $refSeq $file1 $file2 > $name$ext.sam
+	    $bwa_cmd mem -K 320000000 -SP5M -R "${rgtag}" $threadstring $refSeq $file1 $file2 > $name$ext.sam
 	    if [ $? -ne 0 ]
 	    then
 		echo "***! Alignment of $file1 $file2 failed."
@@ -541,12 +546,12 @@ if [ -z $postproc ]
 	    echo "***! Error! The sorted file and dups/no dups files do not add up, or were empty."
 	    exit 1
 	fi
-	samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged0.txt
+	samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=1 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged1.txt
 	samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.sam | awk -v mapq=30 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged30.txt
     else
-	if [ ! -s ${outputdir}/merged0.txt ] 
+	if [ ! -s ${outputdir}/merged1.txt ] 
 	then
-	    samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.bam | awk -v mapq=1 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged0.txt
+	    samtools view $sthreadstring -F 1024 -O sam ${outputdir}/merged_dedup.bam | awk -v mapq=1 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged1.txt
 	fi
 	if [ ! -s ${outputdir}/merged30.txt ]
 	then
@@ -556,9 +561,9 @@ if [ -z $postproc ]
 
     if [[ $threadsHic -gt 1 ]]
     then
-	if [ ! -s ${outputdir}/merged0_index.txt ]
+	if [ ! -s ${outputdir}/merged1_index.txt ]
 	then
-	    time ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged0.txt 500000 > ${outputdir}/merged0_index.txt
+	    time ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged1.txt 500000 > ${outputdir}/merged1_index.txt
 	fi
 	if [ ! -s ${outputdir}/merged30_index.txt ]
 	then
@@ -582,7 +587,7 @@ if [ -z $postproc ]
     cat $splitdir/*.res.txt | awk -v ligation=$ligation -v dups=$dups -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
     cp $outputdir/inter.txt $outputdir/inter_30.txt
 
-    ${juiceDir}/scripts/common/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter.txt $outputdir/merged0.txt $genomeID
+    ${juiceDir}/scripts/common/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
     ${juiceDir}/scripts/common/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter30.txt $outputdir/merged30.txt $genomeID
 
     # if early exit, we stop here, once the stats are calculated
@@ -595,9 +600,9 @@ if [ -z $postproc ]
     mkdir ${outputdir}"/HIC_tmp"
     if [ "$nofrag" -eq 1 ]
     then 
-	time ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged0.txt $outputdir/inter.hic $genomePath
+	time ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
     else
-	time ${juiceDir}/scripts/common/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged0.txt $outputdir/inter.hic $genomePath 
+	time ${juiceDir}/scripts/common/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath 
     fi
     if [[ $threadsHic -gt 1 ]]
     then 
