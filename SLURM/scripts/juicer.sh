@@ -159,9 +159,13 @@ about=""
 nofrag=1
 # use wobble for dedupping by default (not just exact matches)
 justexact=0
+# assembly mode, produce old merged_nodups, early exit
+assembly=0
+# force cleanup
+cleanup=0
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads] [-T threadsHic]\n                 [-A account name] [-e] [-h] [-f] [-j]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads] [-T threadsHic]\n                 [-A account name] [-e] [-h] [-f] [-j] [--assembly] [--cleanup]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
@@ -212,7 +216,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfecT:" opt; do
+while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfec-:T:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -237,6 +241,11 @@ while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfecT:" opt; do
 	e) earlyexit=1 ;;
 	T) threadsHic=$OPTARG ;;
 	i) sampleName=$OPTARG ;;
+	-) case "${OPTARG}" in 
+	    assembly) earlyexit=1; assembly=1 ;;
+	    cleanup)  cleanup=1 ;;
+	    *) printHelpAndExit 1;;
+           esac;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -1178,6 +1187,29 @@ then
     # if early exit, we stop here, once the stats are calculated
     if [ ! -z "$earlyexit" ]
     then
+	if [ $assembly -eq 1 ]
+	then
+	    jid=`sbatch <<- MND | egrep -o -e "\b[0-9]+$" 
+	#!/bin/bash -l
+	#SBATCH -p $queue
+	#SBATCH --mem=2G
+	#SBATCH -o $debugdir/mnd-%j.out
+	#SBATCH -e $debugdir/mnd-%j.err
+	#SBATCH -t 1200
+	#SBATCH -c 1
+	#SBATCH --ntasks=1
+	#SBATCH -J "${groupname}_mnd"     
+	${sbatch_wait1}
+        $userstring	   
+	${load_samtools}
+	date
+
+	samtools view $sthreadstring -O SAM -F 1024 $outputdir/merged_dedup.*am | awk -v mnd=1 -f sam_to_pre.awk > ${outputdir}/merged_nodups.txt 
+	date
+MND`
+	    sbatch_wait1="afterok:$jid"
+	fi
+
 	jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$" 
 	#!/bin/bash -l
 	#SBATCH -p $queue
@@ -1192,7 +1224,14 @@ then
 	${sbatch_wait1}
         $userstring	   
 	date
-	export splitdir=${splitdir}; export outputdir=${outputdir}; export early=1; ${juiceDir}/scripts/check.sh
+	export splitdir=${splitdir}; export outputdir=${outputdir}; export early=1; 
+	if ${juiceDir}/scripts/check.sh
+	then
+		if $cleanup
+		then 
+		   ${juiceDir}/scripts/cleanup.sh
+		fi
+	fi
 	date
 FINCLN1`
 	echo "(-: Finished adding all jobs... Now is a good time to get that cup of coffee... Last job id $jid"
@@ -1364,7 +1403,15 @@ jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
         $userstring			
 
 	date
-	export splitdir=${splitdir}; export outputdir=${outputdir}; ${juiceDir}/scripts/check.sh
+	export splitdir=${splitdir}
+	export outputdir=${outputdir}
+	if ${juiceDir}/scripts/check.sh
+	then
+		if $cleanup
+		then 
+		   ${juiceDir}/scripts/cleanup.sh
+		fi
+	fi
 	date
 FINCLN1`
 
