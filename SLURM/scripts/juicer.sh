@@ -1169,7 +1169,6 @@ STATS`
 	$userstring
 
 	date		
-	wc -l $outputdir/merged30.txt >> $outputdir/tmp2
 	${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
 	date
 STATS30`
