@@ -26,10 +26,10 @@
 # sure the pipeline ran successfully.  Run from top directory (HIC001 e.g.).
 # Juicer version 2.0
 
-rm aligned/merged0.txt 
+rm aligned/merged1.txt 
 rm aligned/merged30.txt 
 rm -r splits 
-testname=$(ls -l fastq | awk 'NR==1{print $7}')
+testname=$(ls -lgG fastq | awk 'NR==1{print $7}')
 if [ "${testname: -5}" == ".fastq" ]
 then
     for i in fastq/*.fastq
