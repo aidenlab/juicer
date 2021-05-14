@@ -597,8 +597,8 @@ if [ -z $postproc ]
     cat $splitdir/*.res.txt | awk -v ligation=$ligation -v dups=$dups -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
     cp $outputdir/inter.txt $outputdir/inter_30.txt
 
-    ${juiceDir}/scripts/common/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
-    ${juiceDir}/scripts/common/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter30.txt $outputdir/merged30.txt $genomeID
+    ${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
+    ${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
 
     # if early exit, we stop here, once the stats are calculated
     if [ ! -z "$earlyexit" ]
@@ -608,7 +608,7 @@ if [ -z $postproc ]
             samtools view $sthreadstring -O SAM -F 1024 $outputdir/merged_dedup.*am | awk -v mnd=1 -f ${juiceDir}/scripts/common/sam_to_pre.awk > ${outputdir}/merged_nodups.txt
 	fi
 	export splitdir=${splitdir}; export outputdir=${outputdir}; export early=1; 
-	if ${juiceDir}/scripts/common/check.sh && $cleanup
+	if ${juiceDir}/scripts/common/check.sh && [ "$cleanup" = 1 ]
 	then
 	    ${juiceDir}/scripts/common/cleanup.sh
 	fi
@@ -647,7 +647,7 @@ fi
 #CHECK THAT PIPELINE WAS SUCCESSFUL
 export early=$earlyexit
 export splitdir=$splitdir
-if ${juiceDir}/scripts/common/check.sh && $cleanup
+if ${juiceDir}/scripts/common/check.sh && [ "$cleanup" = 1 ]
 then
     ${juiceDir}/scripts/common/cleanup.sh
 fi	
