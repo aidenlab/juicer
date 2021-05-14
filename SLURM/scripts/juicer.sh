@@ -1149,7 +1149,7 @@ PRESTATS`
 		echo "***! Found errorfile. Exiting." 
 		exit 1 
 	fi
-	${juiceDir}/scripts/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
+	${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
 	date
 STATS`
     sbatch_wait1="#SBATCH -d afterok:$jid"
@@ -1166,9 +1166,11 @@ STATS`
 	#SBATCH --mem=25G
 	#SBATCH -J "${groupname}_stats30"
 	${sbatch_wait00}
-	$userstring			
+	$userstring
+
+	date		
 	wc -l $outputdir/merged30.txt >> $outputdir/tmp2
-	${juiceDir}/scripts/juicer_tools statistics --ligation $ligation $site_file $outputdir/inter30.txt $outputdir/merged30.txt $genomeID
+	${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
 	date
 STATS30`
 
@@ -1225,9 +1227,12 @@ MND`
         $userstring	   
 	date
 	export splitdir=${splitdir}; export outputdir=${outputdir}; export early=1; 
-	if ${juiceDir}/scripts/check.sh && $cleanup
+	if ${juiceDir}/scripts/check.sh 
 	then 
-	   ${juiceDir}/scripts/cleanup.sh
+           if [ "$cleanup" = 1 ] 
+           then
+	      ${juiceDir}/scripts/cleanup.sh
+           fi
 	fi
 	date
 FINCLN1`
@@ -1402,12 +1407,14 @@ jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
 	date
 	export splitdir=${splitdir}
 	export outputdir=${outputdir}
-	if ${juiceDir}/scripts/check.sh
-	then
-		if $cleanup
-		then 
-		   ${juiceDir}/scripts/cleanup.sh
-		fi
+
+
+	if ${juiceDir}/scripts/check.sh 
+        then
+           if [ "$cleanup" = 1 ] 
+           then
+	      ${juiceDir}/scripts/cleanup.sh
+           fi
 	fi
 	date
 FINCLN1`
