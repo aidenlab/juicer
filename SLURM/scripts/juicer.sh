@@ -104,7 +104,7 @@ then
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
     # XXX verify / change me
-    juiceDir="/gpfs0/juicer"
+    juiceDir="/gpfs0/juicer2"
     load_bwa="unset PYTHONPATH; conda activate"
     # default queue, can also be set in options via -q
     queue="mhgcp"
@@ -122,7 +122,7 @@ else
     load_samtools="spack load samtools arch=\`spack arch\`"
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
-    juiceDir="/gpfs0/juicer"
+    juiceDir="/gpfs0/juicer2"
     # default queue, can also be set in options
     queue="commons"
     queue_time="2880"
@@ -163,9 +163,11 @@ justexact=0
 assembly=0
 # force cleanup
 cleanup=0
+# qc apa
+qc_apa=0
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads] [-T threadsHic]\n                 [-A account name] [-e] [-h] [-f] [-j] [--assembly] [--cleanup]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads] [-T threadsHic]\n                 [-A account name] [-e] [-h] [-f] [-j] [--assembly] [--cleanup] [--qc_apa]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
@@ -244,6 +246,7 @@ while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfec-:T:" opt; do
 	-) case "${OPTARG}" in 
 	    assembly) earlyexit=1; assembly=1 ;;
 	    cleanup)  cleanup=1 ;;
+	    qc_apa)   qc_apa=1 ;;
 	    *) printHelpAndExit 1;;
            esac;;
 	[?]) printHelpAndExit 1;;
@@ -1277,7 +1280,7 @@ FINCLN1`
 	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
 	fi
 	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic 
-	rm -R ${outputdir}"/HIC_tmp"
+	rm -Rf ${outputdir}"/HIC_tmp"
 	date
 HIC`
 
@@ -1319,7 +1322,7 @@ HIC`
 	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
 	fi
 	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
-	rm -R ${outputdir}"/HIC30_tmp"
+	rm -Rf ${outputdir}"/HIC30_tmp"
 	date
 HIC30`
 
@@ -1389,6 +1392,27 @@ jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
 	date;
 ARROWS`
 dependarrows="${dependhiccups}:$jid"
+if [ "$qc_apa" = 1 ]
+then
+    jid=`sbatch <<- QC | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash -l
+	#SBATCH -p $queue
+	#SBATCH --mem-per-cpu=4G
+	#SBATCH -o $debugdir/qc-%j.out
+	#SBATCH -e $debugdir/qc-%j.err
+	#SBATCH -t $queue_time
+	#SBATCH --ntasks=1
+	#SBATCH -J "${groupname}_qc_apa"
+	${sbatch_wait}
+	$userstring
+	${load_java}
+	date
+	export IBM_JAVA_OPTIONS="-Xmx4000m -Xgcthreads1"                                                                    
+        export _JAVA_OPTIONS="-Xmx4000m -Xms4000m" 
+	java -jar ${juiceDir}/scripts/juicer_3.25.21_aggNormAPA.jar apa --ag-norm -k NONE -n 300 -w 100 -r 1000 -q 60 --threads 1 $outputdir/inter_30.hic ${juiceDir}/scripts/GSE63525_GM12878_primary+replicate_HiCCUPS_looplist_with_motifs_unique_localized.txt $outputdir/qc_apa
+	date
+QC`
+fi
 
 jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
