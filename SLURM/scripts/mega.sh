@@ -73,7 +73,7 @@ else
     load_gpu="CUDA_VISIBLE_DEVICES=0,1,2,3"
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
-    juiceDir="/gpfs0/juicer/"
+    juiceDir="/gpfs0/juicer2/"
     # default queue, can also be set in options
     queue="commons"
     queue_time="1400"
@@ -187,7 +187,6 @@ touchfile3=${megadir}/touch3
 touchfile4=${megadir}/touch4
 
 ## Check for existing merged files:
-
 merged_count=`find -L ${topDir} | grep merged1.txt | wc -l`
 if [ "$merged_count" -lt "1" ]
 then
@@ -442,7 +441,7 @@ fi
 	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomeID
 	fi
 	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic 
-	rm -R ${outputdir}"/HIC_tmp"
+	rm -Rf ${outputdir}"/HIC_tmp"
 HIC1`
     dependhic1="afterok:$jid5"
 
@@ -481,7 +480,7 @@ fi
 	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomeID
 	fi
 	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
-	rm -R ${outputdir}"/HIC30_tmp"
+	rm -Rf ${outputdir}"/HIC30_tmp"
 HIC30`
     dependhic30only="afterok:$jid6"
     sbatchdepend="#SBATCH -d ${dependhic30only}"
