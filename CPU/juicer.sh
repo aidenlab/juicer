@@ -593,7 +593,7 @@ if [ -z $postproc ]
     export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"
     export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
     tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt
-    dups=$(samtools view -c -f 1089 -F 256 $outputdir/merged_dedup.bam)
+    dups=$(samtools view -c -f 1089 -F 256 $sthreadstring $outputdir/merged_dedup.bam)
     cat $splitdir/*.res.txt | awk -v ligation=$ligation -v dups=$dups -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
     cp $outputdir/inter.txt $outputdir/inter_30.txt
 
