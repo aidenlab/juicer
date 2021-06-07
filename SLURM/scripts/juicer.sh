@@ -191,7 +191,6 @@ justHelp="* -j: just exact duplicates excluded at dedupping step"
 earlyexitHelp="* -e: Use for an early exit, before the final creation of the hic files"
 helpHelp="* -h: print this help and exit"
 
-
 printHelpAndExit() {
     echo -e "$usageHelp"
     echo -e "$genomeHelp"
@@ -1409,7 +1408,7 @@ then
 	date
 	export IBM_JAVA_OPTIONS="-Xmx4000m -Xgcthreads1"                                                                    
         export _JAVA_OPTIONS="-Xmx4000m -Xms4000m" 
-	java -jar ${juiceDir}/scripts/juicer_3.25.21_aggNormAPA.jar apa --ag-norm -k NONE -n 300 -w 100 -r 1000 -q 60 --threads 1 $outputdir/inter_30.hic ${juiceDir}/scripts/GSE63525_GM12878_primary+replicate_HiCCUPS_looplist_with_motifs_unique_localized.txt $outputdir/qc_apa
+	java -jar ${juiceDir}/scripts/juicer_3.25.21_aggNormAPA.jar apa --ag-norm -k NONE -n 300 -w 100 -r 1000 -q 60 --threads 1 $outputdir/inter_30.hic ${juiceDir}/scripts/GSE63525_GM12878_primary_replicate_HiCCUPS_looplist_with_motifs_unique_localized.txt $outputdir/qc_apa
 	date
 QC`
 fi
