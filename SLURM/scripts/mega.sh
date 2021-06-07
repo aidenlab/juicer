@@ -385,7 +385,7 @@ fi
 $load_java
 export IBM_JAVA_OPTIONS="-Xmx10000m -Xgcthreads1"
 export _JAVA_OPTIONS="-Xms10000m -Xmx10000m"
-if ${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter30.txt $outputdir/merged30.txt $genomeID
+if ${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
 then
   touch $touchfile4
 fi
