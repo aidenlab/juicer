@@ -180,10 +180,12 @@ BEGIN{
 $0 ~ /^@/{
   # print SAM header to SAM file
   print;
-  split($3,chrslen,":");
-  # save maximum length for 0 padding
-  if (length(chrslen[2]) > chrlen) {
+  if ($1~/^@SQ/) {
+    split($3,chrslen,":");
+    # save maximum length for 0 padding
+    if (length(chrslen[2]) > chrlen) {
       chrlen=length(chrslen[2]);
+    }
   }
 }
 $0 !~ /^@/{
