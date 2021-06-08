@@ -159,15 +159,18 @@ about=""
 nofrag=1
 # use wobble for dedupping by default (not just exact matches)
 justexact=0
+wobbleDist=4
 # assembly mode, produce old merged_nodups, early exit
 assembly=0
 # force cleanup
 cleanup=0
 # qc apa
 qc_apa=0
+# single-end input, default no
+singleend=0
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads] [-T threadsHic]\n                 [-A account name] [-e] [-h] [-f] [-j] [--assembly] [--cleanup] [--qc_apa]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads] [-T threadsHic]\n                 [-A account name] [-e] [-h] [-f] [-j] [-u] [-w wobbleDist] [--assembly] [--cleanup] [--qc_apa]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
@@ -217,7 +220,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfec-:T:" opt; do
+while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfuec-:T:w:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -242,6 +245,8 @@ while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfec-:T:" opt; do
 	e) earlyexit=1 ;;
 	T) threadsHic=$OPTARG ;;
 	i) sampleName=$OPTARG ;;
+	u) singleend=1 ;;
+	w) wobbleDist=$OPTARG ;;
 	-) case "${OPTARG}" in 
 	    assembly) earlyexit=1; assembly=1 ;;
 	    cleanup)  cleanup=1 ;;
@@ -705,11 +710,11 @@ SPLITEND`
                 $userstring			
 
 		date
-		export usegzip=${usegzip}; export name=${name}; export name1=${name1}; export name2=${name2}; export ext=${ext}; export ligation=${ligation}; ${juiceDir}/scripts/countligations.sh
+		export usegzip=${usegzip}; export name=${name}; export name1=${name1}; export name2=${name2}; export ext=${ext}; export ligation=${ligation}; export singleend=${singleend}; ${juiceDir}/scripts/countligations.sh
 		date
 CNTLIG`
 	    dependcount="$jid"
-	    
+	    # RG group?
 	    # align fastqs
 	    jid=`sbatch <<- ALGNR1 | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
@@ -729,8 +734,14 @@ CNTLIG`
 
 		# Align reads
 		date
-		echo "Running command bwa mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam" 
-		srun --ntasks=1 bwa mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam
+		if [ $singleend -eq 1 ]
+		then
+			echo "Running command bwa mem -5M $threadstring $refSeq $name1$ext > $name$ext.sam"
+			bwa mem -5M $threadstring $refSeq $name1$ext > $name$ext.sam 
+		else
+			echo "Running command bwa mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam" 
+			bwa mem -SP5M $threadstring $refSeq $name1$ext $name2$ext > $name$ext.sam
+		fi
 		if [ \$? -ne 0 ]
 		then  
 		       touch $errorfile
@@ -968,7 +979,7 @@ DEDUPGUARD`
             exit 1 
         fi 
 	squeue -u $USER -o "%A %T %j %E %R" | column -t
-	samtools view -h $sthreadstring $outputdir/merged_sort.bam | awk -v queue=$long_queue -v groupname=$groupname -v debugdir=$debugdir -v dir=$outputdir -v topDir=$topDir -v juicedir=$juiceDir -v site=$site -v genomeID=$genomeID -v genomePath=$genomePath -v user=$USER -v guardjid=$guardjid -v justexact=$justexact -f $juiceDir/scripts/split_rmdups_sam.awk 
+	samtools view -h $sthreadstring $outputdir/merged_sort.bam | awk -v queue=$long_queue -v groupname=$groupname -v debugdir=$debugdir -v dir=$outputdir -v topDir=$topDir -v juicedir=$juiceDir -v site=$site -v genomeID=$genomeID -v genomePath=$genomePath -v user=$USER -v guardjid=$guardjid -v justexact=$justexact -v wobbleDist=$wobbleDist -f $juiceDir/scripts/split_rmdups_sam.awk 
 
 	##Schedule new job to run after last dedup part:
 	##Push guard to run after last dedup is completed:
