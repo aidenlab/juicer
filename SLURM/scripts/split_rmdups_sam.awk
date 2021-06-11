@@ -47,7 +47,7 @@ BEGIN{
     if (p1 != cb[1] || p2 != cb[2] || p3 != int(cb[3]) || p4 != int(cb[4]) || p5 != cb[5] || p6 != cb[6]) {
       sname = sprintf("%s_msplit%04d", groupname, name);
       sscriptname = sprintf("%s/.%s.slurm", debugdir, sname);
-      printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk %s %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, dir, name, dir, str, sname, tot) > sscriptname;
+      printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk %s %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, str, dir, name, dir, sname, tot) > sscriptname;
       sysstring = sprintf("sbatch %s", sscriptname);
       system(sysstring);
       outname = sprintf("%s/split%04d", dir, name);
@@ -73,7 +73,7 @@ BEGIN{
 END {
     sname = sprintf("%s_msplit%04d", groupname, name);
     sscriptname = sprintf("%s/.%s.slurm", debugdir, sname);
-    printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk %s %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, dir, name, dir, str, sname, tot) > sscriptname;
+    printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk %s %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, str, dir, name, dir, sname, tot) > sscriptname;
     sysstring = sprintf("sbatch %s", sscriptname);
     system(sysstring);
     close(sscriptname);

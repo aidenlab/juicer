@@ -778,55 +778,97 @@ CNTLINE`
 	fi
 
 	# wait for alignment, chimeric read handling
-	jid=`sbatch <<- MRGALL | egrep -o -e "\b[0-9]+$"
+	if [ "$site" != "none" ] && [ -e "$site_file" ] 
+	then		
+	    jid=`sbatch <<- MRGALL | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/merge-%j.out
 		#SBATCH -e $debugdir/merge-%j.err
-		#SBATCH --mem=40G
+		#SBATCH --mem=10G
 		#SBATCH -t $long_queue_time
-		#SBATCH -c $threads
+		#SBATCH -c 1
 		#SBATCH --ntasks=1
 		#SBATCH -d $dependalign
 		#SBATCH -J "${groupname}_merge_${jname}"
                 #SBATCH --threads-per-core=1
                 $userstring
 		${load_awk}
-		${load_samtools}
-		date
-		# call chimeric script to deal with chimeric reads; sorted file is sorted by read name at this point		
-		if [ "$site" != "none" ] && [ -e "$site_file" ] 
-		then		
-			if awk -v stem=${name}${ext}_norm -v site_file=$site_file -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
-			then
-				rm $name$ext.sam
-	       		else
-				echo "***! Failure during chimera handling of $name${ext}"
-				touch $errorfile
-				exit 1
-			fi
-		else
-			if awk -v stem=${name}${ext}_norm -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam2
-			then
-				if awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/adjust_insert_size.awk $name$ext.sam2 | samtools sort -t cb -n $sthreadstring > ${name}${ext}.bam 
-				then
-					rm $name$ext.sam*
-				else
-					echo "***! Failure during chimera handling of $name${ext}"
-					touch $errorfile
-					exit 1   
-				fi
-			fi
-		fi 
-		touch $touchfile 
-		date 
-MRGALL`
 
-	dependmerge="${dependmerge}:${jid}"
-	ARRAY[countjobs]="${groupname}_merge_${jname}"
+		date
+		time awk -v stem=${name}${ext}_norm -v site_file=$site_file -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam3
+		date
+MRGALL`
+	    dependalign="afterok:$jid"
+	else
+	    jid=`sbatch <<- MRGALL1 | egrep -o -e "\b[0-9]+$"
+		#!/bin/bash -l
+		#SBATCH -p $long_queue
+		#SBATCH -o $debugdir/merge1-%j.out
+		#SBATCH -e $debugdir/merge1-%j.err
+		#SBATCH --mem=10G
+		#SBATCH -t $long_queue_time
+		#SBATCH -c 1
+		#SBATCH --ntasks=1
+		#SBATCH -d $dependalign
+		#SBATCH -J "${groupname}_merge_${jname}"
+                #SBATCH --threads-per-core=1
+                $userstring
+		${load_awk}
+		#time awk -v maxcount=1000000 -f $juiceDir/scripts/calculate_insert_size.awk $name$ext.sam > $name$ext.insert_size
+		#will need to combine chimeric_sam and adjust_insert_size 
+		time awk -v stem=${name}${ext}_norm -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam2
+MRGALL1`
+	    dependalign="afterok:$jid"
+	    jid=`sbatch <<- MRGALL3 | egrep -o -e "\b[0-9]+$"
+		#!/bin/bash -l
+		#SBATCH -p $long_queue
+		#SBATCH -o $debugdir/merge2-%j.out
+		#SBATCH -e $debugdir/merge2-%j.err
+		#SBATCH --mem=10G
+		#SBATCH -t $long_queue_time
+		#SBATCH -c 1
+		#SBATCH --ntasks=1
+		#SBATCH -d $dependalign
+		#SBATCH -J "${groupname}_merge_${jname}"
+                #SBATCH --threads-per-core=1
+                $userstring
+		${load_awk}
+
+		time awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/adjust_insert_size.awk $name$ext.sam2 > $name$ext.sam3
+MRGALL3`
+	    dependalign="afterok:$jid"
+	fi
+	jid2=`sbatch <<- MRGALL2 | egrep -o -e "\b[0-9]+$"
+#!/bin/bash -l
+#SBATCH -p $long_queue
+#SBATCH -o $debugdir/mergesort-%j.out
+#SBATCH -e $debugdir/mergesort-%j.err
+#SBATCH --mem=50G
+#SBATCH -t $long_queue_time
+#SBATCH -c $threads
+#SBATCH --ntasks=1
+#SBATCH -d $dependalign 
+#SBATCH -J "${groupname}_mergesort_${jname}"
+#SBATCH --threads-per-core=1 
+$userstring
+${load_samtools}
+if time samtools sort -t cb -n -O SAM $sthreadstring $name$ext.sam3 >  ${name}${ext}.sam
+then
+   rm -f $name$ext.sam2 $name$ext.sam3
+   touch $touchfile
+else
+   echo "***! Failure during chimera handling of $name${ext}"
+   touch $errorfile
+   exit 1
+fi
+MRGALL2`
+	dependmerge="${dependmerge}:${jid2}"
+	ARRAY[countjobs]="${groupname}_mergesort_${jname}"
 	JIDS[countjobs]="${jid}"
 	TOUCH[countjobs]="$touchfile"
         countjobs=$(( $countjobs + 1 ))
+
     done # done looping over all fastq split files
     
     # list of all jobs. print errors if failed    
@@ -911,7 +953,7 @@ then
 			mv $donesplitdir/* $splitdir/.
 		fi
 
-		if ! samtools merge -c -t cb -n $sthreadstring $outputdir/merged_sort.bam  $splitdir/*.bam
+		if ! samtools merge -c -t cb -n $sthreadstring -O SAM $outputdir/merged_sort.sam  $splitdir/*.sam
 		then
 			echo "***! Some problems occurred somewhere in creating sorted align files."
 			touch $errorfile
@@ -959,11 +1001,11 @@ DEDUPGUARD`
     # if jobs succeeded, kill the cleanup job, remove the duplicates from the big sorted file
     jid=`sbatch <<- DEDUP | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
+	#SBATCH -p $long_queue
 	#SBATCH --mem-per-cpu=2G
 	#SBATCH -o $debugdir/dedup-%j.out
 	#SBATCH -e $debugdir/dedup-%j.err
-	#SBATCH -t $queue_time
+	#SBATCH -t $long_queue_time
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_dedup"
@@ -971,7 +1013,6 @@ DEDUPGUARD`
         $userstring
 	
 	${load_awk}
-	${load_samtools}
 	date
         if [ -f "${errorfile}" ]
         then 
@@ -979,7 +1020,7 @@ DEDUPGUARD`
             exit 1 
         fi 
 	squeue -u $USER -o "%A %T %j %E %R" | column -t
-	samtools view -h $sthreadstring $outputdir/merged_sort.bam | awk -v queue=$long_queue -v groupname=$groupname -v debugdir=$debugdir -v dir=$outputdir -v topDir=$topDir -v juicedir=$juiceDir -v site=$site -v genomeID=$genomeID -v genomePath=$genomePath -v user=$USER -v guardjid=$guardjid -v justexact=$justexact -v wobbleDist=$wobbleDist -f $juiceDir/scripts/split_rmdups_sam.awk 
+	awk -v queue=$long_queue -v groupname=$groupname -v debugdir=$debugdir -v dir=$outputdir -v topDir=$topDir -v juicedir=$juiceDir -v site=$site -v genomeID=$genomeID -v genomePath=$genomePath -v user=$USER -v guardjid=$guardjid -v justexact=$justexact -v wobbleDist=$wobbleDist -f $juiceDir/scripts/split_rmdups_sam.awk $outputdir/merged_sort.sam
 
 	##Schedule new job to run after last dedup part:
 	##Push guard to run after last dedup is completed:
@@ -1031,7 +1072,7 @@ fi
 if [ -z $postproc ] && [ -z $final ]
     then
     # Check that dedupping worked properly
-    awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash -l\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*; rm %s/split*;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."; exit 1}}'
+    awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash -l\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*; rm %s/split*;\n rm %s/merged_sort.sam;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."; exit 1}}'
     jid=`sbatch <<- DUPCHECK | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
@@ -1045,9 +1086,8 @@ if [ -z $postproc ] && [ -z $final ]
 	${sbatch_wait}
         $userstring			
 	${load_awk}
-	${load_samtools}
 	date 
-	samtools view -h $sthreadstring ${outputdir}/merged_sort.bam | wc -l | awk '{printf("%s ", \\\$1)}' > $debugdir/dupcheck-${groupname}
+	wc -l ${outputdir}/merged_sort.sam |  awk '{printf("%s ", \\\$1)}' > $debugdir/dupcheck-${groupname}
 	wc -l ${outputdir}/merged_dedup.sam | awk '{printf("%s ", \\\$1)}' >> $debugdir/dupcheck-${groupname}
 	cat $debugdir/dupcheck-${groupname}
 	awk -v debugdir=$debugdir -v queue=$queue -v groupname=$groupname -v dir=$outputdir '$awkscript' $debugdir/dupcheck-${groupname}
@@ -1109,7 +1149,6 @@ MERGED30`
 	if samtools view -b $sthreadstring ${outputdir}/merged_dedup.sam > ${outputdir}/merged_dedup.bam
 	then
 		rm ${outputdir}/merged_dedup.sam
-		rm ${outputdir}/merged_sort.bam
 	fi
 BAMRM`
 
