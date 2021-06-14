@@ -203,7 +203,7 @@ $0 !~ /^@/{
   else {
     # deal with read pair group
     tottot++;
-    if (count==3 || count==4) {
+    if (count==2 || count==3 || count==4) {
       # chimeric read
       for (j=1; j <= count; j++) {
 	split(c[j], tmp);
@@ -399,7 +399,7 @@ $0 !~ /^@/{
 	  count_abnorm++;
 	}
       }
-      else {
+      else if (count == 3) {
 	dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
 	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
 	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
@@ -451,8 +451,6 @@ $0 !~ /^@/{
 	    interiorpos1=adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
 	    interiorpos2=adjust(pos[interiorread2],str[interiorread2],cigarstr[interiorread2],notprimary[interiorread2]);
 	    if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
-#	      print str[read1],chr[read1],interiorpos1,str[read2],chr[read2],interiorpos2,m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],"1$",pos[read1],pos[read2] > fname1;
-
 	      if (length(site_file) > 0) {
 		  frag1 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
 		  frag2 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
@@ -470,8 +468,6 @@ $0 !~ /^@/{
 	      }
 	    }
 	    else {
-#	      print str[read2],chr[read2],adjust(pos[interiorread2],str[interiorread2],cigarstr[interiorread2],notprimary[interiorread2]),str[read1],chr[read1],adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]),m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],"1$",pos[read2],pos[read1] > fname1;
-
 	      if (length(site_file) > 0) {
 		  frag1 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
 		  frag2 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
@@ -504,6 +500,61 @@ $0 !~ /^@/{
 	  }
 	  count_abnorm++;
 	}
+      
+      }
+      else { #if (count == 2) {
+	if (mapped[1] && mapped[2]) {
+	  count_reg++;
+	  interiorpos1=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
+	  interiorpos2=adjust(pos[2],str[2],cigarstr[2],notprimary[2]);
+	  
+	  if (length(site_file) > 0) {
+	    frag1 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
+	    frag2 = bsearch(chromosomes[chr[2]], length(chromosomes[chr[2]]),pos[2]);
+	  }
+	  if (less_than(str[1],chr[1],pos[1],str[2],chr[2],pos[2])) {
+	    if (length(site_file) > 0) {
+	      fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
+	    }
+		  
+	    # chromosome block string to sort on
+	    externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[1],pos[2]);
+	    cb_str = "cb:Z:"chr[1]"_"chr[2]"_"fragstr"_"str[1]"_"str[2]"_"externalpos;
+		  
+	    # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	    print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
+	    print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
+	    
+	    if (str[1]==0&&str[2]==16&&chr[1]==chr[2]&&pos[1]<pos[2]&&pos[2]-pos[1]<1000) {
+	      innerpairs+=1;
+	      insertsizesum+=abs(pos[2]-pos[1])
+	    }
+	  }
+	  else {
+	    if (length(site_file) > 0) {
+	      fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
+	    }
+		  
+	    # chromosome block string to sort on
+	    externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[2],pos[1]);
+	    cb_str = "cb:Z:"chr[2]"_"chr[1]"_"fragstr"_"str[2]"_"str[1]"_"externalpos;
+	    
+	    # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	    print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:0",cb_str;
+	    print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:1",cb_str;
+	    
+	    if (str[2]==0&&str[1]==16&&chr[1]==chr[2]&&pos[2]<pos[1]&&pos[1]-pos[2]<1000) {
+	      innerpairs+=1;
+	      insertsizesum+=abs(pos[1]-pos[2]);
+	    }
+	  }
+	}
+	else {
+	  for (i in c) {
+	    print c[i];
+	  }	
+	  count_unmapped++;
+	}
       }
     }
     else if (count > 3) {
@@ -512,117 +563,6 @@ $0 !~ /^@/{
 	print c[i],"rt:A:8";
       }
       count_abnorm++;
-    }
-    else if (count == 2) {
-      # code here should be same as above, but it's a "normal" read
-      j = 0;
-      for (i in c) {
-	split(c[i], tmp);
-	split(tmp[1],readname,"/");
-	str[j] = and(tmp[2],16);
-	notprimary[j] = and(tmp[2],256);
-	chr[j] = tmp[3];
-	# get rid of "_" in chromosome name, for cb_str
-	gsub(/_/, "", chr[j]);
-	pos[j] = tmp[4];
-	m[j] = tmp[5];
-	cigarstr[j] = tmp[6];
-	seq[j] = tmp[10];
-	name[j] = tmp[1];
-	
-        # blacklist - if 3rd bit set (=4) it means unmapped
-        mapped[j] = and(tmp[2],4) == 0; 
-	
-	if (str[j] == 0 && tmp[6] ~/^[0-9]+S/ && notprimary[j] == 0) {
-	  split(tmp[6], cigar, "S");
-	  pos[j] = pos[j] - cigar[1];
-	  if (pos[j] <= 0) {
-	    pos[j] = 1;
-	  }
-	}
-	else if (str[j] == 0 && tmp[6] ~/^[0-9]+H/ && notprimary[j] == 0) {
-	  split(tmp[6], cigar, "H");
-	  pos[j] = pos[j] - cigar[1];
-	  if (pos[j] <= 0) {
-	    pos[j] = 1;
-	  }
-	}
-	else if (str[j] == 16) {
-	  # count Ms,Ds,Ns,Xs,=s for sequence length 
-	  seqlength=0; 
-	  currstr=tmp[6];
-	  where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
-	  while (where>0) {
-	    seqlength+=substr(currstr,where,RLENGTH-1)+0;
-	    currstr=substr(currstr,where+RLENGTH);
-	    where=match(currstr, /[0-9]+[M|D|N|X|=]/);
-	  }
-	  pos[j] = pos[j] + seqlength - 1;
-	  if (tmp[6] ~ /[0-9]+S$/ && notprimary[j] == 0) {
-	    where = match(tmp[6],/[0-9]+S$/);
-	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-	    pos[j] = pos[j] + cigloc;
-	  }
-	  if (tmp[6] ~ /[0-9]+H$/ && notprimary[j] == 0) {
-	    where = match(tmp[6],/[0-9]+H$/);
-	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-	    pos[j] = pos[j] + cigloc;
-	  }
-	}
-	j++;
-      }
-      if (mapped[0] && mapped[1]) {
-	count_reg++;
-	interiorpos1=adjust(pos[0],str[0],cigarstr[0],notprimary[0]);
-	interiorpos2=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
-
-	if (length(site_file) > 0) {
-	    frag1 = bsearch(chromosomes[chr[0]], length(chromosomes[chr[0]]),pos[0]);
-	    frag2 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
-	}
-	if (less_than(str[0],chr[0],pos[0],str[1],chr[1],pos[1])) {
-	    if (length(site_file) > 0) {
-		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
-	    }
-
-	    # chromosome block string to sort on
-	    externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[0],pos[1]);
-	    cb_str = "cb:Z:"chr[0]"_"chr[1]"_"fragstr"_"str[0]"_"str[1]"_"externalpos;
-	  
-	    # assign mate mapping quality, "read type", "interior position", "mate interior position"
-	    print c[1],"MQ:i:"m[1],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
-	    print c[2],"MQ:i:"m[0],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
-	    
-	    if (str[0]==0&&str[1]==16&&chr[0]==chr[1]&&pos[0]<pos[1]&&pos[1]-pos[0]<1000) {
-		innerpairs+=1;
-		insertsizesum+=abs(pos[1]-pos[0])
-	    }
-	}
-	else {
-	  if (length(site_file) > 0) {
-	      fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
-	  }
-
-	  # chromosome block string to sort on
-	  externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[1],pos[0]);
-	  cb_str = "cb:Z:"chr[1]"_"chr[0]"_"fragstr"_"str[1]"_"str[0]"_"externalpos;
-	      
-	  # assign mate mapping quality, "read type", "interior position", "mate interior position"
-	  print c[2],"MQ:i:"m[0],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:0",cb_str;
-	  print c[1],"MQ:i:"m[1],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:1",cb_str;
-
-	  if (str[1]==0&&str[0]==16&&chr[0]==chr[1]&&pos[1]<pos[0]&&pos[0]-pos[1]<1000) {
-		innerpairs+=1;
-		insertsizesum+=abs(pos[0]-pos[1]);
-	  }
-	}
-      }
-      else {
-	for (i in c) {
-	  print c[i];
-	}	
-	count_unmapped++;
-      }
     }
     else if (count == 1) {
       # this actually shouldn't happen, but it happens with alternate aligners on occasion
@@ -639,10 +579,11 @@ $0 !~ /^@/{
   # these happen no matter what, after the above processing
   c[count] = $0;
 }
+# END block is exactly the same as above
 END{
     # deal with read pair group
     tottot++;
-    if (count==3 || count==4) {
+    if (count==2 || count==3 || count==4) {
       # chimeric read
       for (j=1; j <= count; j++) {
 	split(c[j], tmp);
@@ -837,7 +778,7 @@ END{
 	  count_abnorm++;
 	}
       }
-      else {
+      else if (count == 3) {
 	dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
 	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
 	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
@@ -939,6 +880,60 @@ END{
 	  count_abnorm++;
 	}
       }
+      else { # count == 2
+	if (mapped[1] && mapped[2]) {
+	  count_reg++;
+	  interiorpos1=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
+	  interiorpos2=adjust(pos[2],str[2],cigarstr[2],notprimary[2]);
+
+	  if (length(site_file) > 0) {
+	    frag1 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
+	    frag2 = bsearch(chromosomes[chr[2]], length(chromosomes[chr[2]]),pos[2]);
+	  }
+	  if (less_than(str[1],chr[1],pos[1],str[2],chr[2],pos[2])) {
+	    if (length(site_file) > 0) {
+		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
+	    }
+
+	    # chromosome block string to sort on
+	    externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[1],pos[2]);
+	    cb_str = "cb:Z:"chr[1]"_"chr[2]"_"fragstr"_"str[1]"_"str[2]"_"externalpos;
+	    
+	    # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	    print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
+	    print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
+	    
+	    if (str[1]==0&&str[2]==16&&chr[1]==chr[2]&&pos[1]<pos[2]&&pos[2]-pos[1]<1000) {
+		innerpairs+=1;
+		insertsizesum+=(pos[2]-pos[1]);
+	    }
+	  }
+	  else {
+	    if (length(site_file) > 0) {
+	      fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
+	    }
+
+	    # chromosome block string to sort on
+	    externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[2],pos[1]);
+	    cb_str = "cb:Z:"chr[2]"_"chr[1]"_"fragstr"_"str[2]"_"str[1]"_"externalpos;
+	      
+	    # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	    print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:0",cb_str;
+	    print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:1",cb_str;
+
+	    if (str[2]==0&&str[1]==16&&chr[1]==chr[2]&&pos[2]<pos[1]&&pos[1]-pos[2]<1000) {
+		innerpairs+=1;
+		insertsizesum+=(pos[1]-pos[2]);
+	    }
+	  }
+	}
+	else {
+	  for (i in c) {
+	    print c[i];
+	  }	
+	  count_unmapped++;
+	}
+      }
     }
     else if (count > 3) {
       # chimeric read > 3, too many to deal with
@@ -946,117 +941,6 @@ END{
 	print c[i],"rt:A:8";
       }
       count_abnorm++;
-    }
-    else if (count == 2) {
-      # code here should be same as above, but it's a "normal" read
-      j = 0;
-      for (i in c) {
-	split(c[i], tmp);
-	split(tmp[1],readname,"/");
-	str[j] = and(tmp[2],16);
-	notprimary[j] = and(tmp[2],256);
-	chr[j] = tmp[3];
-	# get rid of "_" in chromosome name, for cb_str
-	gsub(/_/, "", chr[j]);
-	pos[j] = tmp[4];
-	m[j] = tmp[5];
-	cigarstr[j] = tmp[6];
-	seq[j] = tmp[10];
-	name[j] = tmp[1];
-	
-        # blacklist - if 3rd bit set (=4) it means unmapped
-        mapped[j] = and(tmp[2],4) == 0; 
-	
-	if (str[j] == 0 && tmp[6] ~/^[0-9]+S/ && notprimary[j] == 0) {
-	  split(tmp[6], cigar, "S");
-	  pos[j] = pos[j] - cigar[1];
-	  if (pos[j] <= 0) {
-	    pos[j] = 1;
-	  }
-	}
-	else if (str[j] == 0 && tmp[6] ~/^[0-9]+H/ && notprimary[j] == 0) {
-	  split(tmp[6], cigar, "H");
-	  pos[j] = pos[j] - cigar[1];
-	  if (pos[j] <= 0) {
-	    pos[j] = 1;
-	  }
-	}
-	else if (str[j] == 16) {
-	  # count Ms,Ds,Ns,Xs,=s for sequence length 
-	  seqlength=0; 
-	  currstr=tmp[6];
-	  where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
-	  while (where>0) {
-	    seqlength+=substr(currstr,where,RLENGTH-1)+0;
-	    currstr=substr(currstr,where+RLENGTH);
-	    where=match(currstr, /[0-9]+[M|D|N|X|=]/);
-	  }
-	  pos[j] = pos[j] + seqlength - 1;
-	  if (tmp[6] ~ /[0-9]+S$/ && notprimary[j] == 0) {
-	    where = match(tmp[6],/[0-9]+S$/);
-	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-	    pos[j] = pos[j] + cigloc;
-	  }
-	  if (tmp[6] ~ /[0-9]+H$/ && notprimary[j] == 0) {
-	    where = match(tmp[6],/[0-9]+H$/);
-	    cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
-	    pos[j] = pos[j] + cigloc;
-	  }
-	}
-	j++;
-      }
-      if (mapped[0] && mapped[1]) {
-	count_reg++;
-	interiorpos1=adjust(pos[0],str[0],cigarstr[0],notprimary[0]);
-	interiorpos2=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
-
-	if (length(site_file) > 0) {
-	    frag1 = bsearch(chromosomes[chr[0]], length(chromosomes[chr[0]]),pos[0]);
-	    frag2 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
-	}
-	if (less_than(str[0],chr[0],pos[0],str[1],chr[1],pos[1])) {
-	    if (length(site_file) > 0) {
-		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
-	    }
-
-	    # chromosome block string to sort on
-	    externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[0],pos[1]);
-	    cb_str = "cb:Z:"chr[0]"_"chr[1]"_"fragstr"_"str[0]"_"str[1]"_"externalpos;
-	    
-	    # assign mate mapping quality, "read type", "interior position", "mate interior position"
-	    print c[1],"MQ:i:"m[1],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
-	    print c[2],"MQ:i:"m[0],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
-	    
-	    if (str[0]==0&&str[1]==16&&chr[0]==chr[1]&&pos[0]<pos[1]&&pos[1]-pos[0]<1000) {
-		innerpairs+=1;
-		insertsizesum+=abs(pos[1]-pos[0])
-	    }
-	}
-	else {
-	  if (length(site_file) > 0) {
-	      fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
-	  }
-
-	  # chromosome block string to sort on
-	  externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[1],pos[0]);
-	  cb_str = "cb:Z:"chr[1]"_"chr[0]"_"fragstr"_"str[1]"_"str[0]"_"externalpos;
-	      
-	  # assign mate mapping quality, "read type", "interior position", "mate interior position"
-	  print c[2],"MQ:i:"m[0],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:0",cb_str;
-	  print c[1],"MQ:i:"m[1],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:1",cb_str;
-
-	  if (str[1]==0&&str[0]==16&&chr[0]==chr[1]&&pos[1]<pos[0]&&pos[0]-pos[1]<1000) {
-		innerpairs+=1;
-		insertsizesum+=abs(pos[0]-pos[1]);
-	  }
-	}
-      }
-      else {
-	for (i in c) {
-	  print c[i];
-	}	
-	count_unmapped++;
-      }
     }
     else if (count == 1) {
       # this actually shouldn't happen, but it happens with alternate aligners on occasion
