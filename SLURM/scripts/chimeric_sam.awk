@@ -229,13 +229,13 @@ $0 !~ /^@/{
 	gsub(/_/, "", chr[j]);
 	# position
 	pos[j] = tmp[4];
+	expos[j] = tmp[4];
 	# mapq score
 	m[j] = tmp[5];
 	# cigar string
 	cigarstr[j] = tmp[6];
 	# sequence
 	seq[j] = tmp[10];
-        #qual[j] = tmp[11];
         
 	# get rid of soft clipping to know correct position
 	if (str[j] == 0 && tmp[6] ~/^[0-9]+S/ && notprimary[j]==0) {
@@ -252,6 +252,18 @@ $0 !~ /^@/{
 	  if (pos[j] <= 0) {
 	    pos[j] = 1;
 	  }
+	}
+	else if (str[j] == 0 && notprimary[j]==1 && length(singleseq)>0) {
+          # count Ms,Ds,Ns,Xs,=s for sequence length
+	  seqlength=0;
+	  currstr=tmp[6];
+	  where=match(currstr, /[0-9]+[M|D|N|X|=]/);
+	  while (where>0) {
+	    seqlength+=substr(currstr,where,RLENGTH-1)+0;
+	    currstr=substr(currstr,where+RLENGTH);
+	    where=match(currstr, /[0-9]+[M|D|N|X|=]/);
+	  }
+	  expos[j] = expos[j] + seqlength - 1;
 	}
 	else if (str[j] == 16) {
 	  # count Ms,Ds,Ns,Xs,=s for sequence length 
@@ -280,6 +292,29 @@ $0 !~ /^@/{
         # blacklist - if 3rd bit set (=4) it means unmapped
         mapped[j] = and(tmp[2],4) == 0; 
       }
+      if (length(singleseq) > 0) {
+	if (notprimary[1]==0) {
+	  read1 = 1;
+	  read2 = 2;
+	  if (str[read2] == 0) {
+	    outputstr = 16;
+	  }
+	  else {
+	    outputstr = 0;
+	  }
+	}
+	else {
+	  read1 = 2;
+	  read2 = 1;
+	  if (str[read2] == 0) {
+	    outputstr = 16;
+	  }
+	  else {
+	    outputstr = 0;
+	  }
+	}
+      }
+
       if (count == 4) {
         # looking for A/B...A/B
 	dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
@@ -341,7 +376,8 @@ $0 !~ /^@/{
 	else {
 	  read1 = 0;
 	}
-	if (read1 != 0) {
+	# if distance not too far and not singleseq 
+	if (read1 != 0 && length(singleseq)==0) {
 	  if (mapped[read1] && mapped[read2]) {
 	    count_norm++;
 	    interiorpos1=adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
@@ -390,9 +426,9 @@ $0 !~ /^@/{
 	    }	
 	    count_unmapped++;
 	  }
-	}	
+	}
 	else { 
-	  # chimeric read with the 4 ends > 1KB apart
+	  # chimeric read with the 4 ends > 1KB apart, or singleseq
 	  for (i in c) {
 	      print c[i],"rt:A:8";
 	  }
@@ -404,7 +440,7 @@ $0 !~ /^@/{
 	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
 	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
 	
-	if ((dist[12]<1000&&str[1]!=str[2]&&read[1]!=read[2]&&(notprimary[1]+notprimary[2])>0)||(dist[13]<1000&&str[1]!=str[3]&&read[1]!=read[3]&&(notprimary[1]+notprimary[3])>0)||(dist[23]<1000&&str[2]!=str[3]&&read[2]!=read[3]&&(notprimary[2]+notprimary[3])>0)) {
+	if (length(singleseq)==0 &&  ((dist[12]<1000&&str[1]!=str[2]&&read[1]!=read[2]&&(notprimary[1]+notprimary[2])>0)||(dist[13]<1000&&str[1]!=str[3]&&read[1]!=read[3]&&(notprimary[1]+notprimary[3])>0)||(dist[23]<1000&&str[2]!=str[3]&&read[2]!=read[3]&&(notprimary[2]+notprimary[3])>0))) {
 	  # The paired ends look like A/B...B.  Make sure we take A and B.
 	  if (read[1] == read[2]) {
 	    # take the unique one "B" for sure
@@ -500,11 +536,11 @@ $0 !~ /^@/{
 	  }
 	  count_abnorm++;
 	}
-      
       }
       else { #if (count == 2) {
-	if (mapped[1] && mapped[2]) {
-	  count_reg++;
+	if ((length(singleseq)==0 && mapped[1] && mapped[2]) || (length(singleseq)>0 && mapped[read1] && mapped[read2])) {
+	  if (length(singleseq)==0) count_reg++;
+	  else count_norm++;
 	  interiorpos1=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
 	  interiorpos2=adjust(pos[2],str[2],cigarstr[2],notprimary[2]);
 	  
@@ -512,40 +548,74 @@ $0 !~ /^@/{
 	    frag1 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
 	    frag2 = bsearch(chromosomes[chr[2]], length(chromosomes[chr[2]]),pos[2]);
 	  }
-	  if (less_than(str[1],chr[1],pos[1],str[2],chr[2],pos[2])) {
-	    if (length(site_file) > 0) {
-	      fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
-	    }
+	  if (length(singleseq)==0) {
+	    if (less_than(str[1],chr[1],pos[1],str[2],chr[2],pos[2])) {
+	      if (length(site_file) > 0) {
+		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
+	      }
 		  
-	    # chromosome block string to sort on
-	    externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[1],pos[2]);
-	    cb_str = "cb:Z:"chr[1]"_"chr[2]"_"fragstr"_"str[1]"_"str[2]"_"externalpos;
+	      # chromosome block string to sort on
+	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[1],pos[2]);
+	      cb_str = "cb:Z:"chr[1]"_"chr[2]"_"fragstr"_"str[1]"_"str[2]"_"externalpos;
 		  
-	    # assign mate mapping quality, "read type", "interior position", "mate interior position"
-	    print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
-	    print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
+	      # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	      print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
+	      print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
 	    
-	    if (str[1]==0&&str[2]==16&&chr[1]==chr[2]&&pos[1]<pos[2]&&pos[2]-pos[1]<1000) {
-	      innerpairs+=1;
-	      insertsizesum+=abs(pos[2]-pos[1])
+	      if (str[1]==0&&str[2]==16&&chr[1]==chr[2]&&pos[1]<pos[2]&&pos[2]-pos[1]<1000) {
+		innerpairs+=1;
+		insertsizesum+=abs(pos[2]-pos[1])
+	      }
+	    }
+	    else {
+	      if (length(site_file) > 0) {
+		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
+	      }
+		  
+	      # chromosome block string to sort on
+	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[2],pos[1]);
+	      cb_str = "cb:Z:"chr[2]"_"chr[1]"_"fragstr"_"str[2]"_"str[1]"_"externalpos;
+	    
+	      # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	      print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:0",cb_str;
+	      print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:1",cb_str;
+	    
+	      if (str[2]==0&&str[1]==16&&chr[1]==chr[2]&&pos[2]<pos[1]&&pos[1]-pos[2]<1000) {
+		innerpairs+=1;
+		insertsizesum+=abs(pos[1]-pos[2]);
+	      }
 	    }
 	  }
 	  else {
-	    if (length(site_file) > 0) {
-	      fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
+	    if (less_than(str[read1],chr[read1],pos[read1],outputstr,chr[read2],pos[read2])) {
+	      if (length(site_file) > 0) {
+		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
+	      }
+              # chromosome block string to sort on 
+	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[read1],expos[read2]);
+	      cb_str = "cb:Z:"chr[read1]"_"chr[2]"_"fragstr"_"str[read1]"_"outputstr"_"externalpos;
+              # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	      interiorpos1 = adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
+	      interiorpos2 = adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]);
+	      # unclear for singleseq what the read type should be; both 0/1 and 2/3 are possible
+	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
+	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
 	    }
-		  
-	    # chromosome block string to sort on
-	    externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[2],pos[1]);
-	    cb_str = "cb:Z:"chr[2]"_"chr[1]"_"fragstr"_"str[2]"_"str[1]"_"externalpos;
-	    
-	    # assign mate mapping quality, "read type", "interior position", "mate interior position"
-	    print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:0",cb_str;
-	    print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:1",cb_str;
-	    
-	    if (str[2]==0&&str[1]==16&&chr[1]==chr[2]&&pos[2]<pos[1]&&pos[1]-pos[2]<1000) {
-	      innerpairs+=1;
-	      insertsizesum+=abs(pos[1]-pos[2]);
+	    else {
+	      if (length(site_file) > 0) {
+		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
+	      }
+	      print outputstr,chr[read2],adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]),str[read1],chr[read1],adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]),m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],"1$1",expos[read2],pos[read1]
+
+              # chromosome block string to sort on 
+	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",expos[read2],pos[read1]);
+	      cb_str = "cb:Z:"chr[read2]"_"chr[read1]"_"fragstr"_"outputstr"_"str[read1]"_"externalpos;
+              # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	      interiorpos1 = adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]);
+	      interiorpos2 = adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
+	      # unclear for singleseq what the read type should be; both 0/1 and 2/3 are possible
+	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
+	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
 	    }
 	  }
 	}
@@ -565,10 +635,24 @@ $0 !~ /^@/{
       count_abnorm++;
     }
     else if (count == 1) {
-      # this actually shouldn't happen, but it happens with alternate aligners on occasion
-      count_singleton++;
+      j=0;
       for (i in c) {
-	print c[i],"rt:A:8";
+	split(c[i], tmp);
+	split(tmp[1],readname,"/");
+        # blacklist - if 3rd bit set (=4) it means unmapped
+        mapped[j] = and(tmp[2],4) == 0;
+      }
+      if (mapped[0]) { 
+	count_singleton++;
+	for (i in c) {
+	  print c[i],"rt:A:8";
+	}
+      }
+      else {
+	for (i in c) {
+	  print c[i];
+	}	
+	count_unmapped++;
       }
     }
     # reset variables
@@ -609,13 +693,13 @@ END{
 	gsub(/_/, "", chr[j]);
 	# position
 	pos[j] = tmp[4];
+	expos[j] = tmp[4];
 	# mapq score
 	m[j] = tmp[5];
 	# cigar string
 	cigarstr[j] = tmp[6];
 	# sequence
 	seq[j] = tmp[10];
-        #qual[j] = tmp[11];
         
 	# get rid of soft clipping to know correct position
 	if (str[j] == 0 && tmp[6] ~/^[0-9]+S/ && notprimary[j]==0) {
@@ -632,6 +716,18 @@ END{
 	  if (pos[j] <= 0) {
 	    pos[j] = 1;
 	  }
+	}
+	else if (str[j] == 0 && notprimary[j]==1 && length(singleseq)>0) {
+          # count Ms,Ds,Ns,Xs,=s for sequence length
+	  seqlength=0;
+	  currstr=tmp[6];
+	  where=match(currstr, /[0-9]+[M|D|N|X|=]/);
+	  while (where>0) {
+	    seqlength+=substr(currstr,where,RLENGTH-1)+0;
+	    currstr=substr(currstr,where+RLENGTH);
+	    where=match(currstr, /[0-9]+[M|D|N|X|=]/);
+	  }
+	  expos[j] = expos[j] + seqlength - 1;
 	}
 	else if (str[j] == 16) {
 	  # count Ms,Ds,Ns,Xs,=s for sequence length 
@@ -660,6 +756,29 @@ END{
         # blacklist - if 3rd bit set (=4) it means unmapped
         mapped[j] = and(tmp[2],4) == 0; 
       }
+      if (length(singleseq) > 0) {
+	if (notprimary[1]==0) {
+	  read1 = 1;
+	  read2 = 2;
+	  if (str[read2] == 0) {
+	    outputstr = 16;
+	  }
+	  else {
+	    outputstr = 0;
+	  }
+	}
+	else {
+	  read1 = 2;
+	  read2 = 1;
+	  if (str[read2] == 0) {
+	    outputstr = 16;
+	  }
+	  else {
+	    outputstr = 0;
+	  }
+	}
+      }
+
       if (count == 4) {
         # looking for A/B...A/B
 	dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
@@ -721,7 +840,8 @@ END{
 	else {
 	  read1 = 0;
 	}
-	if (read1 != 0) {
+	# if distance not too far and not singleseq 
+	if (read1 != 0 && length(singleseq)==0) {
 	  if (mapped[read1] && mapped[read2]) {
 	    count_norm++;
 	    interiorpos1=adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
@@ -731,16 +851,17 @@ END{
 	      if (length(site_file) > 0) {
 		  frag1 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
 		  frag2 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
-		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
+		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d", frag1,frag2);
 	      }
 
 	      # chromosome block string to sort on
 	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[read1],pos[read2]);
+
 	      cb_str = "cb:Z:"chr[read1]"_"chr[read2]"_"fragstr"_"str[read1]"_"str[read2]"_"externalpos;
 	      
 	      # assign mate mapping quality, "read type", "interior position", "mate interior position"
-	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:4",cb_str;
-	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:5",cb_str;
+	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:4",cb_str ;
+	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:5",cb_str ;
 	      for (i in c) {
 		  if (i != read1 && i != read2) print c[i],"rt:A:9",cb_str;
 	      }
@@ -749,7 +870,7 @@ END{
 	      if (length(site_file) > 0) {
 		  frag1 = bsearch(chromosomes[chr[read2]], length(chromosomes[chr[read2]]),pos[read2]);
 		  frag2 = bsearch(chromosomes[chr[read1]], length(chromosomes[chr[read1]]),pos[read1]);
-		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
+		  fragstr = sprintf("%0" fraglen "d_%0" fraglen "d", frag1,frag2);
 	      }
 
 	      # chromosome block string to sort on
@@ -769,9 +890,9 @@ END{
 	    }	
 	    count_unmapped++;
 	  }
-	}	
+	}
 	else { 
-	  # chimeric read with the 4 ends > 1KB apart
+	  # chimeric read with the 4 ends > 1KB apart, or singleseq
 	  for (i in c) {
 	      print c[i],"rt:A:8";
 	  }
@@ -783,7 +904,7 @@ END{
 	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
 	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
 	
-	if ((dist[12]<1000&&str[1]!=str[2]&&read[1]!=read[2]&&(notprimary[1]+notprimary[2])>0)||(dist[13]<1000&&str[1]!=str[3]&&read[1]!=read[3]&&(notprimary[1]+notprimary[3])>0)||(dist[23]<1000&&str[2]!=str[3]&&read[2]!=read[3]&&(notprimary[2]+notprimary[3])>0)) {
+	if (length(singleseq)==0 &&  ((dist[12]<1000&&str[1]!=str[2]&&read[1]!=read[2]&&(notprimary[1]+notprimary[2])>0)||(dist[13]<1000&&str[1]!=str[3]&&read[1]!=read[3]&&(notprimary[1]+notprimary[3])>0)||(dist[23]<1000&&str[2]!=str[3]&&read[2]!=read[3]&&(notprimary[2]+notprimary[3])>0))) {
 	  # The paired ends look like A/B...B.  Make sure we take A and B.
 	  if (read[1] == read[2]) {
 	    # take the unique one "B" for sure
@@ -880,50 +1001,85 @@ END{
 	  count_abnorm++;
 	}
       }
-      else { # count == 2
-	if (mapped[1] && mapped[2]) {
-	  count_reg++;
+      else { #if (count == 2) {
+	if ((length(singleseq)==0 && mapped[1] && mapped[2]) || (length(singleseq)>0 && mapped[read1] && mapped[read2])) {
+	  if (length(singleseq)==0) count_reg++;
+	  else count_norm++;
 	  interiorpos1=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
 	  interiorpos2=adjust(pos[2],str[2],cigarstr[2],notprimary[2]);
-
+	  
 	  if (length(site_file) > 0) {
 	    frag1 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
 	    frag2 = bsearch(chromosomes[chr[2]], length(chromosomes[chr[2]]),pos[2]);
 	  }
-	  if (less_than(str[1],chr[1],pos[1],str[2],chr[2],pos[2])) {
-	    if (length(site_file) > 0) {
+	  if (length(singleseq)==0) {
+	    if (less_than(str[1],chr[1],pos[1],str[2],chr[2],pos[2])) {
+	      if (length(site_file) > 0) {
 		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
-	    }
-
-	    # chromosome block string to sort on
-	    externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[1],pos[2]);
-	    cb_str = "cb:Z:"chr[1]"_"chr[2]"_"fragstr"_"str[1]"_"str[2]"_"externalpos;
+	      }
+		  
+	      # chromosome block string to sort on
+	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[1],pos[2]);
+	      cb_str = "cb:Z:"chr[1]"_"chr[2]"_"fragstr"_"str[1]"_"str[2]"_"externalpos;
+		  
+	      # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	      print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
+	      print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
 	    
-	    # assign mate mapping quality, "read type", "interior position", "mate interior position"
-	    print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
-	    print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
-	    
-	    if (str[1]==0&&str[2]==16&&chr[1]==chr[2]&&pos[1]<pos[2]&&pos[2]-pos[1]<1000) {
+	      if (str[1]==0&&str[2]==16&&chr[1]==chr[2]&&pos[1]<pos[2]&&pos[2]-pos[1]<1000) {
 		innerpairs+=1;
-		insertsizesum+=(pos[2]-pos[1]);
+		insertsizesum+=abs(pos[2]-pos[1])
+	      }
+	    }
+	    else {
+	      if (length(site_file) > 0) {
+		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
+	      }
+		  
+	      # chromosome block string to sort on
+	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[2],pos[1]);
+	      cb_str = "cb:Z:"chr[2]"_"chr[1]"_"fragstr"_"str[2]"_"str[1]"_"externalpos;
+	    
+	      # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	      print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:0",cb_str;
+	      print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:1",cb_str;
+	    
+	      if (str[2]==0&&str[1]==16&&chr[1]==chr[2]&&pos[2]<pos[1]&&pos[1]-pos[2]<1000) {
+		innerpairs+=1;
+		insertsizesum+=abs(pos[1]-pos[2]);
+	      }
 	    }
 	  }
 	  else {
-	    if (length(site_file) > 0) {
-	      fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
+	    if (less_than(str[read1],chr[read1],pos[read1],outputstr,chr[read2],pos[read2])) {
+	      if (length(site_file) > 0) {
+		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
+	      }
+              # chromosome block string to sort on 
+	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[read1],expos[read2]);
+	      cb_str = "cb:Z:"chr[read1]"_"chr[2]"_"fragstr"_"str[read1]"_"outputstr"_"externalpos;
+              # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	      interiorpos1 = adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
+	      interiorpos2 = adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]);
+	      # unclear for singleseq what the read type should be; both 0/1 and 2/3 are possible
+	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
+	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
 	    }
+	    else {
+	      if (length(site_file) > 0) {
+		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
+	      }
+	      print outputstr,chr[read2],adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]),str[read1],chr[read1],adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]),m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],"1$1",expos[read2],pos[read1]
 
-	    # chromosome block string to sort on
-	    externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[2],pos[1]);
-	    cb_str = "cb:Z:"chr[2]"_"chr[1]"_"fragstr"_"str[2]"_"str[1]"_"externalpos;
-	      
-	    # assign mate mapping quality, "read type", "interior position", "mate interior position"
-	    print c[2],"MQ:i:"m[1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:0",cb_str;
-	    print c[1],"MQ:i:"m[2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:1",cb_str;
-
-	    if (str[2]==0&&str[1]==16&&chr[1]==chr[2]&&pos[2]<pos[1]&&pos[1]-pos[2]<1000) {
-		innerpairs+=1;
-		insertsizesum+=(pos[1]-pos[2]);
+              # chromosome block string to sort on 
+	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",expos[read2],pos[read1]);
+	      cb_str = "cb:Z:"chr[read2]"_"chr[read1]"_"fragstr"_"outputstr"_"str[read1]"_"externalpos;
+              # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	      interiorpos1 = adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]);
+	      interiorpos2 = adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
+	      # unclear for singleseq what the read type should be; both 0/1 and 2/3 are possible
+	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
+	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
 	    }
 	  }
 	}
@@ -943,10 +1099,24 @@ END{
       count_abnorm++;
     }
     else if (count == 1) {
-      # this actually shouldn't happen, but it happens with alternate aligners on occasion
-      count_abnorm++;
+      j=0;
       for (i in c) {
-	print c[i],"rt:A:8";
+	split(c[i], tmp);
+	split(tmp[1],readname,"/");
+        # blacklist - if 3rd bit set (=4) it means unmapped
+        mapped[j] = and(tmp[2],4) == 0;
+      }
+      if (mapped[0]) { 
+	count_singleton++;
+	for (i in c) {
+	  print c[i],"rt:A:8";
+	}
+      }
+      else {
+	for (i in c) {
+	  print c[i];
+	}	
+	count_unmapped++;
       }
     }
     resfile=fname1".res.txt";
