@@ -796,12 +796,14 @@ CNTLINE`
 		${load_awk}
 
 		date
-		time awk -v stem=${name}${ext}_norm -v site_file=$site_file -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam3
+		time awk -v stem=${name}${ext}_norm -v site_file=$site_file -v singleseq=$singleend -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam3
 		date
 MRGALL`
 	    dependalign="afterok:$jid"
 	else
-	    jid=`sbatch <<- MRGALL1 | egrep -o -e "\b[0-9]+$"
+	    if [ $singleend -eq 1 ]
+	    then
+		jid=`sbatch <<- MRGALL1 | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/merge1-%j.out
@@ -817,10 +819,30 @@ MRGALL`
 		${load_awk}
 		#time awk -v maxcount=1000000 -f $juiceDir/scripts/calculate_insert_size.awk $name$ext.sam > $name$ext.insert_size
 		#will need to combine chimeric_sam and adjust_insert_size 
-		time awk -v stem=${name}${ext}_norm -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam2
+		time awk -v stem=${name}${ext}_norm -v singleseq=$singleend -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam3
 MRGALL1`
-	    dependalign="afterok:$jid"
-	    jid=`sbatch <<- MRGALL3 | egrep -o -e "\b[0-9]+$"
+		dependalign="afterok:$jid"
+	    else
+		jid=`sbatch <<- MRGALL1 | egrep -o -e "\b[0-9]+$"
+		#!/bin/bash -l
+		#SBATCH -p $long_queue
+		#SBATCH -o $debugdir/merge1-%j.out
+		#SBATCH -e $debugdir/merge1-%j.err
+		#SBATCH --mem=10G
+		#SBATCH -t $long_queue_time
+		#SBATCH -c 1
+		#SBATCH --ntasks=1
+		#SBATCH -d $dependalign
+		#SBATCH -J "${groupname}_merge_${jname}"
+                #SBATCH --threads-per-core=1
+                $userstring
+		${load_awk}
+		#time awk -v maxcount=1000000 -f $juiceDir/scripts/calculate_insert_size.awk $name$ext.sam > $name$ext.insert_size
+		#will need to combine chimeric_sam and adjust_insert_size 
+		time awk -v stem=${name}${ext}_norm -v singleseq=$singleseq -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam2
+MRGALL1`
+		dependalign="afterok:$jid"
+		jid=`sbatch <<- MRGALL3 | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/merge2-%j.out
@@ -837,7 +859,8 @@ MRGALL1`
 
 		time awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/adjust_insert_size.awk $name$ext.sam2 > $name$ext.sam3
 MRGALL3`
-	    dependalign="afterok:$jid"
+		dependalign="afterok:$jid"
+	    fi
 	fi
 	jid2=`sbatch <<- MRGALL2 | egrep -o -e "\b[0-9]+$"
 #!/bin/bash -l
