@@ -253,7 +253,7 @@ $0 !~ /^@/{
 	    pos[j] = 1;
 	  }
 	}
-	else if (str[j] == 0 && notprimary[j]==1 && length(singleseq)>0) {
+	else if (str[j] == 0 && notprimary[j]==1 && length(singleend)>0) {
           # count Ms,Ds,Ns,Xs,=s for sequence length
 	  seqlength=0;
 	  currstr=tmp[6];
@@ -292,7 +292,7 @@ $0 !~ /^@/{
         # blacklist - if 3rd bit set (=4) it means unmapped
         mapped[j] = and(tmp[2],4) == 0; 
       }
-      if (length(singleseq) > 0) {
+      if (length(singleend) > 0) {
 	if (notprimary[1]==0) {
 	  read1 = 1;
 	  read2 = 2;
@@ -376,8 +376,8 @@ $0 !~ /^@/{
 	else {
 	  read1 = 0;
 	}
-	# if distance not too far and not singleseq 
-	if (read1 != 0 && length(singleseq)==0) {
+	# if distance not too far and not singleend 
+	if (read1 != 0 && length(singleend)==0) {
 	  if (mapped[read1] && mapped[read2]) {
 	    count_norm++;
 	    interiorpos1=adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
@@ -428,7 +428,7 @@ $0 !~ /^@/{
 	  }
 	}
 	else { 
-	  # chimeric read with the 4 ends > 1KB apart, or singleseq
+	  # chimeric read with the 4 ends > 1KB apart, or singleend
 	  for (i in c) {
 	      print c[i],"rt:A:8";
 	  }
@@ -440,7 +440,7 @@ $0 !~ /^@/{
 	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
 	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
 	
-	if (length(singleseq)==0 &&  ((dist[12]<1000&&str[1]!=str[2]&&read[1]!=read[2]&&(notprimary[1]+notprimary[2])>0)||(dist[13]<1000&&str[1]!=str[3]&&read[1]!=read[3]&&(notprimary[1]+notprimary[3])>0)||(dist[23]<1000&&str[2]!=str[3]&&read[2]!=read[3]&&(notprimary[2]+notprimary[3])>0))) {
+	if (length(singleend)==0 &&  ((dist[12]<1000&&str[1]!=str[2]&&read[1]!=read[2]&&(notprimary[1]+notprimary[2])>0)||(dist[13]<1000&&str[1]!=str[3]&&read[1]!=read[3]&&(notprimary[1]+notprimary[3])>0)||(dist[23]<1000&&str[2]!=str[3]&&read[2]!=read[3]&&(notprimary[2]+notprimary[3])>0))) {
 	  # The paired ends look like A/B...B.  Make sure we take A and B.
 	  if (read[1] == read[2]) {
 	    # take the unique one "B" for sure
@@ -538,17 +538,18 @@ $0 !~ /^@/{
 	}
       }
       else { #if (count == 2) {
-	if ((length(singleseq)==0 && mapped[1] && mapped[2]) || (length(singleseq)>0 && mapped[read1] && mapped[read2])) {
-	  if (length(singleseq)==0) count_reg++;
+	if ((length(singleend)==0 && mapped[1] && mapped[2]) || (length(singleend)>0 && mapped[read1] && mapped[read2])) {
+	  if (length(singleend)==0) count_reg++;
 	  else count_norm++;
-	  interiorpos1=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
-	  interiorpos2=adjust(pos[2],str[2],cigarstr[2],notprimary[2]);
 	  
 	  if (length(site_file) > 0) {
 	    frag1 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
 	    frag2 = bsearch(chromosomes[chr[2]], length(chromosomes[chr[2]]),pos[2]);
 	  }
-	  if (length(singleseq)==0) {
+	  if (length(singleend)==0) {
+	    interiorpos1=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
+	    interiorpos2=adjust(pos[2],str[2],cigarstr[2],notprimary[2]);
+
 	    if (less_than(str[1],chr[1],pos[1],str[2],chr[2],pos[2])) {
 	      if (length(site_file) > 0) {
 		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
@@ -564,7 +565,7 @@ $0 !~ /^@/{
 	    
 	      if (str[1]==0&&str[2]==16&&chr[1]==chr[2]&&pos[1]<pos[2]&&pos[2]-pos[1]<1000) {
 		innerpairs+=1;
-		insertsizesum+=abs(pos[2]-pos[1])
+		insertsizesum+=(pos[2]-pos[1])
 	      }
 	    }
 	    else {
@@ -582,7 +583,7 @@ $0 !~ /^@/{
 	    
 	      if (str[2]==0&&str[1]==16&&chr[1]==chr[2]&&pos[2]<pos[1]&&pos[1]-pos[2]<1000) {
 		innerpairs+=1;
-		insertsizesum+=abs(pos[1]-pos[2]);
+		insertsizesum+=(pos[1]-pos[2]);
 	      }
 	    }
 	  }
@@ -592,30 +593,32 @@ $0 !~ /^@/{
 		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
 	      }
               # chromosome block string to sort on 
-	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[read1],expos[read2]);
-	      cb_str = "cb:Z:"chr[read1]"_"chr[2]"_"fragstr"_"str[read1]"_"outputstr"_"externalpos;
-              # assign mate mapping quality, "read type", "interior position", "mate interior position"
 	      interiorpos1 = adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
 	      interiorpos2 = adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]);
-	      # unclear for singleseq what the read type should be; both 0/1 and 2/3 are possible
-	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
-	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
+	      sortpos=sprintf("%0" chrlen "d_%0" chrlen "d",interiorpos1,interiorpos2);
+	      cb_str = "cb:Z:"chr[read1]"_"chr[2]"_"fragstr"_"str[read1]"_"outputstr"_"sortpos;
+
+              # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	      # unclear for singleend what the read type should be; both 0/1 and 2/3 are possible
+	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"ep:i:"pos[read1],"rt:A:0",cb_str;
+	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"ep:i:"expos[read2],"rt:A:1",cb_str;
 	    }
 	    else {
 	      if (length(site_file) > 0) {
 		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
 	      }
-	      print outputstr,chr[read2],adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]),str[read1],chr[read1],adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]),m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],"1$1",expos[read2],pos[read1]
 
               # chromosome block string to sort on 
-	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",expos[read2],pos[read1]);
-	      cb_str = "cb:Z:"chr[read2]"_"chr[read1]"_"fragstr"_"outputstr"_"str[read1]"_"externalpos;
-              # assign mate mapping quality, "read type", "interior position", "mate interior position"
 	      interiorpos1 = adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]);
 	      interiorpos2 = adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
-	      # unclear for singleseq what the read type should be; both 0/1 and 2/3 are possible
-	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
-	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
+
+	      sortpos=sprintf("%0" chrlen "d_%0" chrlen "d",interiorpos1,interiorpos2);
+	      cb_str = "cb:Z:"chr[read2]"_"chr[read1]"_"fragstr"_"outputstr"_"str[read1]"_"sortpos;
+              # assign mate mapping quality, "read type", "interior position", "mate interior position"
+
+	      # unclear for singleend what the read type should be; both 0/1 and 2/3 are possible
+	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"ep:i:"expos[read2],"rt:A:0",cb_str;
+	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"ep:i:"pos[read1],"rt:A:1",cb_str;
 	    }
 	  }
 	}
@@ -638,7 +641,6 @@ $0 !~ /^@/{
       j=0;
       for (i in c) {
 	split(c[i], tmp);
-	split(tmp[1],readname,"/");
         # blacklist - if 3rd bit set (=4) it means unmapped
         mapped[j] = and(tmp[2],4) == 0;
       }
@@ -717,7 +719,7 @@ END{
 	    pos[j] = 1;
 	  }
 	}
-	else if (str[j] == 0 && notprimary[j]==1 && length(singleseq)>0) {
+	else if (str[j] == 0 && notprimary[j]==1 && length(singleend)>0) {
           # count Ms,Ds,Ns,Xs,=s for sequence length
 	  seqlength=0;
 	  currstr=tmp[6];
@@ -756,7 +758,7 @@ END{
         # blacklist - if 3rd bit set (=4) it means unmapped
         mapped[j] = and(tmp[2],4) == 0; 
       }
-      if (length(singleseq) > 0) {
+      if (length(singleend) > 0) {
 	if (notprimary[1]==0) {
 	  read1 = 1;
 	  read2 = 2;
@@ -840,8 +842,8 @@ END{
 	else {
 	  read1 = 0;
 	}
-	# if distance not too far and not singleseq 
-	if (read1 != 0 && length(singleseq)==0) {
+	# if distance not too far and not singleend 
+	if (read1 != 0 && length(singleend)==0) {
 	  if (mapped[read1] && mapped[read2]) {
 	    count_norm++;
 	    interiorpos1=adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
@@ -892,7 +894,7 @@ END{
 	  }
 	}
 	else { 
-	  # chimeric read with the 4 ends > 1KB apart, or singleseq
+	  # chimeric read with the 4 ends > 1KB apart, or singleend
 	  for (i in c) {
 	      print c[i],"rt:A:8";
 	  }
@@ -904,7 +906,7 @@ END{
 	dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
 	dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
 	
-	if (length(singleseq)==0 &&  ((dist[12]<1000&&str[1]!=str[2]&&read[1]!=read[2]&&(notprimary[1]+notprimary[2])>0)||(dist[13]<1000&&str[1]!=str[3]&&read[1]!=read[3]&&(notprimary[1]+notprimary[3])>0)||(dist[23]<1000&&str[2]!=str[3]&&read[2]!=read[3]&&(notprimary[2]+notprimary[3])>0))) {
+	if (length(singleend)==0 &&  ((dist[12]<1000&&str[1]!=str[2]&&read[1]!=read[2]&&(notprimary[1]+notprimary[2])>0)||(dist[13]<1000&&str[1]!=str[3]&&read[1]!=read[3]&&(notprimary[1]+notprimary[3])>0)||(dist[23]<1000&&str[2]!=str[3]&&read[2]!=read[3]&&(notprimary[2]+notprimary[3])>0))) {
 	  # The paired ends look like A/B...B.  Make sure we take A and B.
 	  if (read[1] == read[2]) {
 	    # take the unique one "B" for sure
@@ -1002,8 +1004,8 @@ END{
 	}
       }
       else { #if (count == 2) {
-	if ((length(singleseq)==0 && mapped[1] && mapped[2]) || (length(singleseq)>0 && mapped[read1] && mapped[read2])) {
-	  if (length(singleseq)==0) count_reg++;
+	if ((length(singleend)==0 && mapped[1] && mapped[2]) || (length(singleend)>0 && mapped[read1] && mapped[read2])) {
+	  if (length(singleend)==0) count_reg++;
 	  else count_norm++;
 	  interiorpos1=adjust(pos[1],str[1],cigarstr[1],notprimary[1]);
 	  interiorpos2=adjust(pos[2],str[2],cigarstr[2],notprimary[2]);
@@ -1012,7 +1014,7 @@ END{
 	    frag1 = bsearch(chromosomes[chr[1]], length(chromosomes[chr[1]]),pos[1]);
 	    frag2 = bsearch(chromosomes[chr[2]], length(chromosomes[chr[2]]),pos[2]);
 	  }
-	  if (length(singleseq)==0) {
+	  if (length(singleend)==0) {
 	    if (less_than(str[1],chr[1],pos[1],str[2],chr[2],pos[2])) {
 	      if (length(site_file) > 0) {
 		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
@@ -1056,30 +1058,32 @@ END{
 		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag1,frag2);
 	      }
               # chromosome block string to sort on 
-	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[read1],expos[read2]);
-	      cb_str = "cb:Z:"chr[read1]"_"chr[2]"_"fragstr"_"str[read1]"_"outputstr"_"externalpos;
-              # assign mate mapping quality, "read type", "interior position", "mate interior position"
 	      interiorpos1 = adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
 	      interiorpos2 = adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]);
-	      # unclear for singleseq what the read type should be; both 0/1 and 2/3 are possible
-	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
-	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
+	      sortpos=sprintf("%0" chrlen "d_%0" chrlen "d",interiorpos1,interiorpos2);
+	      cb_str = "cb:Z:"chr[read1]"_"chr[2]"_"fragstr"_"str[read1]"_"outputstr"_"sortpos;
+
+              # assign mate mapping quality, "read type", "interior position", "mate interior position"
+	      # unclear for singleend what the read type should be; both 0/1 and 2/3 are possible
+	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"ep:i:"pos[read1],"rt:A:0",cb_str;
+	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"ep:i:"expos[read2],"rt:A:1",cb_str;
 	    }
 	    else {
 	      if (length(site_file) > 0) {
 		fragstr = sprintf("%0" fraglen "d_%0" fraglen "d",frag2,frag1);
 	      }
-	      print outputstr,chr[read2],adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]),str[read1],chr[read1],adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]),m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],"1$1",expos[read2],pos[read1]
 
               # chromosome block string to sort on 
-	      externalpos=sprintf("%0" chrlen "d_%0" chrlen "d",expos[read2],pos[read1]);
-	      cb_str = "cb:Z:"chr[read2]"_"chr[read1]"_"fragstr"_"outputstr"_"str[read1]"_"externalpos;
-              # assign mate mapping quality, "read type", "interior position", "mate interior position"
 	      interiorpos1 = adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]);
 	      interiorpos2 = adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
-	      # unclear for singleseq what the read type should be; both 0/1 and 2/3 are possible
-	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"rt:A:0",cb_str;
-	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"rt:A:1",cb_str;
+
+	      sortpos=sprintf("%0" chrlen "d_%0" chrlen "d",interiorpos1,interiorpos2);
+	      cb_str = "cb:Z:"chr[read2]"_"chr[read1]"_"fragstr"_"outputstr"_"str[read1]"_"sortpos;
+              # assign mate mapping quality, "read type", "interior position", "mate interior position"
+
+	      # unclear for singleend what the read type should be; both 0/1 and 2/3 are possible
+	      print c[read2],"MQ:i:"m[read1],"ip:i:"interiorpos1,"mp:i:"interiorpos2,"ep:i:"expos[read2],"rt:A:0",cb_str;
+	      print c[read1],"MQ:i:"m[read2],"ip:i:"interiorpos2,"mp:i:"interiorpos1,"ep:i:"pos[read1],"rt:A:1",cb_str;
 	    }
 	  }
 	}
