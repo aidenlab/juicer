@@ -26,10 +26,16 @@
 # Dedup script that submits deduping jobs after splitting at known 
 # non-duplicate
 # Juicer version 2.0
- BEGIN{
-     tot=0;
-     name=0;
- }
+BEGIN{
+  tot=0;
+  name=0;
+  if (justexact) {
+    str="-v nowobble=1";
+  }
+  else {
+    str="-v wobble1="wobbleDist" -v wobble2="wobbleDist;
+  }
+}
 {
   if (tot >= 1000000 && $0 ~/cb:/) {
     for (ind=12; ind<=NF; ind++) {
@@ -38,21 +44,15 @@
       }
     }
     split(cb_str[3], cb, "_");
-    if (p1 != cb[1] || p2 != cb[2] || p3 != cb[3] || p4 != cb[4] || p5 != cb[5] || p6 != cb[6]) {
+    if (p1 != cb[1] || p2 != cb[2] || p3 != int(cb[3]) || p4 != int(cb[4]) || p5 != cb[5] || p6 != cb[6]) {
       sname = sprintf("%s_msplit%04d", groupname, name);
       sscriptname = sprintf("%s/.%s.slurm", debugdir, sname);
-      if (justexact) {
-	printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk -v nowobble=1 %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, dir, name, dir, sname, tot) > sscriptname;
-      }
-      else {
-	printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk %s/split%04d > %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, dir, name, dir, sname, tot) > sscriptname;
-      }
+      printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk %s %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, str, dir, name, dir, sname, tot) > sscriptname;
       sysstring = sprintf("sbatch %s", sscriptname);
       system(sysstring);
       outname = sprintf("%s/split%04d", dir, name);
       close(outname);
       close(sscriptname);
-      
       name++;
       tot=0;
     }
@@ -66,19 +66,14 @@
       }
     }
     split(cb_str[3], cb, "_");
-    p1=cb[1];p2=cb[2];p3=cb[3];p4=cb[4];p5=cb[5];p6=cb[6];
+    p1=cb[1];p2=cb[2];p3=int(cb[3]);p4=int(cb[4]);p5=cb[5];p6=cb[6];
   }
   tot++;
 }
 END {
     sname = sprintf("%s_msplit%04d", groupname, name);
     sscriptname = sprintf("%s/.%s.slurm", debugdir, sname);
-    if (justexact) {
-      printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk -v nowobble=1 %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, dir, name, dir, sname, tot) > sscriptname;
-    }
-    else {
-      printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk %s/split%04d > %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, dir, name, dir, sname, tot) > sscriptname;
-    }
+    printf("#!/bin/bash -l\n#SBATCH -o %s/dup-split-%s.out\n#SBATCH -e %s/dup-split-%s.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;awk -f %s/scripts/dups_sam.awk %s %s/split%04d >  %s/%s;\necho Reads:%s\ndate\n", debugdir, name, debugdir, name, queue, groupname, juicedir, str, dir, name, dir, sname, tot) > sscriptname;
     sysstring = sprintf("sbatch %s", sscriptname);
     system(sysstring);
     close(sscriptname);
@@ -88,12 +83,6 @@ END {
     sysstring = sprintf("sbatch %s", sscriptname);
     system(sysstring);
     close(sscriptname);
-
-#sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);
-#printf("#!/bin/bash -l\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt;rm %s/split*;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir, dir, dir) > sscriptname;
-#sysstring = sprintf("sbatch %s", sscriptname);
-#system(sysstring);
-#close(sscriptname);
 
     sscriptname = sprintf("%s/.%s_finalize.slurm", debugdir, groupname);
     printf("#!/bin/bash -l\n#SBATCH -o %s/dup-guard-trigger.out\n#SBATCH -e %s/dup-guard-trigger.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\necho %s %s %s %s;\nsqueue -u %s;\ndate\n", debugdir, debugdir, queue, groupname, topDir, site, genomeID, genomePath, user, user) > sscriptname;

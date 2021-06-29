@@ -34,7 +34,12 @@ then
     then
 	num1="0"
     else
-	num1=$(paste <(gunzip -c $name1$ext) <(gunzip -c $name2$ext) | awk '!((NR+2)%4)' | grep -cE $ligation)
+	if [ $singleend -eq 1 ]
+	then
+	    num1=$(paste <(gunzip -c $name1$ext) | awk '!((NR+2)%4)' | grep -cE $ligation)
+	else
+	    num1=$(paste <(gunzip -c $name1$ext) <(gunzip -c $name2$ext) | awk '!((NR+2)%4)' | grep -cE $ligation)
+	fi
     fi
     num2=$(gunzip -c ${name1}${ext} | wc -l | awk '{print $1}')
 else
@@ -42,7 +47,12 @@ else
     then
 	num1="0"
     else
-	num1=$(paste $name1$ext $name2$ext | awk '!((NR+2)%4)' | grep -cE $ligation)
+	if [ $singleend -eq 1 ]
+	then
+	    num1=$(paste $name1$ext | awk '!((NR+2)%4)' | grep -cE $ligation)
+	else
+	    num1=$(paste $name1$ext $name2$ext | awk '!((NR+2)%4)' | grep -cE $ligation)
+	fi
     fi
     num2=$(wc -l ${name1}${ext} | awk '{print $1}')
 fi
