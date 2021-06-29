@@ -96,26 +96,37 @@ justexact=0
 assembly=0
 # force cleanup
 cleanup=0
+# single-end input, default no
+singleend=0
+# sample name for RG tag
+sampleName="HiC_sample"
+# library name for RG tag
+libraryName="HiC_library"
 
-## TODO Change usage to be correct and print nicely 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts directory]\n                 [-b ligation] [-t threads] [-T threadsHic]\n                 [-e] [-h] [-f] [-j] [--assembly] [--cleanup]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-b ligation] [-t threads]\n                 [-T threadsHic] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [--assembly] [--cleanup]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" \n  (default \"$site\")"
 aboutHelp="* [about]: enter description of experiment, enclosed in single quotes"
-stageHelp="* [stage]: must be one of \"chimeric\", \"merge\", \"dedup\", \"final\", \"postproc\", or \"early\".\n    -Use \"merge\" when alignment has finished but the merged_sort file has not\n     yet been created.\n    -Use \"dedup\" when the files have been merged into merged_sort but\n     merged_nodups has not yet been created.\n    -Use \"final\" when the reads have been deduped into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the hic files\n    Can also use -e flag to exit early"
-pathHelp="* [chrom.sizes path]: enter path for chrom.sizes file"
+stageHelp="* [stage]: must be one of \"chimeric\", \"merge\", \"dedup\", \"afterdedup\", \"final\", \"postproc\", or \"early\".\n    -Use \"chimeric\" when alignment has finished or to start from previously\n     aligned files\n    -Use \"merge\" when chimeric handling has finished but the merged_sort file\n     has not yet been created.\n    -Use \"dedup\" when the files have been merged into merged_sort but\n     merged_dedup has not yet been created.\n    -Use \"afterdedup\" when dedup is complete but statistics haven't been run\n    -Use \"final\" when the reads have been deduped into merged_dedup but the\n     final hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the hic files\n    Can also use -e flag to exit early"
+pathHelp="* [chrom.sizes path]: enter path for chrom.sizes file; can also use canonical\n  genome name here such as hg38"
 siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
 scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
 refSeqHelp="* [reference genome file]: enter path for reference sequence file, BWA index\n  files must be in same directory"
 ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
 threadsHelp="* [threads]: number of threads when running BWA alignment"
 threadsHicHelp="* [threads for hic file creation]: number of threads when building hic file"
+sampleHelp="* [sample name]: will be added to the SM portion of the read group (RG) tag"
+libraryHelp="* [library name]: will be added to the LB portion of the read group (RG) tag"
+wobbleHelp="* [wobble dist]: adjust wobble for deduping (default 4)"
 excludeHelp="* -f: include fragment-delimited maps in hic file creation"
 justHelp="* -j: just exact duplicates excluded at dedupping step"
 earlyexitHelp="* -e: Use for an early exit, before the final creation of the hic files"
-helpHelp="* -h: print this help and exit"
+singleEndHelp="* -u: Single end alignment"
+assemblyHelp="* --assembly: For use before 3D-DNA; early exit and create old style merged_nodups"
+cleanupHelp="* --cleanup: Automatically clean up files if pipeline successfully completes"
+helpHelp="* -h, --help: print this help and exit"
 
 printHelpAndExit() {
     echo -e "$usageHelp"
@@ -131,14 +142,20 @@ printHelpAndExit() {
     echo -e "$ligationHelp"
     echo -e "$threadsHelp"
     echo -e "$threadsHicHelp"
-    echo -e "$userHelp"
+    echo -e "$sampleHelp"
+    echo -e "$libraryHelp"
+    echo -e "$wobbleHelp"
+    echo -e "$justHelp"
     echo -e "$earlyexitHelp"
-    echo "$excludeHelp"
+    echo -e "$excludeHelp"
+    echo -e "$singleEndHelp"
+    echo -e "$assemblyHelp"
+    echo -e "$cleanupHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:a:hs:p:y:z:S:D:b:t:jfecT:1:2:i:-:" opt; do
+while getopts "d:g:a:hs:p:y:z:S:D:b:t:jfuecT:1:2:i:-:w:k:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -153,19 +170,24 @@ while getopts "d:g:a:hs:p:y:z:S:D:b:t:jfecT:1:2:i:-:" opt; do
 	f) nofrag=0 ;;
 	b) ligation=$OPTARG ;;
 	t) threads=$OPTARG ;;
-	1) read1files=$OPTARG ;;
-	2) read2files=$OPTARG ;;
 	j) justexact=1 ;;
 	e) earlyexit=1 ;;
 	T) threadsHic=$OPTARG ;;
 	i) sampleName=$OPTARG ;;
+	k) libraryNamee=$OPTARG ;;
+	u) singleend=1 ;;
+	w) wobbleDist=$OPTARG ;;
+	k) libraryName=$OPTARG ;;
+	1) read1files=$OPTARG ;;
+	2) read2files=$OPTARG ;;
 	-) case "${OPTARG}" in 
 	    assembly) earlyexit=1; assembly=1 ;;
 	    cleanup)  cleanup=1 ;;
-	    *) printHelpAndExit 1;;
+	    "help")   printHelpAndExit 0;;
+	    *) echo "Unknown argument --${OPTARG}"; 
+	           printHelpAndExit 1;;
            esac;;
-
-	[?]) printHelpAndExit 1;;
+    [?]) printHelpAndExit 1;;
     esac
 done
 
@@ -439,8 +461,14 @@ then
 	name1=${name}${read1str}
 	name2=${name}${read2str}	
 	jname=$(basename "$name")${ext}
-	rgtag="@RG\tID:${sampleName}\tLB:NULL\tPL:ILLUMINA\tSM:NULL"
-	
+	# RG group; ID derived from paired-end name, sample and library can be user set
+	if [ $singleend -eq 1 ]
+	then
+	    rg="@RG\\tID:${jname%.fastq*}\\tSM:{sampleName}\\tLB:${libraryName}"
+	else
+	    rg="@RG\\tID:${jname%.fastq*}\\tSM:{sampleName}\\tPL:ILM\\tLB:${libraryName}"
+	fi
+
 	if [ ${file1: -3} == ".gz" ]
 	then
 	    usegzip=1
@@ -449,8 +477,14 @@ then
 	source ${juiceDir}/scripts/common/countligations.sh
 	if [ -z "$chimeric" ]
 	then
-	    echo "Running command $bwa_cmd mem -SP5M $threadstring $refSeq $file1 $file2 > $name$ext.sam"
-	    $bwa_cmd mem -K 320000000 -SP5M -R "${rgtag}" $threadstring $refSeq $file1 $file2 > $name$ext.sam
+	    if [ $singleend -eq 1 ]
+	    then
+		echo "Running command $bwa_cmd mem -5M $threadstring -R $rg $refSeq $name1$ext > $name$ext.sam"
+		$bwa_cmd mem -K 320000000 -5M $threadstring -R "$rg" $refSeq $file1 > $name$ext.sam 
+	    else
+		echo "Running command bwa mem -SP5M $threadstring -R $rg $refSeq $file1 $file2 > $name$ext.sam" 
+		$bwa_cmd mem -K 320000000 -SP5M $threadstring -R "$rg" $refSeq $file1 $file2 > $name$ext.sam
+	    fi
 	    if [ $? -ne 0 ]
 	    then
 		echo "***! Alignment of $file1 $file2 failed."
@@ -462,13 +496,23 @@ then
 	    echo "Using already aligned reads $name$ext.sam";
         fi
 
-	# call chimeric script to deal with chimeric reads; sorted file is sorted by read name at this point		
+	# call chimeric script to deal with chimeric reads; sorted file is sorted by read name at this point
 	if [ "$site" != "none" ] && [ -e "$site_file" ] 
 	then		
-	    awk -v stem=${name}${ext}_norm -v site_file=$site_file -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
+	    if [ $singleend -eq 1 ]
+	    then
+		awk -v stem=${name}${ext}_norm -v site_file=$site_file -v singleend=$singleend -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam | samtools sort  -t cb -n $sthreadstring >  ${name}${ext}.bam
+	    else
+		awk -v stem=${name}${ext}_norm -v site_file=$site_file -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
+	    fi
 	else
-	    awk -v stem=${name}${ext}_norm -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam > $name$ext.sam2
-	    awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/common/adjust_insert_size.awk $name$ext.sam2 | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
+	    if [ $singleend -eq 1 ]
+	    then
+		awk -v stem=${name}${ext}_norm -v singleend=$singleend -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam | samtools sort  -t cb -n $sthreadstring >  ${name}${ext}.bam
+	    else
+		awk -v stem=${name}${ext}_norm -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam > $name$ext.sam2
+		awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/common/adjust_insert_size.awk $name$ext.sam2 | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
+	    fi
 	fi
 
 	if [ $? -ne 0 ]
@@ -593,7 +637,12 @@ if [ -z $postproc ]
     export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"
     export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
     tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt
-    dups=$(samtools view -c -f 1089 -F 256 $sthreadstring $outputdir/merged_dedup.bam)
+    if [ $singleend -eq 1 ] 
+    then
+	dups=$(samtools view -c -f 1024 -F 256 $sthreadstring $outputdir/merged_dedup.bam) 
+    else
+	dups=$(samtools view -c -f 1089 -F 256 $sthreadstring $outputdir/merged_dedup.bam)
+    fi
     cat $splitdir/*.res.txt | awk -v ligation=$ligation -v dups=$dups -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
     cp $outputdir/inter.txt $outputdir/inter_30.txt
 
