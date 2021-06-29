@@ -286,6 +286,7 @@ then
 	chimeric) chimeric=1 ;;
         merge) merge=1 ;;
         dedup) dedup=1 ;;
+	afterdedup) afterdedup=1 ;;
         early) earlyexit=1 ;;
         final) final=1 ;;
 	postproc) postproc=1 ;; 
@@ -324,7 +325,7 @@ else
 fi
 
 ## Alignment checks; not necessary if later stages
-if [[ -z "$chimeric" && -z "$merge" &&  -z "$final" && -z "$dedup" && -z "$postproc" ]] 
+if [[ -z "$chimeric" && -z "$merge" &&  -z "$final" && -z "$dedup" && -z "$postproc" && -z "$afterdedup" ]] 
 then
     ## Check that refSeq exists 
     if [ ! -e "$refSeq" ]; then
