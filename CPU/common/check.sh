@@ -25,11 +25,11 @@
 #
 # Sanity check once pipeline is complete to be sure number of lines adds up, deduping
 # proceeded appropriately, and that files were created
-# Juicer version 1.5
+# Juicer version 2.0
 
 # Start by checking the statistics to see if they add up 
 res1=`cat ${splitdir}/*norm*res*`
-check1=`cat ${splitdir}/*norm*res* | awk '{s2+=$2; s3+=$3; s4+=$4; s5+=$5; s6+=$6}END{if (s2 != s3+s4+s5+s6){print 0}else{print 1}}'`
+check1=`cat ${splitdir}/*norm*res* | awk '{s2+=$2; s3+=$3; s4+=$4; s5+=$5; s6+=$6; s7+=$7}END{if (s2 != s3+s4+s5+s6+s7){print 0}else{print 1}}'`
 if [ $check1 -eq 0 ] || [ -z "$res1" ]
 then
     echo "***! Error! The statistics do not add up. Alignment likely failed to complete on one or more files. Run relaunch_prep.sh"
