@@ -1029,7 +1029,7 @@ EOF`
 fi
 
 # Remove the duplicates from the big sorted file
-if [ -z $final ] && [ -z $postproc ] && [ -z $dedup ]
+if [ -z $final ] && [ -z $postproc ] && [ -z $afterdedup ]
 then
     if [ -z $dedup ]
     then
