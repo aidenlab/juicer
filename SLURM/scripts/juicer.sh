@@ -174,7 +174,7 @@ sampleName="HiC_sample"
 libraryName="HiC_library"
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path] [-C chunk size]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-Q queue time limit]\n                 [-L long queue time limit] [-b ligation] [-t threads]\n                 [-T threadsHic] [-A account] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [--assembly] [--cleanup] [--qc_apa]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path] [-C chunk size]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-Q queue time limit]\n                 [-L long queue time limit] [-b ligation] [-t threads]\n                 [-T threadsHic] [-A account] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [--assembly] [--cleanup] [--qc_apa] [--qc]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
@@ -203,6 +203,7 @@ singleEndHelp="* -u: Single end alignment"
 assemblyHelp="* --assembly: For use before 3D-DNA; early exit and create old style merged_nodups"
 cleanupHelp="* --cleanup: Automatically clean up files if pipeline successfully completes"
 qcapaHelp="* --qc_apa: Run QC APA"
+qcHelp="* --qc: Only build map down to 1000bp" 
 helpHelp="* -h, --help: print this help and exit"
 
 printHelpAndExit() {
@@ -235,6 +236,7 @@ printHelpAndExit() {
     echo -e "$assemblyHelp"
     echo -e "$cleanupHelp"
     echo -e "$qcapaHelp"
+    echo -e "$qcHelp"
     echo "$helpHelp"
     exit "$1"
 }
@@ -271,6 +273,7 @@ while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfuec-:T:w:k:" opt; do
 	    assembly) earlyexit=1; assembly=1 ;;
 	    cleanup)  cleanup=1 ;;
 	    qc_apa)   qc_apa=1 ;;
+	    qc) qc=1 ;;
 	    "help")   printHelpAndExit 0;;
 	    *) echo "Unknown argument --${OPTARG}"; 
 	       printHelpAndExit 1;;
@@ -1389,13 +1392,22 @@ FINCLN1`
 	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged1.txt 500000 > ${outputdir}/merged1_index.txt
 	fi
 
-
-	if [ "$nofrag" -eq 1 ]
-	then 
-	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
+	if [ "$qc" -eq 1 ]
+	then
+	  if [ "$nofrag" -eq 1 ]
+	  then 
+	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
+	  else
+	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
+	  fi
 	else
+	  if [ "$nofrag" -eq 1 ]
+	  then 
+	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
+	  else
 	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
-	fi
+	  fi
+        fi
 	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic 
 	rm -Rf ${outputdir}"/HIC_tmp"
 	date
@@ -1432,11 +1444,21 @@ HIC`
 	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
 	fi
 
-        if [ "$nofrag" -eq 1 ]
-        then 
+	if [ "$qc" -eq 1 ]
+	then
+          if [ "$nofrag" -eq 1 ]
+          then 
+	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
+	  else
+	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
+	  fi
+        else
+          if [ "$nofrag" -eq 1 ]
+          then 
 	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-	else
+	  else
 	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
+	  fi
 	fi
 	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
 	rm -Rf ${outputdir}"/HIC30_tmp"
