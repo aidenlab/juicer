@@ -53,8 +53,8 @@ then
     bed_file_dir="/storage/aiden/juicer/references/motif"
 else
     isVoltron=1
-    juicer_tools_path="/gpfs0/juicer/scripts/juicer_tools"
-    bed_file_dir="/gpfs0/juicer/references/motif"
+    juicer_tools_path="/gpfs0/juicer2/scripts/juicer_tools"
+    bed_file_dir="/gpfs0/juicer2/references/motif"
 fi
 
 while getopts "h:g:j:i:m:" opt; do
@@ -83,6 +83,7 @@ fi
 echo -e "\nHiCCUPS:\n"
 if hash nvcc 2>/dev/null 
 then 
+    echo "${juicer_tools_path} hiccups ${hic_file_path} ${hic_file_path%.*}_loops"
     ${juicer_tools_path} hiccups ${hic_file_path} ${hic_file_path%.*}"_loops"
     if [ $? -ne 0 ]; then
 	echo "***! Problem while running HiCCUPS";

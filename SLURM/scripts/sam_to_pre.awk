@@ -27,6 +27,15 @@ processme != 0 {
 	saved_mq = $5;
 	saved_cigar = $6;
 	saved_chr = $3;
+	if (length(singleend)>0) {
+	    for (ind=12; ind<=NF; ind++) {
+		if ($(ind) ~ /^ep:/) {
+		    split($(ind), ep_str, ":");
+		}
+	    }
+	    saved_ext = int(ep_str[3]);
+	}
+	else saved_ext = "";
 	next;
     }
     else {
@@ -54,10 +63,11 @@ processme != 0 {
 	    else if ($i ~ /^mp/) {
 		split($i, mp, ":");
 	    }
-	}	
-	for (ind=12; ind<=NF; ind++) {
-	    if ($(ind) ~ /^rt:/) {
-		split($(ind), rt, ":");
+	    else if ($i ~ /^rt:/) {
+		split($i, rt, ":");
+	    }
+	    else if ($i ~ /^ep:/) {
+		split($i, ep_str, ":");
 	    }
 	}
 	if (rt[3]%2==0) {
@@ -87,8 +97,14 @@ processme != 0 {
 
 	# merged_nodups
 	if (use_external_pos) {
-	    pos1 = extpos1;
-	    pos2 = extpos2;
+	    if (length(singleend)>0) {
+		pos1 = saved_ext;
+		pos2 = int(ep_str[3]);
+	    }
+	    else { 
+		pos1 = extpos1;
+		pos2 = extpos2;
+	    }
 	    print str1, chr1, pos1, frag1, str2, chr2, pos2, frag2, mq1, cigar1, seq1, mq2, cigar2, seq2, $1, $1;
 	}
 	else {
