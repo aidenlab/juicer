@@ -264,7 +264,6 @@ while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfuec-:T:w:k:" opt; do
 	e) earlyexit=1 ;;
 	T) threadsHic=$OPTARG ;;
 	i) sampleName=$OPTARG ;;
-	k) libraryNamee=$OPTARG ;;
 	u) singleend=1 ;;
 	w) wobbleDist=$OPTARG ;;
 	k) libraryName=$OPTARG ;;
@@ -1030,7 +1029,7 @@ EOF`
 fi
 
 # Remove the duplicates from the big sorted file
-if [ -z $final ] && [ -z $postproc ] && [ -z $dedup ]
+if [ -z $final ] && [ -z $postproc ] && [ -z $afterdedup ]
 then
     if [ -z $dedup ]
     then
