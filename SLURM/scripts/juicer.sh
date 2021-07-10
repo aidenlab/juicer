@@ -120,6 +120,7 @@ else
     load_awk="spack load gawk@4.1.4 arch=\`spack arch\`"
     load_gpu="spack load cuda@8.0.61 arch=\`spack arch\` && CUDA_VISIBLE_DEVICES=0,1,2,3"
     load_samtools="spack load samtools arch=\`spack arch\`"
+    call_bwameth="/gpfs0/home/neva/bwa-meth/bwameth.py"
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
     juiceDir="/gpfs0/juicer2"
@@ -174,7 +175,7 @@ sampleName="HiC_sample"
 libraryName="HiC_library"
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path] [-C chunk size]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-Q queue time limit]\n                 [-L long queue time limit] [-b ligation] [-t threads]\n                 [-T threadsHic] [-A account] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [--assembly] [--cleanup] [--qc_apa] [--qc]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path] [-C chunk size]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-Q queue time limit]\n                 [-L long queue time limit] [-b ligation] [-t threads]\n                 [-T threadsHic] [-A account] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [-m] [--assembly] [--cleanup] [--qc_apa] [--qc]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
@@ -200,6 +201,7 @@ excludeHelp="* -f: include fragment-delimited maps in hic file creation"
 justHelp="* -j: just exact duplicates excluded at dedupping step"
 earlyexitHelp="* -e: Use for an early exit, before the final creation of the hic files"
 singleEndHelp="* -u: Single end alignment"
+methylationHelp="* -m: Methylation + Hi-C library"
 assemblyHelp="* --assembly: For use before 3D-DNA; early exit and create old style merged_nodups"
 cleanupHelp="* --cleanup: Automatically clean up files if pipeline successfully completes"
 qcapaHelp="* --qc_apa: Run QC APA"
@@ -233,6 +235,7 @@ printHelpAndExit() {
     echo -e "$earlyexitHelp"
     echo -e "$excludeHelp"
     echo -e "$singleEndHelp"
+    echo -e "$methylationHelp"
     echo -e "$assemblyHelp"
     echo -e "$cleanupHelp"
     echo -e "$qcapaHelp"
@@ -241,7 +244,7 @@ printHelpAndExit() {
     exit "$1"
 }
 
-while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfuec-:T:w:k:" opt; do
+while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfuec-:T:w:k:m" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -269,6 +272,7 @@ while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfuec-:T:w:k:" opt; do
 	u) singleend=1 ;;
 	w) wobbleDist=$OPTARG ;;
 	k) libraryName=$OPTARG ;;
+	m) methylation=1 ;;
 	-) case "${OPTARG}" in 
 	    assembly) earlyexit=1; assembly=1 ;;
 	    cleanup)  cleanup=1 ;;
@@ -383,6 +387,11 @@ if [ -z "$ligation" ]; then
 	    echo "$site not listed as recognized enzyme."
 	    echo "Ligation junction is undefined"
     esac
+fi
+
+if [ "$methylation" = 1 ]
+then
+    ligation=$(echo $ligation | awk '{printf "'\''%s'\'' ", gensub("C","[CT]",$0)}')
 fi
 
 ## If DNAse-type experiment, no fragment maps; or way to get around site file
@@ -587,6 +596,10 @@ jid=`sbatch <<- HEADER | egrep -o -e "\b[0-9]+$"
 	# Get version numbers of all software
 	echo -ne "Juicer version $juicer_version;" 
 	bwa 2>&1 | awk '\\\$1=="Version:"{printf(" BWA %s; ", \\\$2)}'
+	if [ "$methylation" -eq 1 ]
+	then
+		$call_bwameth --version 2>&1 | awk '{printf("%s; ", \\\$0)}'
+	fi
 	echo -ne "$threads threads; "
 	if [ -n "$splitme" ]
 	then
@@ -718,9 +731,9 @@ SPLITEND`
 	# RG group; ID derived from paired-end name, sample and library can be user set
 	if [ $singleend -eq 1 ]
 	then
-	    rg="@RG\\tID:${jname%.fastq*}\\tSM:{sampleName}\\tLB:${libraryName}"
+	    rg="@RG\\tID:${jname%.fastq*}\\tSM:${sampleName}\\tLB:${libraryName}"
 	else
-	    rg="@RG\\tID:${jname%.fastq*}\\tSM:{sampleName}\\tPL:ILM\\tLB:${libraryName}"
+	    rg="@RG\\tID:${jname%.fastq*}\\tSM:${sampleName}\\tPL:ILM\\tLB:${libraryName}"
 	fi
 
 	if [ -z "$chimeric" ]
@@ -766,16 +779,35 @@ CNTLIG`
                 $userstring			
 
 		${load_bwa}
-
 		# Align reads
 		date
+		if [ "$methylation" = 1 ]
+		then
+		   conda activate
+		fi
+
 		if [ $singleend -eq 1 ]
 		then
+		   if [ "$methylation" = 1 ]
+		   then
+		      # The -M flag is already used
+		      echo "Running bwameth.py $threadstring -5 --do-not-penalize-chimeras --reference ${refSeq} --read-group $rg $name1$ext > $name$ext.sam"
+		      $call_bwameth $threadstring -5 --do-not-penalize-chimeras --reference ${refSeq} --read-group '$rg' $name1$ext > $name$ext.sam
+		   else
 			echo "Running command bwa mem -5M $threadstring -R $rg $refSeq $name1$ext > $name$ext.sam"
 			bwa mem -5M $threadstring -R '$rg' $refSeq $name1$ext > $name$ext.sam 
+                   fi
 		else
+		   if [ "$methylation" = 1 ]
+		   then
+		      # --read-group '$rg' seems to cause problems
+		      # The -M flag is already used by bwameth
+		      echo "Running bwameth.py $threadstring -5SP --do-not-penalize-chimeras --read-group '$rg'  --reference ${refSeq} $name1$ext $name2$ext > $name$ext.sam"
+		      $call_bwameth $threadstring -5SP --do-not-penalize-chimeras --read-group '$rg' --reference ${refSeq} $name1$ext $name2$ext > $name$ext.sam      
+		   else 
 			echo "Running command bwa mem -SP5M $threadstring -R $rg $refSeq $name1$ext $name2$ext > $name$ext.sam" 
 			bwa mem -SP5M $threadstring -R '$rg' $refSeq $name1$ext $name2$ext > $name$ext.sam
+		   fi
 		fi
 		if [ \$? -ne 0 ]
 		then  
@@ -1215,6 +1247,30 @@ MERGED30`
 	fi
 BAMRM`
 
+    if [ "$methylation" = 1 ]
+    then
+	tmpj=`sbatch <<- METH | egrep -o -e "\b[0-9]+$"
+		#!/bin/bash -l
+		#SBATCH -p commons
+		#SBATCH -o $debugdir/meth-%j.out
+		#SBATCH -e $debugdir/meth-%j.err
+		#SBATCH -t $queue_time
+		${sbatch_cpu_alloc}
+		#SBATCH --ntasks=1
+		#SBATCH --mem-per-cpu=10G
+		#SBATCH -J "${groupname}_meth"
+		#SBATCH -d afterok:$jid
+		$userstring
+		${load_samtools}                            
+		export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/gpfs0/home/neva/lib
+		samtools sort $sthreadstring ${outputdir}/merged_dedup.bam > ${outputdir}/merged_dedup_sort.bam
+		/gpfs0/home/neva/bin/MethylDackel extract -F 1024 --keepSingleton --keepDiscordant $refSeq ${outputdir}/merged_dedup_sort.bam 
+		/gpfs0/home/neva/bin/MethylDackel extract -F 1024 --keepSingleton --keepDiscordant --cytosine_report --CHH --CHG $refSeq ${outputdir}/merged_dedup_sort.bam
+		${juiceDir}/scripts/conversion.sh ${outputdir}/merged_dedup_sort.cytosine_report.txt > ${outputdir}/conversion_report.txt
+		rm ${outputdir}/merged_dedup_sort.bam ${outputdir}/merged_dedup_sort.cytosine_report.txt*
+METH`
+    fi
+
     jid=`sbatch <<- PRESTATS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
@@ -1392,7 +1448,7 @@ FINCLN1`
 	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged1.txt 500000 > ${outputdir}/merged1_index.txt
 	fi
 
-	if [ "$qc" -eq 1 ]
+	if [ "$qc" = 1 ]
 	then
 	  if [ "$nofrag" -eq 1 ]
 	  then 
@@ -1444,7 +1500,7 @@ HIC`
 	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
 	fi
 
-	if [ "$qc" -eq 1 ]
+	if [ "$qc" = 1 ]
 	then
           if [ "$nofrag" -eq 1 ]
           then 
