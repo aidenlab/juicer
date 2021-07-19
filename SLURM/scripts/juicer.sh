@@ -1591,7 +1591,9 @@ then
 	${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic
 	date;
 ARROWS`
-dependarrows="${dependhiccups}:$jid"
+    dependarrows="#SBATCH -d ${dependhiccups}:$jid"
+else
+    dependarrows=""
 fi
 
 if [ "$qc_apa" = 1 ]
@@ -1626,7 +1628,7 @@ jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_prep_done"
-	#SBATCH -d $dependarrows
+	$dependarrows
         $userstring			
 
 	date
