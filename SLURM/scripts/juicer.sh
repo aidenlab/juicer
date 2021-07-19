@@ -1533,7 +1533,9 @@ then
     then
 	sbatch_req="#SBATCH --gres=gpu:kepler:1"
     fi
-    jid=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
+    if [ "$qc" != 1 ]
+    then
+	jid=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=4G
@@ -1559,12 +1561,15 @@ then
 	${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
 	date
 HICCUPS`
-    dependhiccups="afterok:$jid"
+	dependhiccups="afterok:$jid"
+    fi
 else
     dependhiccups="afterok"
 fi
 
-jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
+if [ "$qc" != 1 ]
+then
+    jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=8G
@@ -1587,6 +1592,8 @@ jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
 	date;
 ARROWS`
 dependarrows="${dependhiccups}:$jid"
+fi
+
 if [ "$qc_apa" = 1 ]
 then
     jid=`sbatch <<- QC | egrep -o -e "\b[0-9]+$"
