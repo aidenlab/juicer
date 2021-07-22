@@ -735,7 +735,7 @@ SPLITEND`
 	else
 	    rg="@RG\\tID:${jname%.fastq*}\\tSM:${sampleName}\\tPL:ILM\\tLB:${libraryName}"
 	fi
-
+	touchfile=${tmpdir}/${jname}
 	if [ -z "$chimeric" ]
 	then
             usegzip=0
@@ -743,7 +743,6 @@ SPLITEND`
             then
 		usegzip=1
 	    fi
-	    touchfile=${tmpdir}/${jname}
 
 	    # count ligations
 	    jid=`sbatch <<- CNTLIG |  egrep -o -e "\b[0-9]+$"
@@ -939,7 +938,7 @@ MRGALL3`
 #SBATCH -p $long_queue
 #SBATCH -o $debugdir/mergesort-%j.out
 #SBATCH -e $debugdir/mergesort-%j.err
-#SBATCH --mem=50G
+#SBATCH --mem=64G
 #SBATCH -t $long_queue_time
 #SBATCH -c $threads
 #SBATCH --ntasks=1
@@ -948,7 +947,8 @@ MRGALL3`
 #SBATCH --threads-per-core=1 
 $userstring
 ${load_samtools}
-if time samtools sort -t cb -n -O SAM $sthreadstring $name$ext.sam3 >  ${name}${ext}.sam
+#we should probably set the -m based on memory / num of threads
+if time samtools sort -t cb -n -O SAM $sthreadstring -l 0 -m 2G $name$ext.sam3 >  ${name}${ext}.sam
 then
    rm -f $name$ext.sam2 $name$ext.sam3
    touch $touchfile
