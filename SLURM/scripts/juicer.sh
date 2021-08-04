@@ -175,7 +175,7 @@ sampleName="HiC_sample"
 libraryName="HiC_library"
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path] [-C chunk size]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-Q queue time limit]\n                 [-L long queue time limit] [-b ligation] [-t threads]\n                 [-T threadsHic] [-A account] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [-m] [--assembly] [--cleanup] [--qc_apa] [--qc]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path] [-C chunk size]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-Q queue time limit]\n                 [-L long queue time limit] [-b ligation] [-t threads]\n                 [-T threadsHic] [-A account] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [-m] [--assembly] [--cleanup] [--qc_apa] [--qc] [--in-situ]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
@@ -205,7 +205,8 @@ methylationHelp="* -m: Methylation + Hi-C library"
 assemblyHelp="* --assembly: For use before 3D-DNA; early exit and create old style merged_nodups"
 cleanupHelp="* --cleanup: Automatically clean up files if pipeline successfully completes"
 qcapaHelp="* --qc_apa: Run QC APA"
-qcHelp="* --qc: Only build map down to 1000bp" 
+qcHelp="* --qc: Only build map down to 1000bp, no feature annotation" 
+insituHelp="* --in-situ: Only build map down to 1000bp"
 helpHelp="* -h, --help: print this help and exit"
 
 printHelpAndExit() {
@@ -240,6 +241,7 @@ printHelpAndExit() {
     echo -e "$cleanupHelp"
     echo -e "$qcapaHelp"
     echo -e "$qcHelp"
+    echo -e "$insituHelp"
     echo "$helpHelp"
     exit "$1"
 }
@@ -279,6 +281,7 @@ while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:A:i:t:jfuec-:T:w:k:m" opt; do
 	    qc_apa)   qc_apa=1 ;;
 	    qc) qc=1 ;;
 	    "help")   printHelpAndExit 0;;
+	    in-situ) insitu=1 ;;
 	    *) echo "Unknown argument --${OPTARG}"; 
 	       printHelpAndExit 1;;
            esac;;
@@ -422,27 +425,34 @@ then
     if [ $isRice -eq 1 ]
     then
 	threads=8
+	sortthreads=8
 	threadstring="-t $threads"
 	sthreadstring="-@ $threads"
-    elif [ $isBCM -eq 1 ]
+    elif [ $isVoltron -eq 1 ]
     then
-	threads=1
-	threadstring="-t $threads"
-	sthreadstring="-@ $threads"
-    else
-	threads=8 # VOLTRON; may need to make this separate and specific for Voltron
+	threads=8 
 	## On voltron with 8 thread per core Power8 CPU bwa can use more threads
 	threadstring="-t \$SLURM_JOB_CPUS_PER_NODE"
 	sthreadstring="-@ \$SLURM_JOB_CPUS_PER_NODE"
+	sortthreads=8
+    else
+	# only one thread if undefined; also if isBCM
+	threads=1
+	sortthreads=1
+	threadstring="-t $threads"
+	sthreadstring="-@ $threads"
+
     fi
 else
     if [ $isVoltron -eq 1 ]
     then
 	threadstring="-t \$SLURM_JOB_CPUS_PER_NODE"
 	sthreadstring="-@ \$SLURM_JOB_CPUS_PER_NODE"
+	sortthreads=8
     else
 	threadstring="-t $threads"
 	sthreadstring="-@ $threads"
+	sortthreads=$threads
     fi
 fi
 
@@ -570,11 +580,17 @@ else
     userstring="#SBATCH -A $user"
 fi
 
-# Add header containing command executed and timestamp:
+# Add header containing command executed and timestamp
+if [ "$methylation" = 1 ]
+then
+    queuestring="#SBATCH -p weka"
+else
+    queuestring="#SBATCH -p $queue"
+fi
 jid=`sbatch <<- HEADER | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l 
         $userstring
-	#SBATCH -p $queue
+	$queuestring
 	#SBATCH -t 2
 	#SBATCH -c 1
 	#SBATCH -o $debugdir/head-%j.out
@@ -596,8 +612,9 @@ jid=`sbatch <<- HEADER | egrep -o -e "\b[0-9]+$"
 	# Get version numbers of all software
 	echo -ne "Juicer version $juicer_version;" 
 	bwa 2>&1 | awk '\\\$1=="Version:"{printf(" BWA %s; ", \\\$2)}'
-	if [ "$methylation" -eq 1 ]
+	if [ "$methylation" = 1 ]
 	then
+		activate conda
 		$call_bwameth --version 2>&1 | awk '{printf("%s; ", \\\$0)}'
 	fi
 	echo -ne "$threads threads; "
@@ -765,7 +782,7 @@ CNTLIG`
 	    # align fastqs
 	    jid=`sbatch <<- ALGNR1 | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
-		#SBATCH -p $queue
+		$queuestring
 		#SBATCH -o $debugdir/align1-%j.out
 		#SBATCH -e $debugdir/align1-%j.err
 		#SBATCH -t $queue_time
@@ -933,14 +950,15 @@ MRGALL3`
 		dependalign="afterok:$jid"
 	    fi
 	fi
+	
 	jid2=`sbatch <<- MRGALL2 | egrep -o -e "\b[0-9]+$"
 #!/bin/bash -l
 #SBATCH -p $long_queue
 #SBATCH -o $debugdir/mergesort-%j.out
 #SBATCH -e $debugdir/mergesort-%j.err
-#SBATCH --mem=64G
+#SBATCH --mem-per-cpu=2G
 #SBATCH -t $long_queue_time
-#SBATCH -c $threads
+#SBATCH -c $sortthreads
 #SBATCH --ntasks=1
 #SBATCH -d $dependalign 
 #SBATCH -J "${groupname}_mergesort_${jname}"
@@ -948,7 +966,7 @@ MRGALL3`
 $userstring
 ${load_samtools}
 #we should probably set the -m based on memory / num of threads
-if time samtools sort -t cb -n -O SAM $sthreadstring -l 0 -m 2G $name$ext.sam3 >  ${name}${ext}.sam
+if time samtools sort -t cb -n -O SAM -@ $sortthreads -l 0 -m 2G $name$ext.sam3 >  ${name}${ext}.sam
 then
    rm -f $name$ext.sam2 $name$ext.sam3
    touch $touchfile
@@ -1448,7 +1466,7 @@ FINCLN1`
 	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged1.txt 500000 > ${outputdir}/merged1_index.txt
 	fi
 
-	if [ "$qc" = 1 ]
+	if [ "$qc" = 1 ] || [ "$insitu" = 1 ]
 	then
 	  if [ "$nofrag" -eq 1 ]
 	  then 
@@ -1500,7 +1518,7 @@ HIC`
 	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
 	fi
 
-	if [ "$qc" = 1 ]
+	if [ "$qc" = 1 ] || [ "$insitu" = 1 ]
 	then
           if [ "$nofrag" -eq 1 ]
           then 
