@@ -119,7 +119,7 @@ else
     load_bwa="spack load bwa@0.7.17 arch=\`spack arch\`"
     load_awk="spack load gawk@4.1.4 arch=\`spack arch\`"
     load_gpu="spack load cuda@8.0.61 arch=\`spack arch\` && CUDA_VISIBLE_DEVICES=0,1,2,3"
-    load_samtools="spack load samtools arch=\`spack arch\`"
+    load_samtools="spack load samtools@1.13 arch=\`spack arch\`"
     call_bwameth="/gpfs0/home/neva/bwa-meth/bwameth.py"
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
@@ -748,9 +748,9 @@ SPLITEND`
 	# RG group; ID derived from paired-end name, sample and library can be user set
 	if [ $singleend -eq 1 ]
 	then
-	    rg="@RG\\tID:${jname%.fastq*}\\tSM:${sampleName}\\tLB:${libraryName}"
+	    rg="@RG\\tID:${jname%%.fastq*}\\tSM:${sampleName}\\tLB:${libraryName}"
 	else
-	    rg="@RG\\tID:${jname%.fastq*}\\tSM:${sampleName}\\tPL:ILM\\tLB:${libraryName}"
+	    rg="@RG\\tID:${jname%%.fastq*}\\tSM:${sampleName}\\tPL:ILM\\tLB:${libraryName}"
 	fi
 	touchfile=${tmpdir}/${jname}
 	if [ -z "$chimeric" ]
@@ -1611,7 +1611,7 @@ then
 ARROWS`
     dependarrows="#SBATCH -d ${dependhiccups}:$jid"
 else
-    dependarrows=""
+    dependarrows=${sbatch_wait}
 fi
 
 if [ "$qc_apa" = 1 ]
