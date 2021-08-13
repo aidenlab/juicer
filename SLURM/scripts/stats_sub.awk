@@ -53,7 +53,7 @@ END{
   }
   alignable=norm+chim;
   printf(" Single Alignment: %'d (%0.2f%)\n Average insert size: %0.2f\nAlignable (Normal+Chimeric Paired): %'d (%0.2f%)\n",  singleton, singleton*100/tot, insertsize/NR, alignable, alignable*100/tot);
-  uniq=alignable-dups;
+  uniq=alignable+singleton-dups;
   if (alignable==0) alignable=1;
-  printf("Unique Reads: %'d (%0.2f%, %0.2f%)\nDuplicates: %'d (%0.2f%, %0.2f%)\n", uniq, uniq*100/alignable, uniq*100/tot, dups, dups*100/alignable, dups*100/tot);
+  printf("Unique Reads: %'d (%0.2f%, %0.2f%)\nDuplicates: %'d (%0.2f%, %0.2f%)\n", uniq, uniq*100/(alignable+singleton), uniq*100/tot, dups, dups*100/(alignable+singleton), dups*100/tot);
 }
