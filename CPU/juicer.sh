@@ -693,9 +693,27 @@ if [ -z $postproc ]
     fi
     cat $splitdir/*.res.txt | awk -v ligation=$ligation -v dups=$dups -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
     cp $outputdir/inter.txt $outputdir/inter_30.txt
+    if [ $singleend -eq 1 ] 
+    then
+	for i in {1..5}; do echo $i >> $outputdir/tmp; done 
+	echo 0 > $outputdir/tmp2 
+	cp $outputdir/tmp2 $outputdir/tmp3   
+	for i in {1..29}; do echo $i >> $outputdir/tmp3; done
+	echo -ne "Below MAPQ1 (Paired): " >> $outputdir/inter.txt
+	samtools view $sthreadstring -F 3852 -D rt:$outputdir/tmp -h $outputdir/merged_dedup.bam | samtools view $sthreadstring -D MQ:$outputdir/tmp2 | awk '{print $1}' | uniq | wc -l >> $outputdir/inter.txt
+	echo -ne "Below MAPQ30 (Paired): " >> $outputdir/inter_30.txt
+	samtools view $sthreadstring -F 3852 -D rt:$outputdir/tmp -h $outputdir/merged_dedup.bam | samtools view $sthreadstring -D MQ:$outputdir/tmp3 | awk '{print $1}' | uniq | wc -l >> $outputdir/inter_30.txt
+	rm $outputdir/tmp*
+    fi                                
 
-    ${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
-    ${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
+    if [ $assembly -eq 1 ] 
+    then
+	${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt none
+	${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt none
+    else
+	${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
+	${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
+    fi
 
     # if early exit, we stop here, once the stats are calculated
     if [ ! -z "$earlyexit" ]
