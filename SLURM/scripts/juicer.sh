@@ -152,8 +152,6 @@ topDir=$(pwd)
 # restriction enzyme, can also be set in options
 # default: not set
 site="none"
-# genome ID, default to human, can also be set in options
-genomeID="hg19"
 # description, default empty
 about=""
 # do not include fragment delimited maps by default
@@ -176,7 +174,7 @@ libraryName="HiC_library"
 
 ## Read arguments                                                     
 usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path] [-C chunk size]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-Q queue time limit]\n                 [-L long queue time limit] [-b ligation] [-t threads]\n                 [-T threadsHic] [-A account] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [-m] [--assembly] [--cleanup] [--qc_apa] [--qc] [--in-situ]"
-genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
+genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\"; alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
 longQueueHelp="* [long queue] is the queue for running longer jobs such as the hic file\n  creation (default \"$long_queue\")"
@@ -642,9 +640,9 @@ if [ -z $merge ] && [ -z $final ] && [ -z $dedup ] && [ -z $postproc ] && [ -z $
 then
     if [ "$nofrag" -eq 0 ]
     then
-	echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with site file $site_file"
+	echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $refSeq with site file $site_file"
     else
-        echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with no fragment delimited maps."
+        echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $refSeq with no fragment delimited maps."
     fi
     
     ## Split fastq files into smaller portions for parallelizing alignment 
@@ -1295,7 +1293,7 @@ METH`
 	#SBATCH -o $debugdir/prestats-%j.out
 	#SBATCH -e $debugdir/prestats-%j.err
 	#SBATCH -t $queue_time
-	#SBATCH -c 1
+	${sbatch_cpu_alloc} 
 	#SBATCH --ntasks=1
 	#SBATCH --mem-per-cpu=1G
 	#SBATCH -J "${groupname}_prestats"
@@ -1318,9 +1316,21 @@ METH`
 		samtools view $sthreadstring -c -f 1089 -F 256 $outputdir/merged_dedup.*am > $outputdir/tmp
 	fi
 	cat $splitdir/*.res.txt | awk -v fname=$outputdir/tmp -v ligation=$ligation -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
-
         cp $outputdir/inter.txt $outputdir/inter_30.txt
 	rm $outputdir/tmp
+
+	if [ $singleend -eq 1 ] 
+	then
+		for i in {1..5}; do echo \\\$i >> $outputdir/tmp; done
+		echo 0 > $outputdir/tmp2
+		cp $outputdir/tmp2 $outputdir/tmp3
+		for i in {1..29}; do echo \\\$i >> $outputdir/tmp3; done
+		echo -ne "Below MAPQ1 (Paired): " >> $outputdir/inter.txt 
+		samtools view $sthreadstring -F 3852 -D rt:$outputdir/tmp -h $outputdir/merged_dedup.*am | samtools view $sthreadstring  -D MQ:$outputdir/tmp2 | awk '{print \\\$1}' | uniq | wc -l >> $outputdir/inter.txt 
+		echo -ne "Below MAPQ30 (Paired): " >> $outputdir/inter_30.txt 
+		samtools view $sthreadstring -F 3852 -D rt:$outputdir/tmp -h $outputdir/merged_dedup.*am | samtools view $sthreadstring -D MQ:$outputdir/tmp3 | awk '{print \\\$1}' | uniq | wc -l >> $outputdir/inter_30.txt 
+		rm $outputdir/tmp*
+	fi
 
         date
 PRESTATS`
@@ -1346,7 +1356,12 @@ PRESTATS`
 		echo "***! Found errorfile. Exiting." 
 		exit 1 
 	fi
-	${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
+	if [ $assembly -eq 1 ]
+        then
+		${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt none
+	else
+		${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomePath
+	fi
 	date
 STATS`
     sbatch_wait1="#SBATCH -d afterok:$jid"
@@ -1365,8 +1380,13 @@ STATS`
 	${sbatch_wait00}
 	$userstring
 
-	date		
-	${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
+	date
+	if [ $assembly -eq 1 ]
+        then
+		${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt none
+	else
+	${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomePath
+	fi
 	date
 STATS30`
 
