@@ -253,7 +253,7 @@ $0 !~ /^@/{
 	    pos[j] = 1;
 	  }
 	}
-	else if (str[j] == 0 && notprimary[j]==1 && length(singleend)>0) {
+	else if (str[j] == 0 && notprimary[j]==256 && length(singleend)>0) {
           # count Ms,Ds,Ns,Xs,=s for sequence length
 	  seqlength=0;
 	  currstr=tmp[6];
@@ -737,7 +737,7 @@ END{
 	    pos[j] = 1;
 	  }
 	}
-	else if (str[j] == 0 && notprimary[j]==1 && length(singleend)>0) {
+	else if (str[j] == 0 && notprimary[j]==256 && length(singleend)>0) {
           # count Ms,Ds,Ns,Xs,=s for sequence length
 	  seqlength=0;
 	  currstr=tmp[6];
