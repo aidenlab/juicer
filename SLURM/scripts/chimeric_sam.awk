@@ -658,7 +658,7 @@ $0 !~ /^@/{
 	# get 3' end for second end for dedupping
 	interiorpos1 = adjust(pos[0],str[0],cigarstr[0],0);
 	sortpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[0],interiorpos1);
-	cb_str = "cb:Z:"chr[0]"_"chr[0]"_0_1_"str[0]"_"str[0]"_"sortpos;
+	cb_str = "cb:Z:"chr[0]"_"chr[0]"_0_2_"str[0]"_"str[0]"_"sortpos;
 	# read type 7 is singleton reads
 	print c[1],"rt:A:7",cb_str;
       }
