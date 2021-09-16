@@ -746,7 +746,7 @@ SPLITEND`
 	# RG group; ID derived from paired-end name, sample and library can be user set
 	if [ $singleend -eq 1 ]
 	then
-	    rg="@RG\\tID:${jname%%.fastq*}\\tSM:${sampleName}\\tLB:${libraryName}"
+	    rg="@RG\\tID:${jname%%.fastq*}\\tSM:${sampleName}\\tPL:LS454\\tLB:${libraryName}"
 	else
 	    rg="@RG\\tID:${jname%%.fastq*}\\tSM:${sampleName}\\tPL:ILM\\tLB:${libraryName}"
 	fi
@@ -1244,6 +1244,53 @@ MERGED30`
     sbatch_wait2="#SBATCH -d afterok:$jid2"
 
     sbatch_wait0="#SBATCH -d afterok:$jid1:$jid2"
+
+    jid=`sbatch <<- PRESTATS | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash -l
+	#SBATCH -p $queue
+	#SBATCH -o $debugdir/prestats-%j.out
+	#SBATCH -e $debugdir/prestats-%j.err
+	#SBATCH -t $queue_time
+	${sbatch_cpu_alloc} 
+	#SBATCH --ntasks=1
+	#SBATCH --mem-per-cpu=1G
+	#SBATCH -J "${groupname}_prestats"
+	${sbatch_wait}
+	$userstring
+	${load_awk}
+        date
+        ${load_java}
+	${load_samtools}
+        export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"
+        export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
+        tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt
+
+	# count duplicates via samtools view -c
+	# for paired end, count only first in pair to avoid double counting
+	if [ $singleend -eq 1 ] 
+	then 
+		if [ -f $outputdir/merged_dedup.bam ]
+		then
+			samtools view $sthreadstring -f 1024 -F 256 $outputdir/merged_dedup.bam | awk '{if (\\\$0~/rt:A:7/){singdup++}else{dup++}}END{print dup,singdup}' > $outputdir/tmp
+		else
+			awk 'and(\\\$2,1024)>0 && and(\\\$2,256)==0{if (\\\$0~/rt:A:7/){singdup++}else{dup++}}END{print dup,singdup}' $outputdir/merged_dedup.sam > $outputdir/tmp 
+		fi
+		cat $splitdir/*.res.txt | awk -v fname=$outputdir/tmp -v ligation=$ligation -v singleend=1 -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
+	else 
+		if [ -f $outputdir/merged_dedup.bam ] 
+		then
+			samtools view $sthreadstring -c -f 1089 -F 256 $outputdir/merged_dedup.bam > $outputdir/tmp
+		else
+		        awk 'and(\\\$2,1024)>0 && and(\\\$2,1)>0 && and(\\\$2,64)>0 && and(\\\$2,256)==0{dup++}END{print dup}' $outputdir/merged_dedup.sam > $outputdir/tmp
+		fi
+		cat $splitdir/*.res.txt | awk -v fname=$outputdir/tmp -v ligation=$ligation -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
+	fi
+        cp $outputdir/inter.txt $outputdir/inter_30.txt
+
+        date
+PRESTATS`
+    sbatch_wait000="${sbatch_wait1}:$jid"
+
     jid=`sbatch <<- BAMRM  | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
@@ -1287,55 +1334,6 @@ BAMRM`
 METH`
     fi
 
-    jid=`sbatch <<- PRESTATS | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
-	#SBATCH -p $queue
-	#SBATCH -o $debugdir/prestats-%j.out
-	#SBATCH -e $debugdir/prestats-%j.err
-	#SBATCH -t $queue_time
-	${sbatch_cpu_alloc} 
-	#SBATCH --ntasks=1
-	#SBATCH --mem-per-cpu=1G
-	#SBATCH -J "${groupname}_prestats"
-	${sbatch_wait}
-	$userstring
-	${load_awk}
-        date
-        ${load_java}
-	${load_samtools}
-        export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"
-        export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
-        tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt
-
-	# count duplicates via samtools view -c
-	# for paired end, count only first in pair to avoid double counting
-	if [ $singleend -eq 1 ] 
-	then 
-		samtools view $sthreadstring -c -f 1024 -F 256 $outputdir/merged_dedup.*am > $outputdir/tmp
-	else 
-		samtools view $sthreadstring -c -f 1089 -F 256 $outputdir/merged_dedup.*am > $outputdir/tmp
-	fi
-	cat $splitdir/*.res.txt | awk -v fname=$outputdir/tmp -v ligation=$ligation -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
-        cp $outputdir/inter.txt $outputdir/inter_30.txt
-	rm $outputdir/tmp
-
-	if [ $singleend -eq 1 ] 
-	then
-		for i in {1..5}; do echo \\\$i >> $outputdir/tmp; done
-		echo 0 > $outputdir/tmp2
-		cp $outputdir/tmp2 $outputdir/tmp3
-		for i in {1..29}; do echo \\\$i >> $outputdir/tmp3; done
-		echo -ne "Below MAPQ1 (Paired): " >> $outputdir/inter.txt 
-		samtools view $sthreadstring -F 3852 -D rt:$outputdir/tmp -h $outputdir/merged_dedup.*am | samtools view $sthreadstring  -D MQ:$outputdir/tmp2 | awk '{print \\\$1}' | uniq | wc -l >> $outputdir/inter.txt 
-		echo -ne "Below MAPQ30 (Paired): " >> $outputdir/inter_30.txt 
-		samtools view $sthreadstring -F 3852 -D rt:$outputdir/tmp -h $outputdir/merged_dedup.*am | samtools view $sthreadstring -D MQ:$outputdir/tmp3 | awk '{print \\\$1}' | uniq | wc -l >> $outputdir/inter_30.txt 
-		rm $outputdir/tmp*
-	fi
-
-        date
-PRESTATS`
-
-    sbatch_wait0="${sbatch_wait1}:$jid"
     sbatch_wait00="${sbatch_wait2}:$jid"
     jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
@@ -1347,7 +1345,7 @@ PRESTATS`
 	#SBATCH --ntasks=1
 	#SBATCH --mem=25G
 	#SBATCH -J "${groupname}_stats"
-	${sbatch_wait0}
+	${sbatch_wait000}
         $userstring			
 
 	date
@@ -1425,7 +1423,7 @@ then
 	samtools view $sthreadstring -O SAM -F 1024 $outputdir/merged_dedup.*am | awk -v mnd=1 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged_nodups.txt 
 	date
 MND`
-	    sbatch_wait1="afterok:$jid"
+	    sbatch_wait1="#SBATCH -d afterok:$jid"
 	fi
 
 	jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$" 
