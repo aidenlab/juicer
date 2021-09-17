@@ -1454,6 +1454,19 @@ FINCLN1`
 	exit 0
     fi
     
+    if [ "$qc" = 1 ] || [ "$insitu" = 1 ]
+    then
+        resstr="-r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000"
+    else
+        resstr="-r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100"
+    fi
+    if [ "$nofrag" -eq 1 ]
+    then
+	fragstr=""
+    else
+        fragstr="-f $site_file"
+    fi
+
     jid=`sbatch <<- HIC | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
@@ -1484,22 +1497,7 @@ FINCLN1`
 	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged1.txt 500000 > ${outputdir}/merged1_index.txt
 	fi
 
-	if [ "$qc" = 1 ] || [ "$insitu" = 1 ]
-	then
-	  if [ "$nofrag" -eq 1 ]
-	  then 
-	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
-	  else
-	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
-	  fi
-	else
-	  if [ "$nofrag" -eq 1 ]
-	  then 
-	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
-	  else
-	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
-	  fi
-        fi
+	time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $resstr $fragstr $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
 	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic 
 	rm -Rf ${outputdir}"/HIC_tmp"
 	date
@@ -1536,22 +1534,7 @@ HIC`
 	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
 	fi
 
-	if [ "$qc" = 1 ] || [ "$insitu" = 1 ]
-	then
-          if [ "$nofrag" -eq 1 ]
-          then 
-	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-	  else
-	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-	  fi
-        else
-          if [ "$nofrag" -eq 1 ]
-          then 
-	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-	  else
-	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-	  fi
-	fi
+	time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $resstr $fragstr $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
 	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
 	rm -Rf ${outputdir}"/HIC30_tmp"
 	date
