@@ -449,7 +449,7 @@ echo -ne "Sample name $sampleName;"  >> $headfile
 # Get version numbers of all software   
 echo -ne " Juicer version $juicer_version;" >> $headfile
 $bwa_cmd 2>&1 | awk '$1=="Version:"{printf(" BWA %s; ", $2)}' >> $headfile
-if [ "$methylation" -eq 1 ]
+if [ "$methylation" = 1 ]
 then
     $call_bwameth  --version 2>&1 | awk '{printf("%s; ",$0)}' >> $headfile
 fi  
