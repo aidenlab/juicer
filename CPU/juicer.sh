@@ -87,18 +87,19 @@ topDir=$(pwd)
 # restriction enzyme, can also be set in options
 # default: not set
 site="none"
-# genome ID, default to human, can also be set in options
-genomeID="hg19"
 # description, default empty
 about=""
 # do not include fragment delimited maps by default
 nofrag=1
 # use wobble for dedupping by default (not just exact matches)
 justexact=0
+wobbleDist=4
 # assembly mode, produce old merged_nodups, early exit
 assembly=0
 # force cleanup
 cleanup=0
+# qc apa 
+qc_apa=0
 # single-end input, default no
 singleend=0
 # sample name for RG tag
@@ -130,7 +131,9 @@ singleEndHelp="* -u: Single end alignment"
 methylationHelp="* -m: Methylation library"
 assemblyHelp="* --assembly: For use before 3D-DNA; early exit and create old style merged_nodups"
 cleanupHelp="* --cleanup: Automatically clean up files if pipeline successfully completes"
+qcapaHelp="* --qc_apa: Run QC APA"
 qcHelp="* --qc: Only build map down to 1000bp"
+insituHelp="* --in-situ: Only build map down to 1000bp"
 helpHelp="* -h, --help: print this help and exit"
 
 printHelpAndExit() {
@@ -157,7 +160,9 @@ printHelpAndExit() {
     echo -e "$methylationHelp"
     echo -e "$assemblyHelp"
     echo -e "$cleanupHelp"
+    echo -e "$qcapaHelp"
     echo -e "$qcHelp"
+    echo -e "$insituHelp"
     echo "$helpHelp"
     exit "$1"
 }
@@ -181,7 +186,6 @@ while getopts "d:g:a:hs:p:y:z:S:D:b:t:jfuecT:1:2:i:-:w:k:m" opt; do
 	e) earlyexit=1 ;;
 	T) threadsHic=$OPTARG ;;
 	i) sampleName=$OPTARG ;;
-	k) libraryNamee=$OPTARG ;;
 	u) singleend=1 ;;
 	w) wobbleDist=$OPTARG ;;
 	k) libraryName=$OPTARG ;;
@@ -192,7 +196,9 @@ while getopts "d:g:a:hs:p:y:z:S:D:b:t:jfuecT:1:2:i:-:w:k:m" opt; do
 	    assembly) earlyexit=1; assembly=1 ;;
 	    cleanup)  cleanup=1 ;;
 	    qc) qc=1 ;;
+	    qc_apa)   qc_apa=1 ;;
 	    "help")   printHelpAndExit 0;;
+	    in-situ) insitu=1 ;;
 	    *) echo "Unknown argument --${OPTARG}"; 
 	           printHelpAndExit 1;;
            esac;;
@@ -246,17 +252,21 @@ else
     fi
 fi
 
-## Check that refSeq exists 
-if [ ! -e "$refSeq" ]; then
-    echo "***! Reference sequence $refSeq does not exist";
-    exit 1;
-fi
-
-## Check that index for refSeq exists
-if [[ ! -e "${refSeq}.bwt" ]] 
+## Alignment checks; not necessary if later stages 
+if [[ -z "$chimeric" && -z "$merge" &&  -z "$final" && -z "$dedup" && -z "$postproc" ]]
 then
-    echo "***! Reference sequence $refSeq does not appear to have been indexed. Please run bwa index on this file before running juicer.";
-    exit 1;
+    ## Check that refSeq exists 
+    if [ ! -e "$refSeq" ]; then
+	echo "***! Reference sequence $refSeq does not exist";
+	exit 1;
+    fi
+
+    ## Check that index for refSeq exists
+    if [[ ! -e "${refSeq}.bwt" ]] 
+    then
+	echo "***! Reference sequence $refSeq does not appear to have been indexed. Please run bwa index on this file before running juicer.";
+	exit 1;
+    fi
 fi
 
 ## Set ligation junction based on restriction enzyme
@@ -316,12 +326,6 @@ if [ -n "$read2files" ] && [ -z "$read1files" ]
 then
     echo "***! When fastqs for read2 are specified with \"-2\", corresponding read1 fastqs must be specified with \"-1\" "
     exit 1
-fi
-
-### If not set in options, set samplename based on directory name
-if [ -z "$sampleName" ]
-then
-    sampleName="NULL"
 fi
 
 ## Directories to be created and regex strings for listing files
@@ -445,7 +449,7 @@ echo -ne "Sample name $sampleName;"  >> $headfile
 # Get version numbers of all software   
 echo -ne " Juicer version $juicer_version;" >> $headfile
 $bwa_cmd 2>&1 | awk '$1=="Version:"{printf(" BWA %s; ", $2)}' >> $headfile
-if [ "$methylation" -eq 1 ]
+if [ "$methylation" = 1 ]
 then
     $call_bwameth  --version 2>&1 | awk '{printf("%s; ",$0)}' >> $headfile
 fi  
@@ -462,9 +466,9 @@ if [ -z $merge ] && [ -z $mergeonly ] && [ -z $final ] && [ -z $dedup ] && [ -z 
 then
     if [ "$nofrag" -eq 0 ]
     then
-	echo -e "(-: Aligning files matching $fastqdir\n to genome $genomeID with site file $site_file"
+	echo -e "(-: Aligning files matching $fastqdir\n to genome $refSeq with site file $site_file"
     else
-        echo -e "(-: Aligning files matching $fastqdir\n to genome $genomeID with no fragment delimited maps."
+        echo -e "(-: Aligning files matching $fastqdir\n to genome $refSeq with no fragment delimited maps."
     fi
 
     for ((i = 0; i < ${#read1files[@]}; ++i)); do
@@ -482,7 +486,7 @@ then
 	# RG group; ID derived from paired-end name, sample and library can be user set
 	if [ $singleend -eq 1 ]
 	then
-	    rg="@RG\\tID:${jname%.fastq*}\\tSM:${sampleName}\\tLB:${libraryName}"
+	    rg="@RG\\tID:${jname%.fastq*}\\tSM:${sampleName}\\tPL:LS454\\tLB:${libraryName}"
 	else
 	    rg="@RG\\tID:${jname%.fastq*}\\tSM:${sampleName}\\tPL:ILM\\tLB:${libraryName}"
 	fi
@@ -503,8 +507,8 @@ then
 	    if [ $singleend -eq 1 ]
 	    then
                 if [ "$methylation" = 1 ]
-                then                                                                                          
-                    # The -M flag is already used                                                              
+                then
+                    # The -M flag is already used in bwameth.py
                     echo "Running bwameth.py $threadstring -5 --do-not-penalize-chimeras --reference ${refSeq} --read-group $rg $name1$ext > $name$ext.sam"
                     $call_bwameth $threadstring -5 --do-not-penalize-chimeras --reference ${refSeq} --read-group '$rg' $name1$ext > $name$ext.sam
 		else
@@ -514,7 +518,7 @@ then
 	    else
 		if [ "$methylation" = 1 ]
 		then
-		    # The -M flag is already used
+		    # The -M flag is already used in bwameth.py
 		    echo "Running bwameth.py $threadstring -5SP --do-not-penalize-chimeras --read-group '$rg'  --reference ${refSeq} $name1$ext $name2$ext > $name$ext.sam"
 		    $call_bwameth $threadstring -5SP --do-not-penalize-chimeras --read-group '$rg' --reference ${refSeq} $name1$ext $name2$ext > $name$ext.sam
 		else
@@ -687,15 +691,25 @@ if [ -z $postproc ]
     tail -n1 $headfile | awk '{printf"%-1000s\n", $0}' > $outputdir/inter.txt
     if [ $singleend -eq 1 ] 
     then
-	dups=$(samtools view -c -f 1024 -F 256 $sthreadstring $outputdir/merged_dedup.bam) 
+	ret=$(samtools view $sthreadstring -f 1024 -F 256 $outputdir/merged_dedup.bam | awk '{if ($0~/rt:A:7/){singdup++}else{dup++}}END{print dup,singdup}')
+	dups=$(echo $ret | awk '{print $1}')
+	singdups=$(echo $ret | awk '{print $2}')
+	cat $splitdir/*.res.txt | awk -v dups=$dups -v singdups=$singdups -v ligation=$ligation -v singleend=1 -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
     else
 	dups=$(samtools view -c -f 1089 -F 256 $sthreadstring $outputdir/merged_dedup.bam)
+	cat $splitdir/*.res.txt | awk -v dups=$dups -v ligation=$ligation -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
     fi
-    cat $splitdir/*.res.txt | awk -v ligation=$ligation -v dups=$dups -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
+    
     cp $outputdir/inter.txt $outputdir/inter_30.txt
 
-    ${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
-    ${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
+    if [ $assembly -eq 1 ] 
+    then
+	${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt none
+	${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt none
+    else
+	${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomePath
+	${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomePath
+    fi
 
     # if early exit, we stop here, once the stats are calculated
     if [ ! -z "$earlyexit" ]
@@ -714,32 +728,34 @@ if [ -z $postproc ]
     export IBM_JAVA_OPTIONS="-Xmx150000m -Xgcthreads1"
     export _JAVA_OPTIONS="-Xmx150000m -Xms150000m"
     mkdir ${outputdir}"/HIC_tmp"
-    if [ "$nofrag" -eq 1 ]
-    then 
-	time ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
+    if [ "$qc" = 1 ] || [ "$insitu" = 1 ]
+    then
+	resstr="-r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000"
     else
-	time ${juiceDir}/scripts/common/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath 
+	resstr="-r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100"
     fi
-    if [[ $threadsHic -gt 1 ]]
-    then 
-	time ${juiceDir}/scripts/common/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic
+    if [ "$nofrag" -eq 1 ]
+    then
+	fragstr=""
+    else
+	fragstr="-f $site_file"
     fi
+
+    time ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m $fragstr $resstr $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
+    time ${juiceDir}/scripts/common/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic
+    
     rm -R ${outputdir}"/HIC_tmp"
     date
     mkdir ${outputdir}"/HIC30_tmp"
-    if [ "$nofrag" -eq 1 ]
-    then 
-	time ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-    else
-	time ${juiceDir}/scripts/common/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-    fi
-    if [[ $threadsHic -gt 1 ]]
-    then 
-	time ${juiceDir}/scripts/common/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
-    fi
+    time ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m $fragstr $resstr $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
+    time ${juiceDir}/scripts/common/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
+   
     rm -R ${outputdir}"/HIC30_tmp"
     # POSTPROCESSING 
-    ${juiceDir}/scripts/common/juicer_postprocessing.sh -j ${juiceDir}/scripts/common/juicer_tools -i ${outputdir}/inter_30.hic -m ${juiceDir}/references/motif -g ${genomeID}  
+    if [ "$qc" != 1 ]
+    then
+	${juiceDir}/scripts/common/juicer_postprocessing.sh -j ${juiceDir}/scripts/common/juicer_tools -i ${outputdir}/inter_30.hic -m ${juiceDir}/references/motif -g ${genomeID}  
+    fi
 fi
 #CHECK THAT PIPELINE WAS SUCCESSFUL
 export early=$earlyexit

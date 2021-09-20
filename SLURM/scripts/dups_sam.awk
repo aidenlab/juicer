@@ -136,16 +136,16 @@ $0 !~ /^@/ && $0 ~ /cb:/ && pname != $1 {
 	    for (j=0; j<i; j++) {
 		if (j in dups) {
 		    count_dups++;
-		    markduplicate(saved1[rname[j]]);
-		    markduplicate(saved2[rname[j]]);
+		    if (rname[j] in saved1) markduplicate(saved1[rname[j]]);
+		    if (rname[j] in saved2) markduplicate(saved2[rname[j]]);
 		    if (rname[j] in saved3) markduplicate(saved3[rname[j]]);
 		    if (rname[j] in saved4) markduplicate(saved4[rname[j]]);
 		}
 		else {
-		    print saved1[rname[j]];
-		    print saved2[rname[j]];
-		    if (rname[j] in saved3) print saved3[rname[j]];
-		    if (rname[j] in saved4) print saved4[rname[j]];
+		  if (rname[j] in saved1) print saved1[rname[j]];
+		  if (rname[j] in saved2) print saved2[rname[j]];
+		  if (rname[j] in saved3) print saved3[rname[j]];
+		  if (rname[j] in saved4) print saved4[rname[j]];
 		}
 		delete saved1[rname[j]];
 		delete saved2[rname[j]];
@@ -155,8 +155,8 @@ $0 !~ /^@/ && $0 ~ /cb:/ && pname != $1 {
 	}
 	# size of potential duplicate array is 1, by definition not a duplicate
 	else if (i==1) {
-	    print saved1[rname[0]];
-	    print saved2[rname[0]];
+	    if (rname[0] in saved1) print saved1[rname[0]];
+	    if (rname[0] in saved2) print saved2[rname[0]];
 	    if (rname[0] in saved3) print saved3[rname[0]];
 	    if (rname[0] in saved4) print saved4[rname[0]];
 	    delete saved1[rname[0]];
@@ -226,14 +226,14 @@ END {
 	    for (j=0; j<i; j++) {
 		if (j in dups) {
 		    count_dups++;
-		    markduplicate(saved1[rname[j]]);
-		    markduplicate(saved2[rname[j]]);
+		    if (rname[j] in saved1) markduplicate(saved1[rname[j]]);
+		    if (rname[j] in saved2) markduplicate(saved2[rname[j]]);
 		    if (rname[j] in saved3) markduplicate(saved3[rname[j]]);
 		    if (rname[j] in saved4) markduplicate(saved4[rname[j]]);
 		}
 		else {
-		    print saved1[rname[j]];
-		    print saved2[rname[j]];
+		    if (rname[j] in saved1) print saved1[rname[j]];
+		    if (rname[j] in saved2) print saved2[rname[j]];
 		    if (rname[j] in saved3) print saved3[rname[j]];
 		    if (rname[j] in saved4) print saved4[rname[j]];
 		}
@@ -241,8 +241,8 @@ END {
 	}
 	# size of potential duplicate array is 1, by definition not a duplicate
 	else if (i==1) {
-	    print saved1[rname[0]];
-	    print saved2[rname[0]];
+	    if (rname[0] in saved1) print saved1[rname[0]];
+	    if (rname[0] in saved2) print saved2[rname[0]];
 	    if (rname[0] in saved3) print saved3[rname[0]];
 	    if (rname[0] in saved4) print saved4[rname[0]];
 	}

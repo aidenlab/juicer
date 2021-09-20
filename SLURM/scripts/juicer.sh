@@ -152,8 +152,6 @@ topDir=$(pwd)
 # restriction enzyme, can also be set in options
 # default: not set
 site="none"
-# genome ID, default to human, can also be set in options
-genomeID="hg19"
 # description, default empty
 about=""
 # do not include fragment delimited maps by default
@@ -176,7 +174,7 @@ libraryName="HiC_library"
 
 ## Read arguments                                                     
 usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path] [-C chunk size]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-Q queue time limit]\n                 [-L long queue time limit] [-b ligation] [-t threads]\n                 [-T threadsHic] [-A account] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [-m] [--assembly] [--cleanup] [--qc_apa] [--qc] [--in-situ]"
-genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
+genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\"; alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
 longQueueHelp="* [long queue] is the queue for running longer jobs such as the hic file\n  creation (default \"$long_queue\")"
@@ -642,9 +640,9 @@ if [ -z $merge ] && [ -z $final ] && [ -z $dedup ] && [ -z $postproc ] && [ -z $
 then
     if [ "$nofrag" -eq 0 ]
     then
-	echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with site file $site_file"
+	echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $refSeq with site file $site_file"
     else
-        echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with no fragment delimited maps."
+        echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $refSeq with no fragment delimited maps."
     fi
     
     ## Split fastq files into smaller portions for parallelizing alignment 
@@ -748,7 +746,7 @@ SPLITEND`
 	# RG group; ID derived from paired-end name, sample and library can be user set
 	if [ $singleend -eq 1 ]
 	then
-	    rg="@RG\\tID:${jname%%.fastq*}\\tSM:${sampleName}\\tLB:${libraryName}"
+	    rg="@RG\\tID:${jname%%.fastq*}\\tSM:${sampleName}\\tPL:LS454\\tLB:${libraryName}"
 	else
 	    rg="@RG\\tID:${jname%%.fastq*}\\tSM:${sampleName}\\tPL:ILM\\tLB:${libraryName}"
 	fi
@@ -1246,6 +1244,53 @@ MERGED30`
     sbatch_wait2="#SBATCH -d afterok:$jid2"
 
     sbatch_wait0="#SBATCH -d afterok:$jid1:$jid2"
+
+    jid=`sbatch <<- PRESTATS | egrep -o -e "\b[0-9]+$"
+	#!/bin/bash -l
+	#SBATCH -p $queue
+	#SBATCH -o $debugdir/prestats-%j.out
+	#SBATCH -e $debugdir/prestats-%j.err
+	#SBATCH -t $queue_time
+	${sbatch_cpu_alloc} 
+	#SBATCH --ntasks=1
+	#SBATCH --mem-per-cpu=1G
+	#SBATCH -J "${groupname}_prestats"
+	${sbatch_wait}
+	$userstring
+	${load_awk}
+        date
+        ${load_java}
+	${load_samtools}
+        export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"
+        export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
+        tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt
+
+	# count duplicates via samtools view -c
+	# for paired end, count only first in pair to avoid double counting
+	if [ $singleend -eq 1 ] 
+	then 
+		if [ -f $outputdir/merged_dedup.bam ]
+		then
+			samtools view $sthreadstring -f 1024 -F 256 $outputdir/merged_dedup.bam | awk '{if (\\\$0~/rt:A:7/){singdup++}else{dup++}}END{print dup,singdup}' > $outputdir/tmp
+		else
+			awk 'and(\\\$2,1024)>0 && and(\\\$2,256)==0{if (\\\$0~/rt:A:7/){singdup++}else{dup++}}END{print dup,singdup}' $outputdir/merged_dedup.sam > $outputdir/tmp 
+		fi
+		cat $splitdir/*.res.txt | awk -v fname=$outputdir/tmp -v ligation=$ligation -v singleend=1 -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
+	else 
+		if [ -f $outputdir/merged_dedup.bam ] 
+		then
+			samtools view $sthreadstring -c -f 1089 -F 256 $outputdir/merged_dedup.bam > $outputdir/tmp
+		else
+		        awk 'and(\\\$2,1024)>0 && and(\\\$2,1)>0 && and(\\\$2,64)>0 && and(\\\$2,256)==0{dup++}END{print dup}' $outputdir/merged_dedup.sam > $outputdir/tmp
+		fi
+		cat $splitdir/*.res.txt | awk -v fname=$outputdir/tmp -v ligation=$ligation -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
+	fi
+        cp $outputdir/inter.txt $outputdir/inter_30.txt
+
+        date
+PRESTATS`
+    sbatch_wait000="${sbatch_wait1}:$jid"
+
     jid=`sbatch <<- BAMRM  | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $queue
@@ -1289,43 +1334,6 @@ BAMRM`
 METH`
     fi
 
-    jid=`sbatch <<- PRESTATS | egrep -o -e "\b[0-9]+$"
-	#!/bin/bash -l
-	#SBATCH -p $queue
-	#SBATCH -o $debugdir/prestats-%j.out
-	#SBATCH -e $debugdir/prestats-%j.err
-	#SBATCH -t $queue_time
-	#SBATCH -c 1
-	#SBATCH --ntasks=1
-	#SBATCH --mem-per-cpu=1G
-	#SBATCH -J "${groupname}_prestats"
-	${sbatch_wait}
-	$userstring
-	${load_awk}
-        date
-        ${load_java}
-	${load_samtools}
-        export IBM_JAVA_OPTIONS="-Xmx1024m -Xgcthreads1"
-        export _JAVA_OPTIONS="-Xmx1024m -Xms1024m"
-        tail -n1 $headfile | awk '{printf"%-1000s\n", \\\$0}' > $outputdir/inter.txt
-
-	# count duplicates via samtools view -c
-	# for paired end, count only first in pair to avoid double counting
-	if [ $singleend -eq 1 ] 
-	then 
-		samtools view $sthreadstring -c -f 1024 -F 256 $outputdir/merged_dedup.*am > $outputdir/tmp
-	else 
-		samtools view $sthreadstring -c -f 1089 -F 256 $outputdir/merged_dedup.*am > $outputdir/tmp
-	fi
-	cat $splitdir/*.res.txt | awk -v fname=$outputdir/tmp -v ligation=$ligation -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
-
-        cp $outputdir/inter.txt $outputdir/inter_30.txt
-	rm $outputdir/tmp
-
-        date
-PRESTATS`
-
-    sbatch_wait0="${sbatch_wait1}:$jid"
     sbatch_wait00="${sbatch_wait2}:$jid"
     jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
@@ -1337,7 +1345,7 @@ PRESTATS`
 	#SBATCH --ntasks=1
 	#SBATCH --mem=25G
 	#SBATCH -J "${groupname}_stats"
-	${sbatch_wait0}
+	${sbatch_wait000}
         $userstring			
 
 	date
@@ -1346,7 +1354,12 @@ PRESTATS`
 		echo "***! Found errorfile. Exiting." 
 		exit 1 
 	fi
-	${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
+	if [ $assembly -eq 1 ]
+        then
+		${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt none
+	else
+		${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomePath
+	fi
 	date
 STATS`
     sbatch_wait1="#SBATCH -d afterok:$jid"
@@ -1365,8 +1378,13 @@ STATS`
 	${sbatch_wait00}
 	$userstring
 
-	date		
-	${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
+	date
+	if [ $assembly -eq 1 ]
+        then
+		${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt none
+	else
+	${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomePath
+	fi
 	date
 STATS30`
 
@@ -1405,7 +1423,7 @@ then
 	samtools view $sthreadstring -O SAM -F 1024 $outputdir/merged_dedup.*am | awk -v mnd=1 -f ${juiceDir}/scripts/sam_to_pre.awk > ${outputdir}/merged_nodups.txt 
 	date
 MND`
-	    sbatch_wait1="afterok:$jid"
+	    sbatch_wait1="#SBATCH -d afterok:$jid"
 	fi
 
 	jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$" 
@@ -1436,6 +1454,19 @@ FINCLN1`
 	exit 0
     fi
     
+    if [ "$qc" = 1 ] || [ "$insitu" = 1 ]
+    then
+        resstr="-r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000"
+    else
+        resstr="-r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100"
+    fi
+    if [ "$nofrag" -eq 1 ]
+    then
+	fragstr=""
+    else
+        fragstr="-f $site_file"
+    fi
+
     jid=`sbatch <<- HIC | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
@@ -1466,22 +1497,7 @@ FINCLN1`
 	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged1.txt 500000 > ${outputdir}/merged1_index.txt
 	fi
 
-	if [ "$qc" = 1 ] || [ "$insitu" = 1 ]
-	then
-	  if [ "$nofrag" -eq 1 ]
-	  then 
-	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
-	  else
-	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
-	  fi
-	else
-	  if [ "$nofrag" -eq 1 ]
-	  then 
-	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
-	  else
-	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
-	  fi
-        fi
+	time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $resstr $fragstr $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomePath
 	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic 
 	rm -Rf ${outputdir}"/HIC_tmp"
 	date
@@ -1518,22 +1534,7 @@ HIC`
 	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
 	fi
 
-	if [ "$qc" = 1 ] || [ "$insitu" = 1 ]
-	then
-          if [ "$nofrag" -eq 1 ]
-          then 
-	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-	  else
-	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-	  fi
-        else
-          if [ "$nofrag" -eq 1 ]
-          then 
-	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-	  else
-	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
-	  fi
-	fi
+	time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $resstr $fragstr $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomePath
 	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
 	rm -Rf ${outputdir}"/HIC30_tmp"
 	date

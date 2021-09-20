@@ -253,7 +253,7 @@ $0 !~ /^@/{
 	    pos[j] = 1;
 	  }
 	}
-	else if (str[j] == 0 && notprimary[j]==1 && length(singleend)>0) {
+	else if (str[j] == 0 && notprimary[j]==256 && length(singleend)>0) {
           # count Ms,Ds,Ns,Xs,=s for sequence length
 	  seqlength=0;
 	  currstr=tmp[6];
@@ -596,7 +596,7 @@ $0 !~ /^@/{
 	      interiorpos1 = adjust(pos[read1],str[read1],cigarstr[read1],notprimary[read1]);
 	      interiorpos2 = adjust(pos[read2],str[read2],cigarstr[read2],notprimary[read2]);
 	      sortpos=sprintf("%0" chrlen "d_%0" chrlen "d",interiorpos1,interiorpos2);
-	      cb_str = "cb:Z:"chr[read1]"_"chr[2]"_"fragstr"_"str[read1]"_"outputstr"_"sortpos;
+	      cb_str = "cb:Z:"chr[read1]"_"chr[read2]"_"fragstr"_"str[read1]"_"outputstr"_"sortpos;
 
               # assign mate mapping quality, "read type", "interior position", "mate interior position"
 	      # unclear for singleend what the read type should be; both 0/1 and 2/3 are possible
@@ -643,11 +643,29 @@ $0 !~ /^@/{
 	split(c[i], tmp);
         # blacklist - if 3rd bit set (=4) it means unmapped
         mapped[j] = and(tmp[2],4) == 0;
+        str[j] = and(tmp[2],16);
+        # chromosome
+        chr[j] = tmp[3];
+        # get rid of "_" in chromosome name, for cb_str
+        gsub(/_/, "", chr[j]);
+        # position
+        pos[j] = tmp[4];
+        # cigar string
+        cigarstr[j] = tmp[6];
       }
-      if (mapped[0]) { 
+      if (mapped[0] && length(singleend)>0) { 
+	count_singleton++;
+	# get 3' end for second end for dedupping
+	interiorpos1 = adjust(pos[0],str[0],cigarstr[0],0);
+	sortpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[0],interiorpos1);
+	cb_str = "cb:Z:"chr[0]"_"chr[0]"_0_2_"str[0]"_"str[0]"_"sortpos;
+	# read type 7 is singleton reads
+	print c[1],"rt:A:7",cb_str;
+      }
+      else if (mapped[0]) {
 	count_singleton++;
 	for (i in c) {
-	  print c[i],"rt:A:8";
+	  print c[i],"rt:A:7";
 	}
       }
       else {
@@ -719,7 +737,7 @@ END{
 	    pos[j] = 1;
 	  }
 	}
-	else if (str[j] == 0 && notprimary[j]==1 && length(singleend)>0) {
+	else if (str[j] == 0 && notprimary[j]==256 && length(singleend)>0) {
           # count Ms,Ds,Ns,Xs,=s for sequence length
 	  seqlength=0;
 	  currstr=tmp[6];
@@ -1106,14 +1124,31 @@ END{
       j=0;
       for (i in c) {
 	split(c[i], tmp);
-	split(tmp[1],readname,"/");
         # blacklist - if 3rd bit set (=4) it means unmapped
         mapped[j] = and(tmp[2],4) == 0;
+        str[j] = and(tmp[2],16);
+        # chromosome
+        chr[j] = tmp[3];
+        # get rid of "_" in chromosome name, for cb_str
+        gsub(/_/, "", chr[j]);
+        # position
+        pos[j] = tmp[4];
+        # cigar string
+        cigarstr[j] = tmp[6];
       }
-      if (mapped[0]) { 
+      if (mapped[0] && length(singleend)>0) { 
+	count_singleton++;
+	# get 3' end for second end for dedupping
+	interiorpos1 = adjust(pos[0],str[0],cigarstr[0],0);
+	sortpos=sprintf("%0" chrlen "d_%0" chrlen "d",pos[0],interiorpos1);
+	cb_str = "cb:Z:"chr[0]"_"chr[0]"_0_1_"str[0]"_"str[0]"_"sortpos;
+	# read type 7 is singleton reads
+	print c[1],"rt:A:7",cb_str;
+      }
+      else if (mapped[0]) {
 	count_singleton++;
 	for (i in c) {
-	  print c[i],"rt:A:8";
+	  print c[i],"rt:A:7";
 	}
       }
       else {
