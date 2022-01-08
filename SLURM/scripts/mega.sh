@@ -548,9 +548,9 @@ ARROWHEAD`
 
 rm -r ${tmpdir}
 rm $touchfile1 $touchfile2 $touchfile3 $touchfile4 
-if [ -s "$outputdir/inter.hic" ] && [ -s $outputdir/inter.hic ]
+if [ -s ${outputdir}/inter.hic ] && [ -s ${outputdir}/inter_30.hic ]
 then
-   echo "(-: Successfully completed making mega map. Done. :-)"
+   echo "(-: Successfully completed making mega maps. Done. :-)"
 else
    echo "!*** Error: one or both hic files are empty. Check debug directory for hic logs"
 fi
