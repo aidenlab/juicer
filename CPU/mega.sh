@@ -28,29 +28,32 @@
 # [topDir]    - Should contain the results of all base experiments
 #
 # From the top-level directory, the following two directories are created:
-#                                                                              
+#
 # [topDir]/mega     - Location of result of processing the mega map
 #
-# Juicer version 1.5
-juicer_version="1.5.7" 
+# Juicer version 2.0
+juicer_version="2.0"
 # top level directory, can also be set in options
 topDir=$(pwd)
 # restriction enzyme, can also be set in options
-site="MboI"
+site="none"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
 # Juicer directory, contains scripts/, references/, and restriction_sites/
-# can also be set in options via -D 
+# can also be set in options via -D
 juiceDir="/aidenlab"
+# by default exclude fragment delimited maps
+exclude=1
 
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-b ligation] [-D Juicer scripts directory] [-f] [-h]"
+usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-D Juicer scripts directory] [-T threadsHic] [-y site_file] [-f] [-h]"
 genomeHelp="   genomeID is either defined in the script, e.g. \"hg19\" or \"mm10\" or the path to the chrom.sizes file"
-dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged_nodups files underneath it"
+dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged files underneath it"
 siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
-stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
-ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
+siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
+threadsHicHelp="* [threads for hic file creation]: number of threads when building hic file"
+stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
 scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
-excludeHelp="   -f: include fragment-delimited maps in Hi-C mega map (will run slower)"
+excludeHelp="   -f: include fragment-delimited maps from Hi-C mega map (will run slower)"
 helpHelp="   -h: print this help and exit"
 
 printHelpAndExit() {
@@ -58,39 +61,33 @@ printHelpAndExit() {
     echo "$genomeHelp"
     echo "$dirHelp"
     echo "$siteHelp"
+    echo "$siteFileHelp"
     echo "$stageHelp"
-    echo "$ligationHelp"
+    echo "$threadsHicHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hfs:S:b:D:" opt; do
+while getopts "d:g:hfs:S:D:y:T:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
-	b) ligation=$OPTARG ;;
-        D) juiceDir=$OPTARG ;;
-        f) exclude=0 ;;
+	f) exclude=0 ;;
+	y) site_file=$OPTARG ;;
 	S) stage=$OPTARG ;;
+	D) juiceDir=$OPTARG ;;
+	T) threadsHic=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
 
-## Set ligation junction based on restriction enzyme
-if [ -z "$ligation" ]; then
-    case $site in
-	HindIII) ligation="AAGCTAGCTT";;
-	DpnII) ligation="GATCGATC";;
-	MboI) ligation="GATCGATC";;
-	none) ligation="XXXX";;
-	*)  ligation="XXXX"
-	    site_file=$site
-	    echo "$site not listed as recognized enzyme, so trying it as site file."
-	    echo "Ligation junction is undefined";;
-    esac
+## If DNAse-type experiment, no fragment maps; or way to get around site file
+if [[ "$site" == "none" ]]
+then
+    exclude=1;
 fi
 
 if [ -z "$site_file" ]
@@ -99,11 +96,23 @@ then
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ] && [ "$site" != "none" ]
+if [[ ! -e "$site_file" ]] && [[ "$site" != "none" ]] && [[ ! "$site_file" =~ "none" ]]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
     echo "The site file is used for statistics even if fragment delimited maps are excluded"
     exit 1
+elif [[ "$site" != "none" ]] && [[ ! "$site_file" =~ "none" ]]
+then
+    echo  "Using $site_file as site file"
+fi
+
+resolutionsToBuildString="-r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100,50,20,10"
+
+if [ "$exclude" -eq 1 ]
+then
+  buildFragmentMapString=""
+else
+  buildFragmentMapString="-f $site_file"
 fi
 
 if [ ! -z "$stage" ]
@@ -114,7 +123,7 @@ then
 	postproc) postproc=1 ;;
         *)  echo "$usageHelp"
 	    echo "$stageHelp"
-	        exit 1
+	    exit 1
     esac
 fi
 
@@ -123,22 +132,41 @@ megadir=${topDir}"/mega"
 outputdir=${megadir}"/aligned"
 tmpdir=${megadir}"/HIC_tmp"
 export TMPDIR=${tmpdir}
-outfile=${megadir}/lsf.out
+tempdirPre=${outputdir}"/HIC_tmp"
+tempdirPre30=${outputdir}"/HIC30_tmp"
+
+if [ -z "$threadsHic" ]
+then
+  threadsHic=1
+	threadHicString=""
+	threadHic30String=""
+	threadNormString=""
+else
+  threadHicString="--threads $threadsHic -i ${outputdir}/merged1_index.txt -t ${tempdirPre}"
+	threadHic30String="--threads $threadsHic -i ${outputdir}/merged30_index.txt -t ${tempdirPre30}"
+	threadNormString="--threads $threadsHic"
+fi
+
 #output messages
 logdir="$megadir/debug"
 
-## Check for existing merged_nodups files:
-merged_count=`find -L ${topDir} | grep merged_nodups.txt | wc -l`
+## Check for existing merged files:
+merged_count=`find -L ${topDir} | grep merged1.txt | wc -l`
 if [ "$merged_count" -lt "1" ]
 then
-    echo "***! Failed to find at least one merged_nodups files under ${topDir}"
+    echo "***! Failed to find at least one merged1 file under ${topDir}"
     exit 1
 fi
 
-merged_names=$(find -L ${topDir} | grep merged_nodups.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
+merged_names=$(find -L ${topDir} | grep merged1.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
 if [ ${#merged_names} -eq 0 ]
 then
-    merged_names=$(find -L ${topDir} | grep merged_nodups.txt | tr '\n' ' ')
+    merged_names=$(find -L ${topDir} | grep merged1.txt | tr '\n' ' ')
+fi
+merged_names30=$(find -L ${topDir} | grep merged30.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
+if [ ${#merged_names30} -eq 0 ]
+then
+    merged_names30=$(find -L ${topDir} | grep merged30.txt | tr '\n' ' ')
 fi
 inter_names=$(find -L ${topDir} | grep inter.txt | tr '\n' ' ')
 
@@ -173,26 +201,41 @@ then
     awk -f ${juiceDir}/scripts/common/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
     echo "(-: Finished creating top stats files."
     cp ${outputdir}/inter.txt ${outputdir}/inter_30.txt
-    sort -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
-    echo "(-: Finished sorting all merged_nodups files into a single merge."
-    rm -r ${tmpdir}
-    ${juiceDir}/scripts/common/statistics.pl -q 1 -o${outputdir}/inter.txt -s $site_file -l $ligation ${outputdir}/merged_nodups.txt
-    ${juiceDir}/scripts/common/statistics.pl -q 30 -o${outputdir}/inter_30.txt -s $site_file -l $ligation ${outputdir}/merged_nodups.txt 
-    if [ -n "$exclude" ]
-    then
-	${juiceDir}/scripts/common/juicer_tools pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
-	${juiceDir}/scripts/common/juicer_tools pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID}
-    else
-	${juiceDir}/scripts/common/juicer_tools pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
-	${juiceDir}/scripts/common/juicer_tools pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
-    fi
+    sort --parallel=40 -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged1.txt
+    sort --parallel=40 -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names30} > ${outputdir}/merged30.txt
+    echo "(-: Finished sorting all files into a single merge."
+    ${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
+    ${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
+
+    mkdir ${tempdirPre}
+	  if [[ $threadsHic -gt 1 ]] && [[ ! -s ${outputdir}/merged1_index.txt ]]
+	  then
+	      ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged1.txt 500000 > ${outputdir}/merged1_index.txt
+	  fi
+	  ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $resolutionsToBuildString $buildFragmentMapString $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomeID
+	  ${juiceDir}/scripts/common/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic
+	  rm -Rf ${tempdirPre}
+
+	  mkdir ${tempdirPre30}
+	  if [[ $threadsHic -gt 1 ]] && [[ ! -s ${outputdir}/merged30_index.txt ]]
+	  then
+	      ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
+	  fi
+    ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $resolutionsToBuildString $buildFragmentMapString $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomeID
+	  ${juiceDir}/scripts/common/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
+	  rm -Rf ${tempdirPre30}
 fi
 if [ -z $early ]
 then
-# Create loop lists file for MQ > 30
+    # Create loop lists file for MQ > 30
     ${juiceDir}/scripts/common/juicer_hiccups.sh -j ${juiceDir}/scripts/common/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
     ${juiceDir}/scripts/common/juicer_arrowhead.sh -j ${juiceDir}/scripts/common/juicer_tools -i $outputdir/inter_30.hic
 fi
 
-echo "(-: Successfully completed making mega map. Done. :-)"
-
+if [ -s ${outputdir}/inter.hic ] && [ -s ${outputdir}/inter_30.hic ]
+then
+   rm -fr ${tmpdir}
+   echo "(-: Successfully completed making mega map. Done. :-)"
+else
+   echo "!*** Error: one or both hic files are empty. Check debug directory for hic logs"
+fi
