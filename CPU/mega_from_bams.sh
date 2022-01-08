@@ -149,25 +149,18 @@ else
 	threadNormString="--threads $threadsHic"
 fi
 
+cThreads="$(getconf _NPROCESSORS_ONLN)"
+cThreadString="-@ $cThreads"
+
 ## Check for existing merged files:
-merged_count=$(find -L "${topDir}" | grep -c merged1.txt)
-if [ "$merged_count" -lt "1" ]
+merged_count=$(find -L "${topDir}" | grep -c merged_dedup.bam)
+if [ "$merged_count" -lt "2" ]
 then
-    echo "***! Failed to find at least one merged1 file under ${topDir}"
+    echo "***! Failed to find at least two merged_dedup.bam files under ${topDir}"
     exit 1
 fi
 
-merged_names=$(find -L "${topDir}" | grep merged1.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
-if [ ${#merged_names} -eq 0 ]
-then
-    merged_names=$(find -L "${topDir}" | grep merged1.txt | tr '\n' ' ')
-fi
-merged_names30=$(find -L "${topDir}" | grep merged30.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
-if [ ${#merged_names30} -eq 0 ]
-then
-    merged_names30=$(find -L "${topDir}" | grep merged30.txt | tr '\n' ' ')
-fi
-inter_names=$(find -L "${topDir}" | grep inter.txt | tr '\n' ' ')
+bams_to_merge=$(find -L "${topDir}" | grep merged_dedup.bam | tr '\n' ' ')
 
 ## Create output directory, exit if already exists
 if [[ -d "${outputDir}" ]] && [ -z $final ] && [ -z $postproc ]
@@ -190,12 +183,13 @@ fi
 # Not in final or postproc
 if [ -z $final ] && [ -z $postproc ]
 then
+    samtools merge -c -t cb "$cThreadString" -o "${outputDir}"/mega_merged_dedup.bam "${bams_to_merge}"
+    samtools view "$cThreadString" -F 1024 -O sam "${outputDir}"/mega_merged_dedup.bam | awk -v mapq=1 -f "${juiceDir}"/scripts/common/sam_to_pre.awk > "${outputDir}"/merged1.txt
+    samtools view "$cThreadString" -F 1024 -O sam "${outputDir}"/mega_merged_dedup.bam | awk -v mapq=30 -f "${juiceDir}"/scripts/common/sam_to_pre.awk > "${outputDir}"/merged30.txt
 # Create top statistics file from all inter.txt files found under current dir
     awk -f "${juiceDir}"/scripts/common/makemega_addstats.awk "${inter_names}" > "${outputDir}"/inter.txt
     echo "(-: Finished creating top stats files."
     cp "${outputDir}"/inter.txt "${outputDir}"/inter_30.txt
-    sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d "${merged_names}" > "${outputDir}"/merged1.txt
-    sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d "${merged_names30}" > "${outputDir}"/merged30.txt
     echo "(-: Finished sorting all files into a single merge."
     "${juiceDir}"/scripts/common/juicer_tools statistics "$site_file" "$outputDir"/inter.txt "$outputDir"/merged1.txt "$genomeID"
     "${juiceDir}"/scripts/common/juicer_tools statistics "$site_file" "$outputDir"/inter_30.txt "$outputDir"/merged30.txt "$genomeID"
