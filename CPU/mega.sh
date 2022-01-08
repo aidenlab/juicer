@@ -16,7 +16,7 @@
 #
 #  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 #  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
 #  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
@@ -57,12 +57,14 @@ excludeHelp="   -f: include fragment-delimited maps from Hi-C mega map (will run
 helpHelp="   -h: print this help and exit"
 
 printHelpAndExit() {
+    echo "Juicer Version: ${juicer_version}"
     echo "$usageHelp"
     echo "$genomeHelp"
     echo "$dirHelp"
     echo "$siteHelp"
     echo "$siteFileHelp"
     echo "$stageHelp"
+    echo "$scriptDirHelp"
     echo "$threadsHicHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
@@ -95,7 +97,7 @@ then
     site_file="${juiceDir}/restriction_sites/${genomeID}_${site}.txt"
 fi
 
-## Check that site file exists, needed for fragment number for merged_nodups
+## Check that site file exists, needed for fragment number
 if [[ ! -e "$site_file" ]] && [[ "$site" != "none" ]] && [[ ! "$site_file" =~ "none" ]]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
@@ -115,7 +117,7 @@ else
   buildFragmentMapString="-f $site_file"
 fi
 
-if [ ! -z "$stage" ]
+if [ -n "$stage" ]
 then
     case $stage in
         final) final=1 ;;
@@ -128,12 +130,12 @@ then
 fi
 
 ## Directories to be created and regex strings for listing files
-megadir=${topDir}"/mega"
-outputdir=${megadir}"/aligned"
-tmpdir=${megadir}"/HIC_tmp"
+megaDir=${topDir}"/mega"
+outputDir=${megaDir}"/aligned"
+tmpdir=${megaDir}"/HIC_tmp"
 export TMPDIR=${tmpdir}
-tempdirPre=${outputdir}"/HIC_tmp"
-tempdirPre30=${outputdir}"/HIC30_tmp"
+tempdirPre=${outputDir}"/HIC_tmp"
+tempdirPre30=${outputDir}"/HIC30_tmp"
 
 if [ -z "$threadsHic" ]
 then
@@ -142,53 +144,44 @@ then
 	threadHic30String=""
 	threadNormString=""
 else
-  threadHicString="--threads $threadsHic -i ${outputdir}/merged1_index.txt -t ${tempdirPre}"
-	threadHic30String="--threads $threadsHic -i ${outputdir}/merged30_index.txt -t ${tempdirPre30}"
+  threadHicString="--threads $threadsHic -i ${outputDir}/merged1_index.txt -t ${tempdirPre}"
+	threadHic30String="--threads $threadsHic -i ${outputDir}/merged30_index.txt -t ${tempdirPre30}"
 	threadNormString="--threads $threadsHic"
 fi
 
-#output messages
-logdir="$megadir/debug"
-
 ## Check for existing merged files:
-merged_count=`find -L ${topDir} | grep merged1.txt | wc -l`
+merged_count=$(find -L "${topDir}" | grep -c merged1.txt)
 if [ "$merged_count" -lt "1" ]
 then
     echo "***! Failed to find at least one merged1 file under ${topDir}"
     exit 1
 fi
 
-merged_names=$(find -L ${topDir} | grep merged1.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
+merged_names=$(find -L "${topDir}" | grep merged1.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
 if [ ${#merged_names} -eq 0 ]
 then
-    merged_names=$(find -L ${topDir} | grep merged1.txt | tr '\n' ' ')
+    merged_names=$(find -L "${topDir}" | grep merged1.txt | tr '\n' ' ')
 fi
-merged_names30=$(find -L ${topDir} | grep merged30.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
+merged_names30=$(find -L "${topDir}" | grep merged30.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
 if [ ${#merged_names30} -eq 0 ]
 then
-    merged_names30=$(find -L ${topDir} | grep merged30.txt | tr '\n' ' ')
+    merged_names30=$(find -L "${topDir}" | grep merged30.txt | tr '\n' ' ')
 fi
-inter_names=$(find -L ${topDir} | grep inter.txt | tr '\n' ' ')
+inter_names=$(find -L "${topDir}" | grep inter.txt | tr '\n' ' ')
 
 ## Create output directory, exit if already exists
-if [[ -d "${outputdir}" ]] && [ -z $final ] && [ -z $postproc ]
+if [[ -d "${outputDir}" ]] && [ -z $final ] && [ -z $postproc ]
 then
-    echo "***! Move or remove directory \"${outputdir}\" before proceeding."
+    echo "***! Move or remove directory \"${outputDir}\" before proceeding."
     exit 1
 else
-    mkdir -p ${outputdir}
+    mkdir -p "${outputDir}"
 fi
 
 ## Create temporary directory
 if [ ! -d "$tmpdir" ]; then
-    mkdir $tmpdir
-    chmod 777 $tmpdir
-fi
-
-## Create output directory, used for reporting commands output
-if [ ! -d "$logdir" ]; then
-    mkdir "$logdir"
-    chmod 777 "$logdir"
+    mkdir "$tmpdir"
+    chmod 777 "$tmpdir"
 fi
 
 ## Arguments have been checked and directories created. Now begins
@@ -198,43 +191,43 @@ fi
 if [ -z $final ] && [ -z $postproc ]
 then
 # Create top statistics file from all inter.txt files found under current dir
-    awk -f ${juiceDir}/scripts/common/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
+    awk -f "${juiceDir}"/scripts/common/makemega_addstats.awk "${inter_names}" > "${outputDir}"/inter.txt
     echo "(-: Finished creating top stats files."
-    cp ${outputdir}/inter.txt ${outputdir}/inter_30.txt
-    sort --parallel=40 -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged1.txt
-    sort --parallel=40 -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names30} > ${outputdir}/merged30.txt
+    cp "${outputDir}"/inter.txt "${outputDir}"/inter_30.txt
+    sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d "${merged_names}" > "${outputDir}"/merged1.txt
+    sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d "${merged_names30}" > "${outputDir}"/merged30.txt
     echo "(-: Finished sorting all files into a single merge."
-    ${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
-    ${juiceDir}/scripts/common/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
+    "${juiceDir}"/scripts/common/juicer_tools statistics "$site_file" "$outputDir"/inter.txt "$outputDir"/merged1.txt "$genomeID"
+    "${juiceDir}"/scripts/common/juicer_tools statistics "$site_file" "$outputDir"/inter_30.txt "$outputDir"/merged30.txt "$genomeID"
 
-    mkdir ${tempdirPre}
-	  if [[ $threadsHic -gt 1 ]] && [[ ! -s ${outputdir}/merged1_index.txt ]]
+    mkdir "${tempdirPre}"
+	  if [[ $threadsHic -gt 1 ]] && [[ ! -s "${outputDir}"/merged1_index.txt ]]
 	  then
-	      ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged1.txt 500000 > ${outputdir}/merged1_index.txt
+	      "${juiceDir}"/scripts/common/index_by_chr.awk "${outputDir}"/merged1.txt 500000 > "${outputDir}"/merged1_index.txt
 	  fi
-	  ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $resolutionsToBuildString $buildFragmentMapString $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomeID
-	  ${juiceDir}/scripts/common/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic
-	  rm -Rf ${tempdirPre}
+	  "${juiceDir}"/scripts/common/juicer_tools pre -n -s "$outputDir"/inter.txt -g "$outputDir"/inter_hists.m -q 1 "$resolutionsToBuildString" "$buildFragmentMapString" "$threadHicString" "$outputDir"/merged1.txt "$outputDir"/inter.hic "$genomeID"
+	  "${juiceDir}"/scripts/common/juicer_tools addNorm "$threadNormString" "${outputDir}"/inter.hic
+	  rm -Rf "${tempdirPre}"
 
-	  mkdir ${tempdirPre30}
-	  if [[ $threadsHic -gt 1 ]] && [[ ! -s ${outputdir}/merged30_index.txt ]]
+	  mkdir "${tempdirPre30}"
+	  if [[ $threadsHic -gt 1 ]] && [[ ! -s "${outputDir}"/merged30_index.txt ]]
 	  then
-	      ${juiceDir}/scripts/common/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
+	      "${juiceDir}"/scripts/common/index_by_chr.awk "${outputDir}"/merged30.txt 500000 > "${outputDir}"/merged30_index.txt
 	  fi
-    ${juiceDir}/scripts/common/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $resolutionsToBuildString $buildFragmentMapString $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomeID
-	  ${juiceDir}/scripts/common/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
-	  rm -Rf ${tempdirPre30}
+    "${juiceDir}"/scripts/common/juicer_tools pre -n -s "$outputDir"/inter_30.txt -g "$outputDir"/inter_30_hists.m -q 30 "$resolutionsToBuildString" "$buildFragmentMapString" "$threadHic30String" "$outputDir"/merged30.txt "$outputDir"/inter_30.hic "$genomeID"
+	  "${juiceDir}"/scripts/common/juicer_tools addNorm "$threadNormString" "${outputDir}"/inter_30.hic
+	  rm -Rf "${tempdirPre30}"
 fi
 if [ -z $early ]
 then
     # Create loop lists file for MQ > 30
-    ${juiceDir}/scripts/common/juicer_hiccups.sh -j ${juiceDir}/scripts/common/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
-    ${juiceDir}/scripts/common/juicer_arrowhead.sh -j ${juiceDir}/scripts/common/juicer_tools -i $outputdir/inter_30.hic
+    "${juiceDir}"/scripts/common/juicer_hiccups.sh -j "${juiceDir}"/scripts/common/juicer_tools -i "$outputDir"/inter_30.hic -m "${juiceDir}"/references/motif -g "$genomeID"
+    "${juiceDir}"/scripts/common/juicer_arrowhead.sh -j "${juiceDir}"/scripts/common/juicer_tools -i "$outputDir"/inter_30.hic
 fi
 
-if [ -s ${outputdir}/inter.hic ] && [ -s ${outputdir}/inter_30.hic ]
+if [ -s "${outputDir}"/inter.hic ] && [ -s "${outputDir}"/inter_30.hic ]
 then
-   rm -fr ${tmpdir}
+   rm -fr "${tmpdir}"
    echo "(-: Successfully completed making mega map. Done. :-)"
 else
    echo "!*** Error: one or both hic files are empty. Check debug directory for hic logs"
