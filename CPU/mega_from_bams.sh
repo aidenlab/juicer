@@ -200,10 +200,10 @@ then
         ret=$(samtools view "$cThreadString" -f 1024 -F 256 "${outputDir}"/mega_merged_dedup.bam | awk '{if ($0~/rt:A:7/){singdup++}else{dup++}}END{print dup,singdup}')
         dups=$(echo "$ret" | awk '{print $1}')
         singdups=$(echo "$ret" | awk '{print $2}')
-        cat $splitdir/*.res.txt | awk -v dups="$dups" -v singdups="$singdups" -v ligation="$ligation" -v singleend=1 -f "${juiceDir}"/scripts/common/stats_sub.awk >> "$outputDir"/inter.txt
+        cat "$splitdir"/*.res.txt | awk -v dups="$dups" -v singdups="$singdups" -v ligation="XXXX" -v singleend=1 -f "${juiceDir}"/scripts/common/stats_sub.awk >> "$outputDir"/inter.txt
     else
         dups=$(samtools view -c -f 1089 -F 256 "$cThreadString" "${outputDir}"/mega_merged_dedup.bam)
-        cat $splitdir/*.res.txt | awk -v dups="$dups" -v ligation="$ligation" -f "${juiceDir}"/scripts/common/stats_sub.awk >> "$outputDir"/inter.txt
+        cat "$splitdir"/*.res.txt | awk -v dups="$dups" -v ligation="XXXX" -f "${juiceDir}"/scripts/common/stats_sub.awk >> "$outputDir"/inter.txt
     fi
     cp "$outputDir"/inter.txt "$outputDir"/inter_30.txt
 
