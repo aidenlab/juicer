@@ -37,7 +37,22 @@ printHelpAndExit() {
 #set defaults
 genomeID="hg19"
 hic_file_path="$(pwd)/aligned/inter_30.hic"
-juicer_tools_path="/broad/aidenlab/scripts/juicer_tools"
+
+# Aiden Lab specific check
+isRice=$(hostname | awk '{if ($1~/rice/){print 1}else {print 0}}')
+isBCM=$(hostname | awk '{if ($1~/bcm/){print 1}else {print 0}}')
+isVoltron=0
+# Set default appropriately
+if [ $isRice -eq 1 ]
+then
+    juicer_tools_path="/projects/ea14/juicer/scripts/juicer_tools"
+elif [ $isBCM -eq 1 ]
+then
+    juicer_tools_path="/storage/aiden/juicer/scripts/juicer_tools"
+else
+    isVoltron=1
+    juicer_tools_path="/gpfs0/juicer2/scripts/juicer_tools"
+fi
 
 while getopts "h:j:i:" opt; do
     case $opt in
@@ -48,13 +63,13 @@ while getopts "h:j:i:" opt; do
     esac
 done
 
-## Check that juicer tools exists 
+## Check that juicer tools exists
 if [ ! -e "${juicer_tools_path}" ]; then
   echo "***! Can't find juicer tools in ${juicer_tools_path}";
   exit 1;
 fi
 
-## Check that hic file exists    
+## Check that hic file exists
 if [ ! -e "${hic_file_path}" ]; then
   echo "***! Can't find inter_30.hic in ${hic_file_path}";
   exit 1;
@@ -62,6 +77,7 @@ fi
 
 echo -e "${juicer_tools_path} is post-processing Hi-C for ${genomeID}\nData read from ${hic_file_path}.\n"
 echo -e "ARROWHEAD:\n"
+echo "${juicer_tools_path} arrowhead ${hic_file_path} ${hic_file_path%.*}_contact_domains"
 ${juicer_tools_path} arrowhead ${hic_file_path} ${hic_file_path%.*}"_contact_domains"
 if [ $? -ne 0 ]; then
     echo "***! Problem while running Arrowhead";
