@@ -44,6 +44,8 @@ genomeID="hg19"
 juiceDir="/aidenlab"
 # by default exclude fragment delimited maps
 exclude=1
+# single-end input, default no
+singleend=0
 
 usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-D Juicer scripts directory] [-T threadsHic] [-y site_file] [-f] [-h]"
 genomeHelp="   genomeID is either defined in the script, e.g. \"hg19\" or \"mm10\" or the path to the chrom.sizes file"
@@ -52,6 +54,7 @@ siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\"
 siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
 threadsHicHelp="* [threads for hic file creation]: number of threads when building hic file"
 stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
+singleEndHelp="* -u: Single end alignment"
 scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
 excludeHelp="   -f: include fragment-delimited maps from Hi-C mega map (will run slower)"
 helpHelp="   -h: print this help and exit"
@@ -67,11 +70,12 @@ printHelpAndExit() {
     echo "$scriptDirHelp"
     echo "$threadsHicHelp"
     echo "$excludeHelp"
+    echo "$singleEndHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hfs:S:D:y:T:" opt; do
+while getopts "d:g:hfs:S:D:y:T:u:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -82,6 +86,7 @@ while getopts "d:g:hfs:S:D:y:T:" opt; do
 	S) stage=$OPTARG ;;
 	D) juiceDir=$OPTARG ;;
 	T) threadsHic=$OPTARG ;;
+  u) singleend=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -177,6 +182,8 @@ if [ ! -d "$tmpdir" ]; then
     chmod 777 "$tmpdir"
 fi
 
+
+
 ## Arguments have been checked and directories created. Now begins
 ## the real work of the pipeline
 
@@ -186,8 +193,20 @@ then
     samtools merge -c -t cb "$cThreadString" -o "${outputDir}"/mega_merged_dedup.bam "${bams_to_merge}"
     samtools view "$cThreadString" -F 1024 -O sam "${outputDir}"/mega_merged_dedup.bam | awk -v mapq=1 -f "${juiceDir}"/scripts/common/sam_to_pre.awk > "${outputDir}"/merged1.txt
     samtools view "$cThreadString" -F 1024 -O sam "${outputDir}"/mega_merged_dedup.bam | awk -v mapq=30 -f "${juiceDir}"/scripts/common/sam_to_pre.awk > "${outputDir}"/merged30.txt
-# Create top statistics file from all inter.txt files found under current dir
-    awk -f "${juiceDir}"/scripts/common/makemega_addstats.awk "${inter_names}" > "${outputDir}"/inter.txt
+
+    # Create statistics file
+    if [ $singleend -eq 1 ]
+    then
+        ret=$(samtools view "$cThreadString" -f 1024 -F 256 "${outputDir}"/mega_merged_dedup.bam | awk '{if ($0~/rt:A:7/){singdup++}else{dup++}}END{print dup,singdup}')
+        dups=$(echo "$ret" | awk '{print $1}')
+        singdups=$(echo "$ret" | awk '{print $2}')
+        cat $splitdir/*.res.txt | awk -v dups="$dups" -v singdups="$singdups" -v ligation="$ligation" -v singleend=1 -f "${juiceDir}"/scripts/common/stats_sub.awk >> "$outputDir"/inter.txt
+    else
+        dups=$(samtools view -c -f 1089 -F 256 "$cThreadString" "${outputDir}"/mega_merged_dedup.bam)
+        cat $splitdir/*.res.txt | awk -v dups="$dups" -v ligation="$ligation" -f "${juiceDir}"/scripts/common/stats_sub.awk >> "$outputDir"/inter.txt
+    fi
+    cp "$outputDir"/inter.txt "$outputDir"/inter_30.txt
+
     echo "(-: Finished creating top stats files."
     cp "${outputDir}"/inter.txt "${outputDir}"/inter_30.txt
     echo "(-: Finished sorting all files into a single merge."
