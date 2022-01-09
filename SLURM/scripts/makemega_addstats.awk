@@ -23,7 +23,7 @@
 #  THE SOFTWARE.
 ##########
 # Helper script for taking in multiple inter.txt and producing sums
-# Juicer version 1.5
+# Juicer version 2.0
 $1=="Sequenced"{
 gsub(/,/,"",$4);
  total=total+$4;
