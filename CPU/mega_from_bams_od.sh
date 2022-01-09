@@ -1,247 +1,413 @@
 #!/bin/bash
-##########
-#The MIT License (MIT)
-#
-# Copyright (c) 2015 Aiden Lab
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-#  FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
-#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-#  THE SOFTWARE.
-##########
-# MegaMap script. 
-#
-#                                                                       
-# [topDir]    - Should contain the results of all base experiments
-#
-# From the top-level directory, the following two directories are created:
-#
-# [topDir]/mega     - Location of result of processing the mega map
-#
-# Juicer version 2.0
-juicer_version="2.0"
-# top level directory, can also be set in options
-topDir=$(pwd)
-# restriction enzyme, can also be set in options
-site="none"
-# genome ID, default to human, can also be set in options
-genomeID="hg19"
-# Juicer directory, contains scripts/, references/, and restriction_sites/
-# can also be set in options via -D
-juiceDir="/aidenlab"
-# by default exclude fragment delimited maps
-exclude=1
-# single-end input, default no
-singleend=0
+{
+#### Description: Wrapper script to phase genomic variants from ENCODE DCC hic-pipeline.
+#### Usage: bash ./mega.sh [-v|--vcf <path_to_vcf>] <path_to_merged_dedupped_bam_1> ... <path_to_merged_dedup_bam_N>.
+#### Input: list of merged_dedup.bam files corresponding to individual Hi-C experiments.
+#### Output: "mega" hic map and "mega" chromatin accessibility bw file.
+#### Optional input: phased vcf file. When passed launches generation of diploid versions of output.
+#### Dependencies: Java, Samtools, GNU Parallel, KentUtils, Juicer, 3D-DNA (for diploid portion only).
+#### Written by:
 
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-D Juicer scripts directory] [-T threadsHic] [-y site_file] [-f] [-h]"
-genomeHelp="   genomeID is either defined in the script, e.g. \"hg19\" or \"mm10\" or the path to the chrom.sizes file"
-dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all bam files underneath it"
-siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
-siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
-threadsHicHelp="* [threads for hic file creation]: number of threads when building hic file"
-stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
-singleEndHelp="* -u: Single end alignment"
-scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
-excludeHelp="   -f: include fragment-delimited maps from Hi-C mega map (will run slower)"
-helpHelp="   -h: print this help and exit"
+echo "*****************************************************" >&1
+echo "cmd log: "$0" "$* >&1
+echo "*****************************************************" >&1
 
-printHelpAndExit() {
-    echo "Juicer Version: ${juicer_version}"
-    echo "$usageHelp"
-    echo "$genomeHelp"
-    echo "$dirHelp"
-    echo "$siteHelp"
-    echo "$siteFileHelp"
-    echo "$stageHelp"
-    echo "$scriptDirHelp"
-    echo "$threadsHicHelp"
-    echo "$excludeHelp"
-    echo "$singleEndHelp"
-    echo "$helpHelp"
-    exit "$1"
-}
+USAGE="
+*****************************************************
+Simplified mega script for ENCODE DCC hic-pipeline.
 
-while getopts "d:g:hfs:S:D:y:T:u:" opt; do
-    case $opt in
-	g) genomeID=$OPTARG ;;
-	h) printHelpAndExit 0;;
-	d) topDir=$OPTARG ;;
-	s) site=$OPTARG ;;
-	f) exclude=0 ;;
-	y) site_file=$OPTARG ;;
-	S) stage=$OPTARG ;;
-	D) juiceDir=$OPTARG ;;
-	T) threadsHic=$OPTARG ;;
-  u) singleend=1 ;;
-	[?]) printHelpAndExit 1;;
-    esac
+USAGE: ./mega.sh [-g|--chrom-sizes <path_to_chrom.sizes>] [-v|--vcf <path_to_vcf>] <path_to_merged_dedup_bam_1> ... <path_to_merged_dedup_bam_N>
+
+DESCRIPTION:
+This is a simplied mega.sh script to produce aggregate Hi-C maps and chromatic accessibility tracks from multiple experiments. The pipeline includes optional diploid steps which produce diploid versions of the contact maps and chromatin accessibility tracks.
+
+ARGUMENTS:
+path_to_merged_dedup_bam
+						Path to bam file containing deduplicated alignments of Hi-C reads in bam format (output by Juicer2). Multiple bam files are expected to be passed as arguments.
+
+OPTIONS:
+-h|--help
+						Shows this help.
+
+HAPLOID PORTION
+-g|--chrom-sizes    [path_to_chrom.sizes_or_genome_id]
+                         Path to chrom.sizes file for the reference used when processing the individual Hi-C experiments. For several common genomes can be substituted for \"genome id\": hg18, hg19, hg38, mm9, mm10, GRCh38.
+
+-r|--resolutions    [string]
+                        Comma-separated resolutions at which to build the hic files. Default: 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100,50,20,10.
+
+DIPLOID PORTION:
+-v|--vcf [path_to_vcf]
+						Path to a Variant Call Format (vcf) file containing phased sequence variation data, e.g. as generated by the ENCODE DCC Hi-C variant calling & phasing pipeline.
+
+-reads-to-homologs [path_to_reads_to_homologs_file]
+                        Path to a reads_to_homologs file generated by the phasing pipeline. If the same bams were used in the phasing pipeline this greatly reduces the compute necessary for diploid processing.
+
+--separate-homologs
+						Build two separate contact maps & two separate accessibility tracks for homologs as opposed to a single diploid contact map with interleaved homologous chromosomes. This is the preferred mode for comparing contacts across homologs using the \"Observed over Control\" view for map comparison in Juicebox. Importantly, assignment of chromosomes to homologs is arbitrary. Default: not invoked. 
+
+WORKFLOW CONTROL:
+-t|--threads [num]
+        				Indicate how many threads to use. Default: half of available cores as calculated by parallel --number-of-cores.
+
+-T|--threads-hic [num]
+						Indicate how many threads to use when generating the Hi-C file. Default: 24.
+
+--juicer-dir [path_to_juicer_dir]
+                        Path to Juicer directory, contains scripts/, references/, and restriction_sites/
+
+--phaser-dir [path_to_3ddna_dir]
+                        Path to 3D-DNA directory, contains phase/
+
+--from-stage [pipeline_stage]
+						Fast-forward to a particular stage of the pipeline. The pipeline_stage argument can be \"prep\", \"hic\", \"hicnarrow\", \"dhs\", \"diploid_hic\", \"diploid_dhs\", \"cleanup\".
+
+--to-stage [pipeline_stage]
+						Exit after a particular stage of the pipeline. The argument can be \"prep\", \"hic\", \"hicnarrow\", \"dhs\", \"diploid_hic\", \"diploid_dhs\", \"cleanup\".
+
+*****************************************************
+"
+
+# defaults:
+genome_id=hg38 #[talk with Muhammad, most will not work with both??]
+#chromSizes
+resolutionsToBuildString="-r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100,50,20,10"
+separate_homolog_maps=false
+
+# multithreading
+threads=`parallel --number-of-cores`
+threads=$((threads/2))
+# adjust for mem usage
+tmp=`awk '/MemTotal/ {threads=int($2/1024/1024/2/6-1)}END{print threads+0}' /proc/meminfo 2>/dev/null`
+tmp=$((tmp+0))
+([ $tmp -gt 0 ] && [ $tmp -lt $threads ]) && threads=$tmp
+
+threadsHic=24
+[ $threadsHic -gt $threads ]&& threadsHic=$threads
+
+# local tmpdir
+tmpdir="HIC_tmp"
+export TMPDIR=${tmpdir}
+
+#staging
+first_stage="prep"
+last_stage="cleanup"
+declare -A stage
+stage[prep]=0
+stage[hic]=1
+stage[hicnarrow]=2
+stage[dhs]=3
+stage[diploid_hic]=4
+stage[diploid_dhs]=5
+stage[cleanup]=6
+
+############### HANDLE OPTIONS ###############
+
+while :; do
+	case $1 in
+		-h|--help)
+			echo "$USAGE" >&1
+			exit 0
+        ;;
+## HAPLOID PORTION        
+        -g|--chrom-sizes) OPTARG=$2 ###TODO: TALK WITH MUHAMMAD
+            genome_id=$OPTARG
+            shift
+        ;;
+        -r|--resolutions) OPTARG=$2
+            resolutionsToBuildString="-r "$OPTARG
+            shift
+        ;;
+## DIPLOID PORTION
+        -v|--vcf) OPTARG=$2
+            if [ -s $OPTARG ] && [ "$OPTARG" == "*.vcf" ]; then
+                echo "... -v|--vcf flag was triggered, will try to generate diploid versions of the hic file and accessibility track based on phasing data in $OPTARG." >&1
+                vcf=$OPTARG
+            else
+                	echo " :( File is not found at expected location, is empty or does not have the expected extension. Exiting!" >&2
+					exit 1
+            fi            
+            shift
+        ;;
+        --reads-to-homologs) OPTARG=$2
+            if [ -s $OPTARG ] && [ "$OPTARG" == "*.txt" ]; then
+                echo "... -r|--rth flag was triggered, will try to generate diploid versions of the hic file and accessibility track based on reads-to-homolog data in $OPTARG." >&1
+                reads_to_homologs=$OPTARG
+            else
+                	echo " :( File is not found at expected location, is empty or does not have the expected extension. Exiting!" >&2
+					exit 1
+            fi      
+            shift
+        ;;
+        --separate-homologs)
+			echo "... --separate-homologs flag was triggered, will build two separate contact maps and two separate accessibility tracks (-r.hic and -a.hic) for chromosomal homologs with identical chromosomal labels." >&1
+			separate_homologs=true
+		;;
+## WORKFLOW
+        -t|--threads) OPTARG=$2
+        	re='^[0-9]+$'
+			if [[ $OPTARG =~ $re ]]; then
+					echo "... -t|--threads flag was triggered, will try to parallelize across $OPTARG threads." >&1
+					threads=$OPTARG
+			else
+					echo " :( Wrong syntax for thread count parameter value. Exiting!" >&2
+					exit 1
+			fi        	
+        	shift
+        ;;
+        -T|--threads-hic) OPTARG=$2
+        	re='^[0-9]+$'
+			if [[ $OPTARG =~ $re ]]; then
+					echo "... -T|--threads-hic flag was triggered, will try to parallelize across $OPTARG threads when building hic map." >&1
+					threadsHic=$OPTARG
+			else
+					echo " :( Wrong syntax for hic thread count parameter value. Exiting!" >&2
+					exit 1
+			fi        	
+        	shift
+        ;;
+        --juicer-dir) OPTARG=$2
+            if [ -d $OPTARG ]; then
+                echo "... --juicer-dir flag was triggered with $OPTARG." >&1
+                juicer_dir=$OPTARG
+            else
+				exit 1
+                echo " :( Juicer folder not found at expected location. Exiting!" >&2
+            fi    
+            shift
+        ;;
+        --phaser-dir)
+            if [ -d $OPTARG ]; then
+                echo "... --phaser-dir flag was triggered with $OPTARG." >&1
+                phaser_dir=$OPTARG
+            else
+				exit 1
+                echo " :( Juicer folder not found at expected location. Exiting!" >&2
+            fi    
+            shift
+        ;;
+		--from-stage) OPTARG=$2
+			if [ "$OPTARG" == "prep" ] || [ "$OPTARG" == "hic" ] || [ "$OPTARG" == "hicnarrow" ] || [ "$OPTARG" == "dhs" ] || [ "$OPTARG" == "diploid_hic" ] || [ "$OPTARG" == "diploid_dhs" ] || [ "$OPTARG" == "cleanup" ]; then
+        		echo "... --from-stage flag was triggered. Will fast-forward to $OPTARG." >&1
+        		first_stage=$OPTARG
+			else
+				echo " :( Whong syntax for pipeline stage. Please use prep/hic/hicnarrow/dhs/diploid_hic/diploid_dhs/cleanup. Exiting!" >&2
+				exit 1
+			fi
+			shift
+        ;;
+		--to-stage) OPTARG=$2
+			if [ "$OPTARG" == "prep" ] || [ "$OPTARG" == "hic" ] || [ "$OPTARG" == "hicnarrow" ] || [ "$OPTARG" == "dhs" ] || [ "$OPTARG" == "diploid_hic" ] || [ "$OPTARG" == "diploid_dhs" ] || [ "$OPTARG" == "cleanup" ]; then
+				echo "... --to-stage flag was triggered. Will exit after $OPTARG." >&1
+				last_stage=$OPTARG
+			else
+				echo " :( Whong syntax for pipeline stage. Please use prep/hic/hicnarrow/dhs/diploid_hic/diploid_dhs/cleanup. Exiting!" >&2
+				exit 1			
+			fi
+			shift
+		;;
+### utilitarian
+        --) # End of all options
+			shift
+			break
+		;;
+		-?*)
+			echo ":| WARNING: Unknown option. Ignoring: ${1}" >&2
+		;;
+		*) # Default case: If no more options then break out of the loop.
+			break
+	esac
+	shift
 done
 
-## If DNAse-type experiment, no fragment maps; or way to get around site file
-if [[ "$site" == "none" ]]
-then
-    exclude=1;
+## TODO: give error if diploid options are invoked without a vcf file
+## TODO: check that threads requested is reasonable etc.
+
+
+if [[ "${stage[$first_stage]}" -gt "${stage[$last_stage]}" ]]; then
+	echo >&2 ":( Please make sure that the first stage requested is in fact an earlier stage of the pipeline to the one requested as last. Exiting!"
+	exit 1
 fi
 
-if [ -z "$site_file" ]
-then
-    site_file="${juiceDir}/restriction_sites/${genomeID}_${site}.txt"
+############### HANDLE DEPENDENCIES ###############
+
+## Juicer & Phaser
+
+[ -z $juicer_dir ] && { echo >&2 ":( Juicer directory is not specified. Exiting!"; exit 1; } 
+([ ! -z $vcf ] && [ -z $phaser_dir ]) && { echo >&2 ":( Phaser directory is not specified. Exiting!"; exit 1; } 
+
+##	Java Dependency
+type java >/dev/null 2>&1 || { echo >&2 ":( Java is not available, please install/add to path Java. Exiting!"; exit 1; }
+
+##	GNU Parallel Dependency
+type parallel >/dev/null 2>&1 || { echo >&2 ":( GNU Parallel support is set to true (default) but GNU Parallel is not in the path. Please install GNU Parallel or set -p option to false. Exiting!"; exit 1; }
+[ $(parallel --version | awk 'NR==1{print $3}') -ge 20150322 ] || { echo >&2 ":( Outdated version of GNU Parallel is installed. Please install/add to path v 20150322 or later. Exiting!"; exit 1; }
+
+## Samtools Dependency
+type samtools >/dev/null 2>&1 || { echo >&2 ":( Samtools are not available, please install/add to path. Exiting!"; exit 1; }
+ver=`samtools --version | awk 'NR==1{print \$NF}'`
+[[ $(echo "$ver < 1.13" |bc -l) -eq 1 ]] && { echo >&2 ":( Outdated version of samtools is installed. Please install/add to path v 1.13 or later. Exiting!"; exit 1; }
+
+## kentUtils Dependency
+type bedGraphToBigWig >/dev/null 2>&1 || { echo >&2 ":( bedGraphToBigWig is not available, please install/add to path, e.g. from kentUtils. Exiting!"; exit 1; }
+
+############### HANDLE ARGUMENTS ###############
+
+bam=`echo "${@:1}"`
+##TODO: check file extentions
+
+
+
+############### MAIN #################
+## 0. PREP BAM FILE
+
+if [ "$first_stage" == "prep" ]; then
+
+	echo "...Extracting unique paired alignments from bams and sorting..." >&1
+
+	# make header for the merged file pipe
+	parallel --will-cite "samtools view -H {} > {}_header.bam" ::: $bam
+	header_list=`parallel --will-cite "printf %s' ' {}_header.bam" ::: $bam`
+	samtools merge --no-PG -f mega_header.bam ${header_list}
+	rm ${header_list}
+
+	samtools cat -@ $((threads * 2)) -h mega_header.bam $bam | samtools view -u -d "rt:0" -d "rt:1" -d "rt:2" -d "rt:3" -d "rt:4" -d "rt:5" -@ $((threads * 2)) -F 0x400 -q $mapq - |  samtools sort -@ $threads -m 6G -o reads.sorted.bam
+	[ `echo "${PIPESTATUS[@]}" | tr -s ' ' + | bc` -eq 0 ] || { echo ":( Pipeline failed at bam sorting. See stderr for more info. Exiting!" | tee -a /dev/stderr && exit 1; }
+	rm mega_header.bam
+
+	samtools index -@ $threads reads.sorted.bam	
+	[ $? -eq 0 ] || { echo ":( Failed at bam indexing. See stderr for more info. Exiting!" | tee -a /dev/stderr && exit 1; }		
+	# e.g. will fail with chr longer than ~500Mb. Use samtools index -c -m 14 reads.sorted.bam
+
+	echo ":) Done extracting unique paired alignments from bam and sorting." >&1
+
+	[ "$last_stage" == "prep" ] && { echo "Done with the requested workflow. Exiting after prepping bam!"; exit; }
+	first_stage="hic"
+
 fi
 
-## Check that site file exists, needed for fragment number
-if [[ ! -e "$site_file" ]] && [[ "$site" != "none" ]] && [[ ! "$site_file" =~ "none" ]]
-then
-    echo "***! $site_file does not exist. It must be created before running this script."
-    echo "The site file is used for statistics even if fragment delimited maps are excluded"
-    exit 1
-elif [[ "$site" != "none" ]] && [[ ! "$site_file" =~ "none" ]]
-then
-    echo  "Using $site_file as site file"
-fi
+## I. HIC
 
-resolutionsToBuildString="-r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100,50,20,10"
+if [ "$first_stage" == "hic" ]; then
 
-if [ "$exclude" -eq 1 ]
-then
-  buildFragmentMapString=""
-else
-  buildFragmentMapString="-f $site_file"
-fi
+	echo "...Generating mega hic file..." >&1
+    
+    ([ -f reads.sorted.bam ] && [ -f reads.sorted.bam.bai ]) || { echo ":( Files from previous stages of the pipeline appear to be missing. Exiting!" | tee -a /dev/stderr; exit 1; }
 
-if [ -n "$stage" ]
-then
-    case $stage in
-        final) final=1 ;;
-	early) early=1 ;;
-	postproc) postproc=1 ;;
-        *)  echo "$usageHelp"
-	    echo "$stageHelp"
-	    exit 1
-    esac
-fi
+    ##this will not work
+    samtools view -@ $threads -F 1024 -O sam reads.sorted.bam | awk -v mapq=1 -f "${juiceDir}"/scripts/common/sam_to_pre.awk > merged1.txt
+    [ `echo "${PIPESTATUS[@]}" | tr -s ' ' + | bc` -eq 0 ] || { echo ":( Pipeline failed at sam_to_pre. Check stderr for more info. Exiting!" | tee -a /dev/stderr && exit 1; }
+    
+    ##this will not work
+    samtools view -@ $threads -F 1024 -O sam reads.sorted.bam | awk -v mapq=30 -f "${juiceDir}"/scripts/common/sam_to_pre.awk > merged30.txt
+	[ `echo "${PIPESTATUS[@]}" | tr -s ' ' + | bc` -eq 0 ] || { echo ":( Pipeline failed at sam_to_pre. Check stderr for more info. Exiting!" | tee -a /dev/stderr && exit 1; }
 
-## Directories to be created and regex strings for listing files
-megaDir=${topDir}"/mega"
-outputDir=${megaDir}"/aligned"
-tmpdir=${megaDir}"/HIC_tmp"
-export TMPDIR=${tmpdir}
-tempdirPre=${outputDir}"/HIC_tmp"
-tempdirPre30=${outputDir}"/HIC30_tmp"
+    ## STATISTICS???? for now dummy files
+    touch inter.txt inter_hists.m inter_30.txt inter_hists_30.m
 
-if [ -z "$threadsHic" ]
-then
-  threadsHic=1
-	threadHicString=""
-	threadHic30String=""
-	threadNormString=""
-else
-  threadHicString="--threads $threadsHic -i ${outputDir}/merged1_index.txt -t ${tempdirPre}"
-	threadHic30String="--threads $threadsHic -i ${outputDir}/merged30_index.txt -t ${tempdirPre30}"
-	threadNormString="--threads $threadsHic"
-fi
-
-cThreads="$(getconf _NPROCESSORS_ONLN)"
-cThreadString="-@ $cThreads"
-
-## Check for existing merged files:
-merged_count=$(find -L "${topDir}" | grep -c merged_dedup.bam)
-if [ "$merged_count" -lt "2" ]
-then
-    echo "***! Failed to find at least two merged_dedup.bam files under ${topDir}"
-    exit 1
-fi
-
-bams_to_merge=$(find -L "${topDir}" | grep merged_dedup.bam | tr '\n' ' ')
-
-## Create output directory, exit if already exists
-if [[ -d "${outputDir}" ]] && [ -z $final ] && [ -z $postproc ]
-then
-    echo "***! Move or remove directory \"${outputDir}\" before proceeding."
-    exit 1
-else
-    mkdir -p "${outputDir}"
-fi
-
-## Create temporary directory
-if [ ! -d "$tmpdir" ]; then
-    mkdir "$tmpdir"
-    chmod 777 "$tmpdir"
-fi
-
-
-
-## Arguments have been checked and directories created. Now begins
-## the real work of the pipeline
-
-# Not in final or postproc
-if [ -z $final ] && [ -z $postproc ]
-then
-    samtools merge -c -t cb "$cThreadString" -o "${outputDir}"/mega_merged_dedup.bam "${bams_to_merge}"
-    samtools view "$cThreadString" -F 1024 -O sam "${outputDir}"/mega_merged_dedup.bam | awk -v mapq=1 -f "${juiceDir}"/scripts/common/sam_to_pre.awk > "${outputDir}"/merged1.txt
-    samtools view "$cThreadString" -F 1024 -O sam "${outputDir}"/mega_merged_dedup.bam | awk -v mapq=30 -f "${juiceDir}"/scripts/common/sam_to_pre.awk > "${outputDir}"/merged30.txt
-
-    # Create statistics file
-    if [ $singleend -eq 1 ]
+    if [[ $threadsHic -gt 1 ]] && [[ ! -s merged1_index.txt ]]
     then
-        ret=$(samtools view "$cThreadString" -f 1024 -F 256 "${outputDir}"/mega_merged_dedup.bam | awk '{if ($0~/rt:A:7/){singdup++}else{dup++}}END{print dup,singdup}')
-        dups=$(echo "$ret" | awk '{print $1}')
-        singdups=$(echo "$ret" | awk '{print $2}')
-        cat "$splitdir"/*.res.txt | awk -v dups="$dups" -v singdups="$singdups" -v ligation="XXXX" -v singleend=1 -f "${juiceDir}"/scripts/common/stats_sub.awk >> "$outputDir"/inter.txt
+        "${juiceDir}"/scripts/common/index_by_chr.awk merged1.txt 500000 > merged1_index.txt
+        tempdirPre="HIC_tmp" && mkdir $tempdirPre
+        threadHicString="--threads $threadsHic -i merged1_index.txt -t ${tempdirPre}"
     else
-        dups=$(samtools view -c -f 1089 -F 256 "$cThreadString" "${outputDir}"/mega_merged_dedup.bam)
-        cat "$splitdir"/*.res.txt | awk -v dups="$dups" -v ligation="XXXX" -f "${juiceDir}"/scripts/common/stats_sub.awk >> "$outputDir"/inter.txt
+        threadHicString=""
     fi
-    cp "$outputDir"/inter.txt "$outputDir"/inter_30.txt
 
-    echo "(-: Finished creating top stats files."
-    cp "${outputDir}"/inter.txt "${outputDir}"/inter_30.txt
-    echo "(-: Finished sorting all files into a single merge."
-    "${juiceDir}"/scripts/common/juicer_tools statistics "$site_file" "$outputDir"/inter.txt "$outputDir"/merged1.txt "$genomeID"
-    "${juiceDir}"/scripts/common/juicer_tools statistics "$site_file" "$outputDir"/inter_30.txt "$outputDir"/merged30.txt "$genomeID"
+    "${juiceDir}"/scripts/common/juicer_tools pre -n -s inter.txt -g inter_hists.m -q 1 "$resolutionsToBuildString" "$threadHicString" merged1.txt inter.hic "$genomeID"
+    "${juiceDir}"/scripts/common/juicer_tools addNorm --threads $threadsHic inter.hic
+	rm -Rf "${tempdirPre}"
 
-    mkdir "${tempdirPre}"
-	  if [[ $threadsHic -gt 1 ]] && [[ ! -s "${outputDir}"/merged1_index.txt ]]
-	  then
-	      "${juiceDir}"/scripts/common/index_by_chr.awk "${outputDir}"/merged1.txt 500000 > "${outputDir}"/merged1_index.txt
-	  fi
-	  "${juiceDir}"/scripts/common/juicer_tools pre -n -s "$outputDir"/inter.txt -g "$outputDir"/inter_hists.m -q 1 "$resolutionsToBuildString" "$buildFragmentMapString" "$threadHicString" "$outputDir"/merged1.txt "$outputDir"/inter.hic "$genomeID"
-	  "${juiceDir}"/scripts/common/juicer_tools addNorm "$threadNormString" "${outputDir}"/inter.hic
-	  rm -Rf "${tempdirPre}"
+    ## TODO: check for failure
 
-	  mkdir "${tempdirPre30}"
-	  if [[ $threadsHic -gt 1 ]] && [[ ! -s "${outputDir}"/merged30_index.txt ]]
-	  then
-	      "${juiceDir}"/scripts/common/index_by_chr.awk "${outputDir}"/merged30.txt 500000 > "${outputDir}"/merged30_index.txt
-	  fi
-    "${juiceDir}"/scripts/common/juicer_tools pre -n -s "$outputDir"/inter_30.txt -g "$outputDir"/inter_30_hists.m -q 30 "$resolutionsToBuildString" "$buildFragmentMapString" "$threadHic30String" "$outputDir"/merged30.txt "$outputDir"/inter_30.hic "$genomeID"
-	  "${juiceDir}"/scripts/common/juicer_tools addNorm "$threadNormString" "${outputDir}"/inter_30.hic
-	  rm -Rf "${tempdirPre30}"
+    if [[ $threadsHic -gt 1 ]] && [[ ! -s merged30_index.txt ]]
+	then
+	    "${juiceDir}"/scripts/common/index_by_chr.awk merged30.txt 500000 > merged30_index.txt
+        tempdirPre30="HIC30_tmp" && mkdir "${tempdirPre30}"
+	    threadHic30String="--threads $threadsHic -i merged30_index.txt -t ${tempdirPre30}"
+    else
+        threadHic30String=""
+	fi
+
+    "${juiceDir}"/scripts/common/juicer_tools pre -n -s inter_30.txt -g inter_30_hists.m -q 30 "$resolutionsToBuildString" "$threadHic30String" merged30.txt inter_30.hic "$genomeID"
+	"${juiceDir}"/scripts/common/juicer_tools addNorm --threads $threadsHic "${outputDir}"/inter_30.hic
+    rm -Rf "${tempdirPre30}"
+	
+    ## TODO: check for failure
+
+    echo ":) Done building mega hic files." >&1
+
+	[ "$last_stage" == "hic" ] && { echo "Done with the requested workflow. Exiting after generating the mega.hic file!"; exit; }
+	first_stage="hicnarrow"
 fi
-if [ -z $early ]
-then
+
+## II. HICNARROW.
+if [ "$first_stage" == "hicnarrow" ]; then
+	
+	echo "...Annotating loops and domains..." >&1
+
+    [ -f inter_30.hic ] || { echo ":( Files from previous stages of the pipeline appear to be missing. Exiting!" | tee -a /dev/stderr; exit 1; }
+
     # Create loop lists file for MQ > 30
-    "${juiceDir}"/scripts/common/juicer_hiccups.sh -j "${juiceDir}"/scripts/common/juicer_tools -i "$outputDir"/inter_30.hic -m "${juiceDir}"/references/motif -g "$genomeID"
-    "${juiceDir}"/scripts/common/juicer_arrowhead.sh -j "${juiceDir}"/scripts/common/juicer_tools -i "$outputDir"/inter_30.hic
+    "${juiceDir}"/scripts/common/juicer_hiccups.sh -j "${juiceDir}"/scripts/common/juicer_tools -i inter_30.hic -m "${juiceDir}"/references/motif -g "$genomeID"
+
+    ##TODO: check for failure and exit
+
+    "${juiceDir}"/scripts/common/juicer_arrowhead.sh -j "${juiceDir}"/scripts/common/juicer_tools -i inter_30.hic
+
+    ##TODO: check for failure and exit
+
+	echo ":) Done annotating loops and domains." >&1
+
+	[ "$last_stage" == "hicnarrow" ] && { echo "Done with the requested workflow. Exiting after generating loop and domain annotations!"; exit; }
+	first_stage="dhs"
+
 fi
 
-if [ -s "${outputDir}"/inter.hic ] && [ -s "${outputDir}"/inter_30.hic ]
-then
-   rm -fr "${tmpdir}"
-   echo "(-: Successfully completed making mega map. Done. :-)"
-else
-   echo "!*** Error: one or both hic files are empty. Check debug directory for hic logs"
+## III. BUILD HAPLOID ACCESSIBILITY TRACKS 
+if [ "$first_stage" == "dhs" ]; then
+
+	echo "...Building accessibility tracks..." >&1
+
+    ([ -f reads.sorted.bam ] && [ -f reads.sorted.bam.bai ]) || { echo ":( Files from previous stages of the pipeline appear to be missing. Exiting!" | tee -a /dev/stderr; exit 1; }
+
+    ## figure out platform
+    ##TODO: replace rather than check multiple
+    cmd="samtools view -H reads.sorted.bam | grep '^@RG' | awk -F '\t' '{for(i=2;i<=NF;i++){if(\$i~/^PL:/){print substr(\$i,4)};break}}' | uniq | xargs" && pl=`eval $cmd`
+	([ "$pl" == "ILLUMINA" ] || ([ "$pl" == "ILM" ] || ([ "$pl" == "Illumina" ] || [ "$pl" == "LS454" ] || [ "$pl" == "454" ])) || { echo ":( Platform names are unknown or data from different platforms seems to be mixed. Can't handle this case. Exiting!" | tee -a /dev/stderr && exit 1; }
+	([ "$pl" == "ILLUMINA" ] || [ "$pl" == "ILM" ] || ([ "$pl" == "Illumina" ]) && junction_rt_string="-d rt:2 -d rt:3 -d rt:4 -d rt:5" || junction_rt_string="-d rt:0 -d rt:1"
+
+    export SHELL=$(type -p bash)
+    export junction_rt_string=${junction_rt_string}
+    doit () {
+            samtools view -@ 2 ${junction_rt_string} -h reads.sorted.bam $1 | samtools sort -n -m 1G -O sam | awk -v chr=$1 '{for (i=12; i<=NF; i++) {if ($i ~ /^ip/) {split($i, ip, ":"); locus[ip[3]]++; break}}}END{for (i in locus) {print chr "\t" i-1 "\t" i "\t" locus[i]}}' | sort -k1,1 -k2,2n -S 6G
+    }
+
+    export -f doit
+    awk '{print $1}' $chromSizes | parallel -j $threads --will-cite --joblog temp.log -k doit | sort -k1,1 -k2,2n -S 6G > tmp.bedgraph
+    
+    exitval=`awk 'NR>1{if($7!=0){c=1; exit}}END{print c+0}' temp.log`
+	[ $exitval -eq 0 ] || { echo ":( Pipeline failed at building diploid contact maps. See stderr for more info. Exiting! " | tee -a /dev/stderr && exit 1; }
+	rm temp.log
+
+    bedGraphToBigWig tmp.bedgraph $chromSizes inter.bw
+
+    echo ":) Done building accessibility tracks." >&1
+	
+	[ "$last_stage" == "dhs" ] && { echo "Done with the requested workflow. Exiting after building haploid accessibility tracks!"; exit; }
+	[ -z $vcf ] && first_stage="cleanup" || first_stage="diploid_hic"
+
 fi
+
+## III. BUILD HAPLOID ACCESSIBILITY TRACKS 
+if [ "$first_stage" == "diploid_hic" ]; then
+
+	echo "...Building accessibility tracks..." >&1
+
+    echo ":) Done building accessibility tracks." >&1
+	
+	[ "$last_stage" == "diploid_hic" ] && { echo "Done with the requested workflow. Exiting after building diploid contact maps!"; exit; }
+	first_stage="diploid_dhs"
+
+fi
+}
