@@ -399,15 +399,180 @@ if [ "$first_stage" == "dhs" ]; then
 
 fi
 
-## III. BUILD HAPLOID ACCESSIBILITY TRACKS 
+## III. BUILD DIPLOID CONTACT MAPS
 if [ "$first_stage" == "diploid_hic" ]; then
 
-	echo "...Building accessibility tracks..." >&1
+	echo "...Building diploid accessibility tracks from reads overlapping phased SNPs..." >&1
 
-    echo ":) Done building accessibility tracks." >&1
+## TODO: handle chr: except chr Y, chr M etc.
+
+    if [ -z $reads_to_homologs ]; then
+
+        chr=$(awk '{str=str"|"$1}END{print substr(str,2)}' ${chromSizes})
+
+        if [ -z $psf ]; then
+            awk -v chr=${chr} -v output_prefix="out" -f ${phaser_dir}/phase/vcf-to-psf-and-assembly.awk ${vcf}
+            psf=out.psf
+        fi
+
+        export SHELL=$(type -p bash)
+		export psf=${psf}
+		export pipeline=${phaser_dir}
+		doit () { 
+			samtools view -@ 2 reads.sorted.bam $1 | awk -f ${pipeline}/phase/extract-SNP-reads-from-sam-file.awk ${psf} -
+		}
+		export -f doit
+		echo $chr | tr "|" "\n" | parallel -j $threads --will-cite --joblog temp.log doit > dangling.sam
+		exitval=`awk 'NR>1{if($7!=0){c=1; exit}}END{print c+0}' temp.log`
+		[ $exitval -eq 0 ] || { echo ":( Pipeline failed at parsing bam. Check stderr for more info. Exiting! " | tee -a /dev/stderr && exit 1; }
+		rm temp.log
+
+        bash ${phaser_dir}/phase/assign-reads-to-homologs.sh -t ${threads} -c ${chr} $psf dangling.sam
+        reads_to_homologs=reads_to_homologs.txt
+    
+    fi
+
+    # build mnd file
+    export SHELL=$(type -p bash)
+	export psf=${psf}
+	export pipeline=${phaser_dir}
+    export reads_to_homologs=$reads_to_homologs
+    doit () { 
+        samtools view -@ 2 -h reads.sorted.bam $1 | awk -v chr=$1 'BEGIN{OFS="\t"}FILENAME==ARGV[1]{if($2==chr"-r"||$2==chr"-a"){if(keep[$1]&&keep[$1]!=$2){delete keep[$1]}else{keep[$1]=$2}};next}$0~/^@SQ/{$2=$2"-r"; print; $2=substr($2,1,length($2)-2)"-a";print;next}$0~/^@/{print;next}($1 in keep)&&($7=="="||$7=="*"){$3=keep[$1];print}' $reads_to_homologs - | samtools sort -n -m 1G -O sam | awk '$0~/^@/{next}($1!=prev){if(n==2){sub("\t","",str); print str}; str=""; n=0}{for(i=12;i<=NF;i++){if($i~/^ip:i:/){$4=substr($i,6);break;}};str=str"\t"n"\t"$3"\t"$4"\t"n; n++; prev=$1}END{if(n==2){sub("\t","",str); print str}}' | sort -k 2,2 -S 6G
+
+    }
+    export -f doit
+    echo $chr | tr "|" "\n" | parallel -j $threads --will-cite --joblog temp.log -k doit > diploid.mnd.txt
+    exitval=`awk 'NR>1{if($7!=0){c=1; exit}}END{print c+0}' temp.log`
+    [ $exitval -eq 0 ] || { echo ":( Pipeline failed at building diploid contact maps. See stderr for more info. Exiting! " | tee -a /dev/stderr && exit 1; }
+    rm temp.log
+
+
+    ## TODO: talk with Muhammad about adding VC norm
+
+    # build hic file(s)
+    if [ "$separate_homologs" == "true" ]; then
+		{ awk '$2~/-r$/{gsub("-r","",$2); gsub("-r","",$6); print}' diploid.mnd.txt > tmp1.mnd.txt && "${juiceDir}"/scripts/common/juicer_tools pre -n "$resolutionsToBuildString" tmp1.mnd.txt "haploid-r.hic" <(awk -v chr=$chr -F, 'BEGIN{split(chr,tmp,"|"); for(i in tmp){chrom[tmp[i]]=1}}$1!~/^#/{exit}($1!~/##contig=<ID=/){next}(substr($1,14) in chrom){split($2,a,"="); len=substr(a[2],1,length(a[2]-1)); print substr($1,14)"\t"len}' $vcf); } #&
+		{ awk '$2~/-a$/{gsub("-a","",$2); gsub("-a","",$6); print}' diploid.mnd.txt > tmp2.mnd.txt && "${juiceDir}"/scripts/common/juicer_tools pre -n "$resolutionsToBuildString" tmp2.mnd.txt "haploid-a.hic" <(awk -v chr=$chr -F, 'BEGIN{split(chr,tmp,"|"); for(i in tmp){chrom[tmp[i]]=1}}$1!~/^#/{exit}($1!~/##contig=<ID=/){next}(substr($1,14) in chrom){split($2,a,"="); len=substr(a[2],1,length(a[2]-1)); print substr($1,14)"\t"len}' $vcf); } #&
+		#wait
+		rm tmp1.mnd.txt tmp2.mnd.txt
+		## TODO: check if successful
+	else
+		"${juiceDir}"/scripts/common/juicer_tools pre -n "$resolutionsToBuildString" diploid.mnd.txt "diploid.hic" <(awk -v chr=$chr -F, 'BEGIN{split(chr,tmp,"|"); for(i in tmp){chrom[tmp[i]]=1}}$1!~/^#/{exit}($1!~/##contig=<ID=/){next}(substr($1,14) in chrom){split($2,a,"="); len=substr(a[2],1,length(a[2]-1)); print substr($1,14)"-r\t"len; print substr($1,14)"-a\t"len}' $vcf)
+		## TODO: check if successful
+	fi
+
+    rm diploid.mnd.txt
+
+	echo ":) Done building diploid contact maps from reads overlapping phased SNPs." >&1
 	
 	[ "$last_stage" == "diploid_hic" ] && { echo "Done with the requested workflow. Exiting after building diploid contact maps!"; exit; }
 	first_stage="diploid_dhs"
 
 fi
+
+## VIII. BUILD DIPLOID ACCESSIBILITY TRACKS
+if [ "$first_stage" == "diploid_dhs" ]; then
+
+	echo "...Building diploid accessibility tracks from reads overlapping phased SNPs..." >&1
+
+## TODO: handle chr: except chr Y, chr M etc.
+
+	if [ ! -s reads.sorted.bam ] || [ ! -s reads.sorted.bam.bai ] || [ ! -s $reads_to_homologs ]; then
+		echo ":( Files from previous stages of the pipeline appear to be missing. Exiting!" | tee -a /dev/stderr
+		exit 1
+	fi
+
+    ## figure out platform
+    ##TODO: replace rather than check multiple
+    cmd="samtools view -H reads.sorted.bam | grep '^@RG' | awk -F '\t' '{for(i=2;i<=NF;i++){if(\$i~/^PL:/){print substr(\$i,4)};break}}' | uniq | xargs" && pl=`eval $cmd`
+	([ "$pl" == "ILLUMINA" ] || ([ "$pl" == "ILM" ] || ([ "$pl" == "Illumina" ] || [ "$pl" == "LS454" ] || [ "$pl" == "454" ])) || { echo ":( Platform names are unknown or data from different platforms seems to be mixed. Can't handle this case. Exiting!" | tee -a /dev/stderr && exit 1; }
+	([ "$pl" == "ILLUMINA" ] || [ "$pl" == "ILM" ] || ([ "$pl" == "Illumina" ]) && junction_rt_string="-d rt:2 -d rt:3 -d rt:4 -d rt:5" || junction_rt_string="-d rt:0 -d rt:1"
+
+    export SHELL=$(type -p bash)
+    export junction_rt_string=${junction_rt_string}
+    export reads_to_homologs=$reads_to_homologs
+    doit () {
+samtools view -@ ${threads} ${junction_rt_string} -h reads.sorted.bam $1 | awk -v chr=$1 'BEGIN{
+        OFS="\t"}FILENAME==ARGV[1]{
+                if($2==chr"-r"||$2==chr"-a"){
+                        if(keep[$1]&&keep[$1]!=$2){
+                                delete keep[$1]
+                        }else{
+                                if (keep[$1]){
+                                        x=rand();
+                                        if (x>=0.5){
+                                                keep[$1]=$2;
+                                                keepRT[$1]=$3;
+                                        }
+                                } else {
+                                        keep[$1]=$2;
+                                        if ($3%2==0){
+                                                keepRT[$1]=$3+1;
+                                        } else{
+                                                keepRT[$1]=$3-1;
+                                        }
+                                }
+                        }
+                };
+                next
+        }
+        $0~/^@/{next}
+        ($1 in keep){
+                $3=keep[$1]; 
+                
+                for (i=12; i<=NF; i++) {
+                        if ($i~/^ip/) {
+                                split($i, ip, ":");
+                        }
+                        else if ($i ~ /^rt:/) {
+                                split($i, rt, ":");
+                        }
+                }
+                if (rt[3]==keepRT[$1]) {
+                        locus[$3" "ip[3]]++;
+                }
+        }END{
+                for (i in locus) {
+                        split(i, a, " "); 
+                        print a[1], a[2]-1, a[2], locus[i]
+                }
+        }' $reads_to_homologs - | sort -k1,1 -k2,2n -S 6G 
+    }
+
+    export -f doit
+    awk '{print $1}' $chromSizes | parallel -j $threads --will-cite --joblog temp.log -k doit > tmp.bedgraph
+    
+    exitval=`awk 'NR>1{if($7!=0){c=1; exit}}END{print c+0}' temp.log`
+	[ $exitval -eq 0 ] || { echo ":( Pipeline failed at building diploid contact maps. See stderr for more info. Exiting! " | tee -a /dev/stderr && exit 1; }
+	rm temp.log
+
+    # build bw file(s)
+    if [ "$separate_homologs" == "true" ]; then
+		# { awk '$2~/-r$/{gsub("-r","",$2); gsub("-r","",$6); print}' diploid.mnd.txt > tmp1.mnd.txt && "${juiceDir}"/scripts/common/juicer_tools pre -n "$resolutionsToBuildString" tmp1.mnd.txt "haploid-r.hic" <(awk -v chr=$chr -F, 'BEGIN{split(chr,tmp,"|"); for(i in tmp){chrom[tmp[i]]=1}}$1!~/^#/{exit}($1!~/##contig=<ID=/){next}(substr($1,14) in chrom){split($2,a,"="); len=substr(a[2],1,length(a[2]-1)); print substr($1,14)"\t"len}' $vcf); } #&
+		# { awk '$2~/-a$/{gsub("-a","",$2); gsub("-a","",$6); print}' diploid.mnd.txt > tmp2.mnd.txt && "${juiceDir}"/scripts/common/juicer_tools pre -n "$resolutionsToBuildString" tmp2.mnd.txt "haploid-a.hic" <(awk -v chr=$chr -F, 'BEGIN{split(chr,tmp,"|"); for(i in tmp){chrom[tmp[i]]=1}}$1!~/^#/{exit}($1!~/##contig=<ID=/){next}(substr($1,14) in chrom){split($2,a,"="); len=substr(a[2],1,length(a[2]-1)); print substr($1,14)"\t"len}' $vcf); } #&
+		# #wait
+		# rm tmp1.mnd.txt tmp2.mnd.txt
+		# ## TODO: check if successful
+	else
+		bedGraphToBigWig tmp.bedgraph <(awk -v chr=$chr -F, 'BEGIN{split(chr,tmp,"|"); for(i in tmp){chrom[tmp[i]]=1}}$1!~/^#/{exit}($1!~/##contig=<ID=/){next}(substr($1,14) in chrom){split($2,a,"="); len=substr(a[2],1,length(a[2]-1)); print substr($1,14)"-r\t"len; print substr($1,14)"-a\t"len}' $vcf) $"diploid.bw"
+		## TODO: check if successful
+	fi
+
+    echo ":) Done building diploid accessibility tracks from reads overlapping phased SNPs." >&1
+
+	[ "$last_stage" == "diploid_dhs" ] && { echo "Done with the requested workflow. Exiting after building diploid accessibility tracks!"; exit; }
+	first_stage="cleanup"
+
+fi
+
+## IX. CLEANUP
+	echo "...Starting cleanup..." >&1
+	#rm reads.sorted.bam reads.sorted.bam.bai
+	#rm dangling.sam
+	#rm reads_to_homologs.txt
+	#rm *_track.txt
+	echo ":) Done with cleanup. This is the last stage of the pipeline. Exiting!"
+	exit
+
 }
