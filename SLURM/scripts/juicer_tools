@@ -20,5 +20,5 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-# Juicer version 1.5
+# Juicer version 2.0
 java -Djava.awt.headless=true -Djava.library.path=`dirname $0`/lib64 -Ddevelopment=false -jar `dirname $0`/juicer_tools.jar $*
