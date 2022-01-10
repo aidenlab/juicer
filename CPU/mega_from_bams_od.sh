@@ -448,16 +448,25 @@ if [ "$first_stage" == "dhs" ]; then
     export SHELL=$(type -p bash)
     export junction_rt_string=${junction_rt_string}
     doit () {
-            samtools view -@ 2 ${junction_rt_string} -h reads.sorted.bam $1 | awk 'BEGIN{OFS="\t"}{for (i=12; i<=NF; i++) {if ($i ~ /^ip/) {split($i, ip, ":"); locus[ip[3]]++; break}}}END{for (i in locus) {print $3, i-1, i, locus[i]}}' | sort -k2,2n -S6G
+            mapq=$2
+            samtools view -@ 2 ${junction_rt_string} -q $mapq -h reads.sorted.bam $1 | awk 'BEGIN{OFS="\t"}{for (i=12; i<=NF; i++) {if ($i ~ /^ip/) {split($i, ip, ":"); locus[ip[3]]++; break}}}END{for (i in locus) {print $3, i-1, i, locus[i]}}' | sort -k2,2n -S6G
     }
     export -f doit
-    awk '{print $1}' $chrom_sizes | parallel -j $threads --will-cite --joblog temp.log -k doit > tmp.bedgraph
-    
+
+    # mapq1 accessibility track
+    awk '{print $1}' $chrom_sizes | parallel -j $threads --will-cite --joblog temp.log -k doit {} 1 > tmp.bedgraph
     exitval=`awk 'NR>1{if($7!=0){c=1; exit}}END{print c+0}' temp.log`
 	[ $exitval -eq 0 ] || { echo ":( Pipeline failed at building diploid contact maps. See stderr for more info. Exiting! " | tee -a /dev/stderr && exit 1; }
 	rm temp.log
-
     bedGraphToBigWig tmp.bedgraph $chrom_sizes inter.bw
+    rm tmp.bedgraph
+
+    # mapq30 accessibility track
+    awk '{print $1}' $chrom_sizes | parallel -j $threads --will-cite --joblog temp.log -k doit {} 30 > tmp.bedgraph
+    exitval=`awk 'NR>1{if($7!=0){c=1; exit}}END{print c+0}' temp.log`
+	[ $exitval -eq 0 ] || { echo ":( Pipeline failed at building diploid contact maps. See stderr for more info. Exiting! " | tee -a /dev/stderr && exit 1; }
+	rm temp.log
+    bedGraphToBigWig tmp.bedgraph $chrom_sizes inter_30.bw
     rm tmp.bedgraph
 
     echo ":) Done building accessibility tracks." >&1
@@ -509,7 +518,7 @@ if [ "$first_stage" == "diploid_hic" ]; then
 
     fi
 
-    # build mnd file
+    # build mnd file: can do without sort -n, repeat what was done in hic stage.
     export SHELL=$(type -p bash)
 	export psf=${psf}
 	export pipeline=${phaser_dir}
