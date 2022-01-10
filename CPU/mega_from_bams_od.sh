@@ -436,8 +436,6 @@ if [ "$first_stage" == "dhs" ]; then
 
 	echo "...Building accessibility tracks..." >&1
 
-    ## @SUHAS/EREZ: should we dump both mapq1 and mapq30?
-
     ([ -f reads.sorted.bam ] && [ -f reads.sorted.bam.bai ]) || { echo ":( Files from previous stages of the pipeline appear to be missing. Exiting!" | tee -a /dev/stderr; exit 1; }
 
     ## figure out platform
@@ -584,16 +582,11 @@ samtools view -@2 ${junction_rt_string} -h reads.sorted.bam $1 | awk -v chr=$1 '
                         if(keep[$1]&&keep[$1]!=$2){
                                 delete keep[$1]
                         }else{
-                                if (keep[$1]){
-                                        keep[$1]=$2;
-                                        keepRT[$1]=$3;
-                                } else {
-                                        keep[$1]=$2;
-                                        if ($3%2==0){
-                                                keepRT[$1]=$3+1;
-                                        } else{
-                                                keepRT[$1]=$3-1;
-                                        }
+                                keep[$1]=$2;
+                                if ($3%2==0){
+                                        keepRT[$1 " " $3+1]++;
+                                } else{
+                                        keepRT[$1 " " $3-1]++;
                                 }
                         }
                 };
@@ -601,8 +594,7 @@ samtools view -@2 ${junction_rt_string} -h reads.sorted.bam $1 | awk -v chr=$1 '
         }
         $0~/^@/{next}
         ($1 in keep){
-                $3=keep[$1]; 
-                
+                $3=keep[$1];                 
                 for (i=12; i<=NF; i++) {
                         if ($i~/^ip/) {
                                 split($i, ip, ":");
@@ -611,36 +603,50 @@ samtools view -@2 ${junction_rt_string} -h reads.sorted.bam $1 | awk -v chr=$1 '
                                 split($i, rt, ":");
                         }
                 }
-                if (rt[3]==keepRT[$1]) {
+                raw_locus[$3" "ip[3]]++
+                if (keepRT[$1" "rt[3]]!="") {
                         locus[$3" "ip[3]]++;
                 }
         }END{
+                for (i in raw_locus) {
+                    split(i, a, " ")
+                        print a[1], a[2]-1, a[2], raw_locus[i]
+                }
                 for (i in locus) {
                         split(i, a, " "); 
-                        print a[1], a[2]-1, a[2], locus[i]
+                        print a[1], a[2]-1, a[2], locus[i] > "/dev/stderr"
                 }
-        }' ${reads_to_homologs} - | sort -k1,1 -k2,2n -S6G 
+        }' ${reads_to_homologs} -
 }
 
     export -f doit
-    awk '{print $1}' $chrom_sizes | parallel -j $threads --will-cite --joblog temp.log -k doit > tmp.bedgraph
-    
+    awk '{print $1}' $chrom_sizes | parallel -j $threads --will-cite --joblog temp.log -k doit >tmp_raw.bedgraph 2>tmp_corrected.bedgraph
+
     exitval=`awk 'NR>1{if($7!=0){c=1; exit}}END{print c+0}' temp.log`
 	[ $exitval -eq 0 ] || { echo ":( Pipeline failed at building diploid contact maps. See stderr for more info. Exiting! " | tee -a /dev/stderr && exit 1; }
 	rm temp.log
 
+    sort -k1,1 -k2,2n -S6G --parallel=${treads} tmp_raw.bedgraph > tmp_raw.bedgraph.sorted && mv tmp_raw.bedgraph.sorted tmp_raw.bedgraph
+    sort -k1,1 -k2,2n -S6G --parallel=${treads} tmp_corrected.bedgraph > tmp_corrected.bedgraph.sorted && mv tmp_corrected.bedgraph.sorted tmp_corrected.bedgraph
+
     # build bw file(s)
     if [ "$separate_homologs" == "true" ]; then
-        awk 'BEGIN{OFS="\t"}$1~/-r$/{$1=substr($1,1,length($1)-2); print}' tmp.bedgraph > tmp1.bedgraph
-        bedGraphToBigWig tmp1.bedgraph ${chrom_sizes} diploid_inter_r.bw && rm tmp1.bedgraph
-        awk 'BEGIN{OFS="\t"}$1~/-a$/{$1=substr($1,1,length($1)-2); print}' tmp.bedgraph > tmp2.bedgraph
-        bedGraphToBigWig tmp2.bedgraph ${chrom_sizes} diploid_inter_a.bw && rm tmp2.bedgraph
+        awk 'BEGIN{OFS="\t"}$1~/-r$/{$1=substr($1,1,length($1)-2); print}' tmp_raw.bedgraph > tmp1.bedgraph
+        bedGraphToBigWig tmp1.bedgraph ${chrom_sizes} diploid_inter_raw_r.bw && rm tmp1.bedgraph
+        awk 'BEGIN{OFS="\t"}$1~/-a$/{$1=substr($1,1,length($1)-2); print}' tmp_raw.bedgraph > tmp2.bedgraph
+        bedGraphToBigWig tmp2.bedgraph ${chrom_sizes} diploid_inter_raw_a.bw && rm tmp2.bedgraph
+
+        awk 'BEGIN{OFS="\t"}$1~/-r$/{$1=substr($1,1,length($1)-2); print}' tmp_corrected.bedgraph > tmp1.bedgraph
+        bedGraphToBigWig tmp1.bedgraph ${chrom_sizes} diploid_inter_corrected_r.bw && rm tmp1.bedgraph
+        awk 'BEGIN{OFS="\t"}$1~/-a$/{$1=substr($1,1,length($1)-2); print}' tmp_corrected.bedgraph > tmp2.bedgraph
+        bedGraphToBigWig tmp2.bedgraph ${chrom_sizes} diploid_inter_corrected_a.bw && rm tmp2.bedgraph
 		## TODO: check if successful
 	else
-        bedGraphToBigWig tmp.bedgraph <(awk 'BEGIN{OFS="\t"}{print $1"-r", $2; print $1"-a", $2}' ${chrom_sizes}) diploid_inter.bw
+        bedGraphToBigWig tmp_raw.bedgraph <(awk 'BEGIN{OFS="\t"}{print $1"-r", $2; print $1"-a", $2}' ${chrom_sizes}) diploid_inter_raw.bw
+        bedGraphToBigWig tmp_corrected.bedgraph <(awk 'BEGIN{OFS="\t"}{print $1"-r", $2; print $1"-a", $2}' ${chrom_sizes}) diploid_inter_corrected.bw
 	fi
 
-    #rm tmp.bedgraph
+    #rm tmp_raw.bedgraph tmp_corrected.bedgraph
 
     echo ":) Done building diploid accessibility tracks from reads overlapping phased SNPs." >&1
 
