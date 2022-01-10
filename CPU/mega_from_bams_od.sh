@@ -211,7 +211,7 @@ while :; do
             fi    
             shift
         ;;
-        --phaser-dir)
+        --phaser-dir) OPTARG=$2
             if [ -d $OPTARG ]; then
                 echo "... --phaser-dir flag was triggered with $OPTARG." >&1
                 phaser_dir=$OPTARG
@@ -349,7 +349,7 @@ if [ "$first_stage" == "hic" ]; then
     sort -k2,2 -k6,6 -S 6G --parallel=${threads} merged1.tmp.txt >> merged1.txt && rm merged1.tmp.txt
 
     #merged30.txt
-    ## MUHAMMAD: why do we have two now rather than running pre from the same one?
+    ## @MUHAMMAD: why do we have two now rather than running pre from the same one?
     awk -v extra="$extra" '{print $1}END{print extra}' $chrom_sizes | parallel -j $threads --will-cite --joblog temp.log -k doit {} 30 >merged30.txt 2>merged30.tmp.txt
     exitval=`awk 'NR>1{if($7!=0){c=1; exit}}END{print c+0}' temp.log`
 	[ $exitval -eq 0 ] || { echo ":( Pipeline failed at generating the mega mnd file. See stderr for more info. Exiting! " | tee -a /dev/stderr && exit 1; }
@@ -385,10 +385,10 @@ if [ "$first_stage" == "hic" ]; then
         threadHic30String=""
 	fi
 
-    ##MUHAMMAD:
-    export IBM_JAVA_OPTIONS="-Xmx150000m -Xgcthreads1"
-    export _JAVA_OPTIONS="-Xmx150000m -Xms150000m"
-    ##MUHAMMAD:
+    ##@MUHAMMAD:
+    export IBM_JAVA_OPTIONS="-Xmx50000m -Xgcthreads1"
+    export _JAVA_OPTIONS="-Xmx50000m -Xms50000m"
+    ##@MUHAMMAD:
 
     "${juicer_dir}"/scripts/juicer_tools pre -n -s inter.txt -g inter_hists.m -q 1 "$resolutionsToBuildString" "$threadHicString" merged1.txt inter.hic "$chrom_sizes"
     "${juicer_dir}"/scripts/juicer_tools addNorm --threads $threadsHic inter.hic
@@ -413,14 +413,16 @@ if [ "$first_stage" == "hicnarrow" ]; then
 
     [ -f inter_30.hic ] || { echo ":( Files from previous stages of the pipeline appear to be missing. Exiting!" | tee -a /dev/stderr; exit 1; }
 
+    [ -z $genome_id ] && { echo ":( This step requires a genome ID. Please provide (e.g. \"-g hg38\") or skip this step. Exiting!" | tee -a /dev/stderr; exit 1; }
+
     # Create loop lists file for MQ > 30
-    "${juicer_dir}"/scripts/common/juicer_hiccups.sh -j "${juicer_dir}"/scripts/common/juicer_tools -i inter_30.hic -m "${juicer_dir}"/references/motif -g "$genomeID"
+    "${juicer_dir}"/scripts/juicer_hiccups.sh -j "${juicer_dir}"/scripts/juicer_tools -i inter_30.hic -m "${juicer_dir}"/references/motif -g "$genome_id"
 
-    ##TODO: check for failure and exit
+    ##TODO: check for failure
 
-    "${juicer_dir}"/scripts/common/juicer_arrowhead.sh -j "${juicer_dir}"/scripts/common/juicer_tools -i inter_30.hic
+    "${juicer_dir}"/scripts/juicer_arrowhead.sh -j "${juicer_dir}"/scripts/juicer_tools -i inter_30.hic
 
-    ##TODO: check for failure and exit
+    ##TODO: check for failure
 
 	echo ":) Done annotating loops and domains." >&1
 
@@ -434,6 +436,8 @@ if [ "$first_stage" == "dhs" ]; then
 
 	echo "...Building accessibility tracks..." >&1
 
+    ## @SUHAS/EREZ: should we dump both mapq1 and mapq30?
+
     ([ -f reads.sorted.bam ] && [ -f reads.sorted.bam.bai ]) || { echo ":( Files from previous stages of the pipeline appear to be missing. Exiting!" | tee -a /dev/stderr; exit 1; }
 
     ## figure out platform
@@ -444,17 +448,17 @@ if [ "$first_stage" == "dhs" ]; then
     export SHELL=$(type -p bash)
     export junction_rt_string=${junction_rt_string}
     doit () {
-            samtools view -@ 2 ${junction_rt_string} -h reads.sorted.bam $1 | awk -v chr=$1 '{for (i=12; i<=NF; i++) {if ($i ~ /^ip/) {split($i, ip, ":"); locus[ip[3]]++; break}}}END{for (i in locus) {print chr "\t" i-1 "\t" i "\t" locus[i]}}' | sort -k1,1 -k2,2n -S 6G
+            samtools view -@ 2 ${junction_rt_string} -h reads.sorted.bam $1 | awk 'BEGIN{OFS="\t"}{for (i=12; i<=NF; i++) {if ($i ~ /^ip/) {split($i, ip, ":"); locus[ip[3]]++; break}}}END{for (i in locus) {print $3, i-1, i, locus[i]}}' | sort -k2,2n -S6G
     }
-
     export -f doit
-    awk '{print $1}' $chrom_sizes | parallel -j $threads --will-cite --joblog temp.log -k doit | sort -k1,1 -k2,2n -S 6G > tmp.bedgraph
+    awk '{print $1}' $chrom_sizes | parallel -j $threads --will-cite --joblog temp.log -k doit > tmp.bedgraph
     
     exitval=`awk 'NR>1{if($7!=0){c=1; exit}}END{print c+0}' temp.log`
 	[ $exitval -eq 0 ] || { echo ":( Pipeline failed at building diploid contact maps. See stderr for more info. Exiting! " | tee -a /dev/stderr && exit 1; }
 	rm temp.log
 
     bedGraphToBigWig tmp.bedgraph $chrom_sizes inter.bw
+    rm tmp.bedgraph
 
     echo ":) Done building accessibility tracks." >&1
 	
@@ -463,20 +467,21 @@ if [ "$first_stage" == "dhs" ]; then
 
 fi
 
-## III. BUILD DIPLOID CONTACT MAPS
+## IV. BUILD DIPLOID CONTACT MAPS
 if [ "$first_stage" == "diploid_hic" ]; then
 
-	echo "...Building diploid accessibility tracks from reads overlapping phased SNPs..." >&1
+	echo "...Building diploid contact maps from reads overlapping phased SNPs..." >&1
 
-    ## TODO: handle chr: except chr Y, chr M etc.
+    ## @PAUL: which chrom.sizes file is used? Maybe it's fine..?
+
+    chr=`awk -v exclude_chr=${exclude_chr} 'BEGIN{split(exclude_chr,a,"|"); for(i in a){ignore[a[i]]=1}}!($1 in ignore){str=str"|"$1}END{print substr(str,2)}' ${chrom_sizes}`
 
     if [ -z $reads_to_homologs ]; then
-
-        chr=$(awk '{str=str"|"$1}END{print substr(str,2)}' ${chrom_sizes})
 
         if [ -z $psf ]; then
             awk -v chr=${chr} -v output_prefix="out" -f ${phaser_dir}/phase/vcf-to-psf-and-assembly.awk ${vcf}
             psf=out.psf
+            rm out.assembly
         fi
 
         export SHELL=$(type -p bash)
@@ -516,13 +521,13 @@ if [ "$first_stage" == "diploid_hic" ]; then
 
     # build hic file(s)
     if [ "$separate_homologs" == "true" ]; then
-		{ awk '$2~/-r$/{gsub("-r","",$2); gsub("-r","",$6); print}' diploid.mnd.txt > tmp1.mnd.txt && "${juicer_dir}"/scripts/common/juicer_tools pre -n "$resolutionsToBuildString" tmp1.mnd.txt "haploid-r.hic" <(awk -v chr=$chr -F, 'BEGIN{split(chr,tmp,"|"); for(i in tmp){chrom[tmp[i]]=1}}$1!~/^#/{exit}($1!~/##contig=<ID=/){next}(substr($1,14) in chrom){split($2,a,"="); len=substr(a[2],1,length(a[2]-1)); print substr($1,14)"\t"len}' $vcf); } #&
-		{ awk '$2~/-a$/{gsub("-a","",$2); gsub("-a","",$6); print}' diploid.mnd.txt > tmp2.mnd.txt && "${juicer_dir}"/scripts/common/juicer_tools pre -n "$resolutionsToBuildString" tmp2.mnd.txt "haploid-a.hic" <(awk -v chr=$chr -F, 'BEGIN{split(chr,tmp,"|"); for(i in tmp){chrom[tmp[i]]=1}}$1!~/^#/{exit}($1!~/##contig=<ID=/){next}(substr($1,14) in chrom){split($2,a,"="); len=substr(a[2],1,length(a[2]-1)); print substr($1,14)"\t"len}' $vcf); } #&
+		{ awk '$2~/-r$/{gsub("-r","",$2); gsub("-r","",$6); print}' diploid.mnd.txt > tmp1.mnd.txt && "${juicer_dir}"/scripts/juicer_tools pre -n "$resolutionsToBuildString" tmp1.mnd.txt "haploid-r.hic" ${chrom_sizes}; } #&
+		{ awk '$2~/-a$/{gsub("-a","",$2); gsub("-a","",$6); print}' diploid.mnd.txt > tmp2.mnd.txt && "${juicer_dir}"/scripts/common/juicer_tools pre -n "$resolutionsToBuildString" tmp2.mnd.txt "haploid-a.hic" ${chrom_sizes}; } #&
 		#wait
 		rm tmp1.mnd.txt tmp2.mnd.txt
 		## TODO: check if successful
 	else
-		"${juicer_dir}"/scripts/common/juicer_tools pre -n "$resolutionsToBuildString" diploid.mnd.txt "diploid.hic" <(awk -v chr=$chr -F, 'BEGIN{split(chr,tmp,"|"); for(i in tmp){chrom[tmp[i]]=1}}$1!~/^#/{exit}($1!~/##contig=<ID=/){next}(substr($1,14) in chrom){split($2,a,"="); len=substr(a[2],1,length(a[2]-1)); print substr($1,14)"-r\t"len; print substr($1,14)"-a\t"len}' $vcf)
+		"${juicer_dir}"/scripts/common/juicer_tools pre -n "$resolutionsToBuildString" diploid.mnd.txt "diploid.hic" <(awk 'BEGIN{OFS="\t"}{print $1"-r", $2; print $1"-a", $2}' ${chrom_sizes})
 		## TODO: check if successful
 	fi
 
