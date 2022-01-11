@@ -168,6 +168,9 @@ then
     merged_names30=$(find -L "${topDir}" | grep merged30.txt | tr '\n' ' ')
 fi
 inter_names=$(find -L "${topDir}" | grep inter.txt | tr '\n' ' ')
+inter_30_names=$(find -L "${topDir}" | grep inter_30.txt | tr '\n' ' ')
+inter_hist_names=$(find -L "${topDir}" | grep inter_hists.m | tr '\n' ' ')
+inter_30_hist_names=$(find -L "${topDir}" | grep inter_30_hists.m | tr '\n' ' ')
 
 ## Create output directory, exit if already exists
 if [[ -d "${outputDir}" ]] && [ -z $final ] && [ -z $postproc ]
@@ -190,15 +193,16 @@ fi
 # Not in final or postproc
 if [ -z $final ] && [ -z $postproc ]
 then
-# Create top statistics file from all inter.txt files found under current dir
-    awk -f "${juiceDir}"/scripts/common/makemega_addstats.awk "${inter_names}" > "${outputDir}"/inter.txt
+    # Create top statistics file from all inter.txt files found under current dir
+    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter "${inter_names}"
+    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter_30 "${inter_30_names}"
+    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter "${inter_hist_names}"
+    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter_30 "${inter_30_hist_names}"
+
     echo "(-: Finished creating top stats files."
-    cp "${outputDir}"/inter.txt "${outputDir}"/inter_30.txt
     sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d "${merged_names}" > "${outputDir}"/merged1.txt
     sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d "${merged_names30}" > "${outputDir}"/merged30.txt
     echo "(-: Finished sorting all files into a single merge."
-    "${juiceDir}"/scripts/common/juicer_tools statistics "$site_file" "$outputDir"/inter.txt "$outputDir"/merged1.txt "$genomeID"
-    "${juiceDir}"/scripts/common/juicer_tools statistics "$site_file" "$outputDir"/inter_30.txt "$outputDir"/merged30.txt "$genomeID"
 
     mkdir "${tempdirPre}"
 	  if [[ $threadsHic -gt 1 ]] && [[ ! -s "${outputDir}"/merged1_index.txt ]]
