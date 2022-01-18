@@ -84,6 +84,7 @@ WORKFLOW CONTROL:
 
 # defaults:
 resolutionsToBuildString="-r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100,50,20,10"
+genome_id="hg38"
 exclude_chr="Y|chrY|MT|chrM"
 separate_homologs=false
 mapq=1 ##lowest mapq of interest
@@ -382,13 +383,13 @@ if [ "$first_stage" == "hic" ]; then
     # rm temp.log
     
     touch inter.txt inter_hists.m
-    if [ ! -z ${inter_stats_1} ]; then
+    if [ ! -z ${shortcut_stats_1} ]; then
         tmpstr=""
-        IFS=';' read -ra STATS <<< "$inter_stats_1"
+        IFS=',' read -ra STATS <<< "$shortcut_stats_1"
         for i in "${STATS[@]}"; do
-            [ -s $i ] && tmpstr=$tmpstr" "$i || { echo "One or more of the hic files indicated for calculating stats does not exist at expected location or is empty. Continuing without the stats!"; tmpstr=""; break; }
+            [ -s $i ] && tmpstr=$tmpstr" "$i || { echo "One or more of the files listed for shortcutting stats calculation does not exist at expected location or is empty. Continuing without the stats!"; tmpstr=""; break; }
         done
-        [[ "$tmpstr" != "" ]] && java -jar ${juicer_dir}/merge-stats.jar inter ${tmpstr:1:-1} 
+        [ "$tmpstr" != "" ] && java -jar ${juicer_dir}/scripts/merge-stats.jar inter ${tmpstr:1} 
     fi
     
     if [[ $threadsHic -gt 1 ]] && [[ ! -s merged1_index.txt ]]
@@ -400,19 +401,19 @@ if [ "$first_stage" == "hic" ]; then
         threadHicString=""
     fi
 
-    touch inter_30.txt inter_hists_30.m
-    if [ ! -z ${inter_stats_30} ]; then
+    touch inter_30.txt inter_30_hists.m
+    if [ ! -z ${shortcut_stats_30} ]; then
         tmpstr=""
-        IFS=';' read -ra STATS <<< "$inter_stats_30"
+        IFS=',' read -ra STATS <<< "$shortcut_stats_30"
         for i in "${STATS[@]}"; do
-            [ -s $i ] && tmpstr=$tmpstr" "$i || { echo "One or more of the hic files indicated for calculating stats does not exist at expected location or is empty. Continuing without the stats!"; tmpstr=""; break; }
+            [ -s $i ] && tmpstr=$tmpstr" "$i || { echo "One or more of the files listed for shortcutting stats calculation does not exist at expected location or is empty. Continuing without the stats!"; tmpstr=""; break; }
         done
-        [[ "$tmpstr" != "" ]] && java -jar ${juicer_dir}/merge-stats.jar inter_30 ${tmpstr:1:-1} 
+        [ "$tmpstr" != "" ] && java -jar ${juicer_dir}/scripts/merge-stats.jar inter_30 ${tmpstr:1} 
     fi
 
     if [[ $threadsHic -gt 1 ]] && [[ ! -s merged30_index.txt ]]
 	then
-	    "${juicer_dir}"/scripts/common/index_by_chr.awk merged30.txt 500000 > merged30_index.txt
+	    "${juicer_dir}"/scripts/index_by_chr.awk merged30.txt 500000 > merged30_index.txt
         tempdirPre30="HIC30_tmp" && mkdir "${tempdirPre30}"
 	    threadHic30String="--threads $threadsHic -i merged30_index.txt -t ${tempdirPre30}"
     else
@@ -430,7 +431,7 @@ if [ "$first_stage" == "hic" ]; then
     ## TODO: check for failure
 
     "${juicer_dir}"/scripts/juicer_tools pre -n -s inter_30.txt -g inter_30_hists.m -q 30 "$resolutionsToBuildString" "$threadHic30String" merged30.txt inter_30.hic "$chrom_sizes"
-	"${juicer_dir}"/scripts/juicer_tools addNorm --threads $threadsHic "${outputDir}"/inter_30.hic
+	"${juicer_dir}"/scripts/juicer_tools addNorm --threads $threadsHic inter_30.hic
     rm -Rf "${tempdirPre30}"
     ## TODO: check for failure
 
