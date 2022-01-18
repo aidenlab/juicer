@@ -1,6 +1,6 @@
 #!/bin/bash
 {
-#### Description: Wrapper script to phase genomic variants from ENCODE DCC hic-pipeline.
+#### Description: Wrapper script to calculate a "mega" hic file from a set of bams, with optional diploid portion.
 #### Usage: bash ./mega.sh [-v|--vcf <path_to_vcf>] <path_to_merged_dedupped_bam_1> ... <path_to_merged_dedup_bam_N>.
 #### Input: list of merged_dedup.bam files corresponding to individual Hi-C experiments.
 #### Output: "mega" hic map and "mega" chromatin accessibility bw file.
@@ -16,7 +16,7 @@ USAGE="
 *****************************************************
 Simplified mega script for ENCODE DCC hic-pipeline.
 
-USAGE: ./mega.sh -c|--chrom-sizes <path_to_chrom_sizes_file> [-g|--genome-id genome_id] [-r|--resolutions resolutions_string] [-v|--vcf <path_to_vcf>] [-C|--exclude-chr-from-diploid chr_list]  [--separate-homologs] [-p|--psf <path_to_psf>] [--reads-to-homologs <path_to_reads_to_homologs_file>] [--juicer-dir <path_to_juicer_dir>] [--phaser-dir <path_to_phaser_dir>] [-t|--threads thread_count] [-T|--threads-hic hic_thread_count] [--from-stage stage] [--to-stage stage] <path_to_merged_dedup_bam_1> ... <path_to_merged_dedup_bam_N>
+USAGE: ./mega.sh -c|--chrom-sizes <path_to_chrom_sizes_file> [-g|--genome-id genome_id] [-r|--resolutions resolutions_string] [-v|--vcf <path_to_vcf>] [-C|--exclude-chr-from-diploid chr_list] [--separate-homologs] [-p|--psf <path_to_psf>] [--reads-to-homologs <path_to_reads_to_homologs_file>] [--juicer-dir <path_to_juicer_dir>] [--phaser-dir <path_to_phaser_dir>] [-t|--threads thread_count] [-T|--threads-hic hic_thread_count] [--shortcut-stats-1 inter.hic_1,...inter.hic_N] [--shortcut-stats-30 inter_30.hic_1,...inter_30.hic_N] [--from-stage <stage>] [--to-stage <stage>] <path_to_merged_dedup_bam_1> ... <path_to_merged_dedup_bam_N>
 
 DESCRIPTION:
 This is a simplied mega.sh script to produce aggregate Hi-C maps and chromatic accessibility tracks from multiple experiments. The pipeline includes optional diploid steps which produce diploid versions of the contact maps and chromatin accessibility tracks.
@@ -38,6 +38,12 @@ HAPLOID PORTION
 
 -r|--resolutions    [string]
                         Comma-separated resolutions at which to build the hic files. Default: 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100,50,20,10.
+
+--shortcut-stats-1  [inter.hic_1,...inter.hic_N]
+                        Comma-separated list of hic files to use to quickly calculate the mega stats file, at mapq=1.
+
+--shortcut-stats-30 [inter_30.hic_1,...inter_30.hic_N]
+                        Comma-separated list of hic files to use to quickly calculate the mega stats file, at mapq=30.
 
 DIPLOID PORTION:
 -v|--vcf [path_to_vcf]
@@ -136,6 +142,16 @@ while :; do
         ;;
         -r|--resolutions) OPTARG=$2
             resolutionsToBuildString="-r "$OPTARG
+            shift
+        ;;
+        --shortcut-stats-1) OPTARG=$2
+            echo "... --shortcut-stats-1 flag was triggered with $OPTARG value." >&1
+            shortcut_stats_1=$OPTARG
+            shift
+        ;;
+        --shortcut-stats-30) OPTARG=$2
+            echo "... --shortcut-stats-30 flag was triggered with $OPTARG value." >&1
+            shortcut_stats_30=$OPTARG
             shift
         ;;
 ## DIPLOID PORTION
@@ -365,8 +381,16 @@ if [ "$first_stage" == "hic" ]; then
     # awk '{print NR}END{print NR+1}' $chrom_sizes | parallel --will-cite "rm out.{}.txt err.{}.txt"
     # rm temp.log
     
-    touch inter.txt inter_hists.m inter_30.txt inter_hists_30.m
-
+    touch inter.txt inter_hists.m
+    if [ ! -z ${inter_stats_1} ]; then
+        tmpstr=""
+        IFS=';' read -ra STATS <<< "$inter_stats_1"
+        for i in "${STATS[@]}"; do
+            [ -s $i ] && tmpstr=$tmpstr" "$i || { echo "One or more of the hic files indicated for calculating stats does not exist at expected location or is empty. Continuing without the stats!"; tmpstr=""; break; }
+        done
+        [[ "$tmpstr" != "" ]] && java -jar ${juicer_dir}/merge-stats.jar inter ${tmpstr:1:-1} 
+    fi
+    
     if [[ $threadsHic -gt 1 ]] && [[ ! -s merged1_index.txt ]]
     then
         "${juicer_dir}"/scripts/index_by_chr.awk merged1.txt 500000 > merged1_index.txt
@@ -374,6 +398,16 @@ if [ "$first_stage" == "hic" ]; then
         threadHicString="--threads $threadsHic -i merged1_index.txt -t ${tempdirPre}"
     else
         threadHicString=""
+    fi
+
+    touch inter_30.txt inter_hists_30.m
+    if [ ! -z ${inter_stats_30} ]; then
+        tmpstr=""
+        IFS=';' read -ra STATS <<< "$inter_stats_30"
+        for i in "${STATS[@]}"; do
+            [ -s $i ] && tmpstr=$tmpstr" "$i || { echo "One or more of the hic files indicated for calculating stats does not exist at expected location or is empty. Continuing without the stats!"; tmpstr=""; break; }
+        done
+        [[ "$tmpstr" != "" ]] && java -jar ${juicer_dir}/merge-stats.jar inter_30 ${tmpstr:1:-1} 
     fi
 
     if [[ $threadsHic -gt 1 ]] && [[ ! -s merged30_index.txt ]]
