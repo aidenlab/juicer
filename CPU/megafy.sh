@@ -15,7 +15,7 @@ USAGE="
 *****************************************************
 Optimized mega script for ENCODE DCC hic-pipeline.
 
-USAGE: ./megafy.sh -c|--chrom-sizes <path_to_chrom_sizes_file> [-g|--genome-id genome_id] [-q|--mapq mapq] [-r|--resolutions resolutions_string] [--juicer-dir <path_to_juicer_dir>] [-t|--threads thread_count] [-T|--threads-hic hic_thread_count] [-i|--infer-stats inter_30.hic_1,...inter_30.hic_N] [--from-stage <stage>] [--to-stage <stage>] <path_to_merged_dedup_bam_1> ... <path_to_merged_dedup_bam_N>
+USAGE: ./megafy.sh -c|--chrom-sizes <path_to_chrom_sizes_file> --juicer-dir <path_to_juicer_dir> -i|--infer-stats <path_to_inter_30.hic_1,...path_to_inter_30.hic_N> [-g|--genome-id <genome_id>] [-q|--mapq <mapq>] [-r|--resolutions <resolutions_string>] [-t|--threads <thread_count>] [-T|--threads-hic <hic_thread_count>] [--from-stage <stage>] [--to-stage <stage>] <path_to_merged_dedup_bam_1> ... <path_to_merged_dedup_bam_N>
 
 DESCRIPTION:
 This is an optimized mega.sh script to produce aggregate Hi-C maps and chromatic accessibility tracks from multiple experiments.
@@ -288,7 +288,7 @@ if [ "$first_stage" == "hic" ]; then
     export SHELL=$(type -p bash)
     doit () {
             mapq=$2
-            samtools view -@ 2 -q $mapq reads.sorted.bam $1 | awk -F '\t' -v mapq=$mapq '{ip=0; mp=0; mq=-1; cb=0; chimeric=0; for(i=12;i<=NF;i++){if($i~/^ip:i:/){ip=substr($i,6)}else if ($i~/^mp:i:/){mp=substr($i,6)}else if ($i~/^MQ:i:/){mq=substr($i,6)}else if ($i~/cb:Z:/){cb=i}else if ($i~/SA:Z:/){chimeric=i}}}(mq<mapq){next}$7=="*"{if(!chimeric){next}else{split(substr($chimeric,6),a,","); $7=a[1]}}$7=="="{$7=$3}!cb{next}{cbchr1=gensub("_","","g",$3);cbchr2=gensub("_","","g",$7);testcb1="cb:Z:"cbchr1"_"cbchr2"_"; testcb2="cb:Z:"cbchr2"_"cbchr1"_"}($cb!~testcb1&&$cb!~testcb2){next}(!ip||!mp){next}$7==$3{if(ip>mp){next}else if (ip==mp){keep[$1]=$3" "ip}else{print 0, $3, ip, 0, 0, $7, mp, 1};next}$7<$3{next}{print 0, $3, ip, 0, 0, $7, mp, 1 > "/dev/stderr"}END{for(rd in keep){n=split(keep[rd], a, " "); print 0, a[1], a[2], 0, 0, a[1], a[2], 1}}'
+            samtools view -@ 2 -q $mapq reads.sorted.bam $1 | awk -F '\t' -v mapq=$mapq '{ip=0; mp=0; mq=-1; cb=0; chimeric=0; for(i=12;i<=NF;i++){if($i~/^ip:i:/){ip=substr($i,6)+0}else if ($i~/^mp:i:/){mp=substr($i,6)+0}else if ($i~/^MQ:i:/){mq=substr($i,6)+0}else if ($i~/cb:Z:/){cb=i}else if ($i~/SA:Z:/){chimeric=i}}}(mq<mapq){next}$7=="*"{if(!chimeric){next}else{split(substr($chimeric,6),a,","); $7=a[1]}}$7=="="{$7=$3}!cb{next}{cbchr1=gensub("_","","g",$3);cbchr2=gensub("_","","g",$7);testcb1="cb:Z:"cbchr1"_"cbchr2"_"; testcb2="cb:Z:"cbchr2"_"cbchr1"_"}($cb!~testcb1&&$cb!~testcb2){next}(!ip||!mp){next}$7==$3{if(ip>mp){next}else if (ip==mp){keep[$1]=$3" "ip}else{print 0, $3, ip, 0, 0, $7, mp, 1};next}$7<$3{next}{print 0, $3, ip, 0, 0, $7, mp, 1 > "/dev/stderr"}END{for(rd in keep){n=split(keep[rd], a, " "); print 0, a[1], a[2], 0, 0, a[1], a[2], 1}}'
     }
 
     export -f doit
@@ -327,14 +327,14 @@ if [ "$first_stage" == "hic" ]; then
         threadHicString=""
 	fi
 
-    ## resources TBD for actual mega-jobs:
+    ## resources TBD for actual mega-jobs: @Muhammad should 24 be $theadsHiC or something?
     export IBM_JAVA_OPTIONS="-Xmx50000m -Xgcthreads24"
     export _JAVA_OPTIONS="-Xmx50000m -Xms50000m"
 
     ## actually run pre. Passing -q does not do anything, for record.
     "${juicer_dir}"/scripts/juicer_tools pre -n -s inter_${mapq}.txt -g inter_${mapq}_hists.m -q $mapq "$resolutionsToBuildString" "$threadHicString" merged${mapq}.txt inter_${mapq}.hic "$chrom_sizes"
 	"${juicer_dir}"/scripts/juicer_tools addNorm --threads $threadsHic inter_${mapq}.hic
-    rm -Rf "${tempdirPre}"
+    rm -Rf "${tempdirPre}" "inter_${mapq}.hic_cat_outputs.sh"
     ## TODO: check for failure
 
     echo ":) Done building mega hic files." >&1
@@ -405,6 +405,7 @@ fi
 ## IX. CLEANUP
 	echo "...Starting cleanup..." >&1
 	#rm reads.sorted.bam reads.sorted.bam.bai
+    #rm inter_${mapq}.txt inter_${mapq}_hists.m
 	#rm merged${mapq}.txt
 	echo ":) Done with cleanup. This is the last stage of the pipeline. Exiting!"
 	exit
