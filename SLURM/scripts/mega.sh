@@ -31,8 +31,8 @@
 #                                                                              
 # [topDir]/mega     - Location of result of processing the mega map
 #
-# Juicer version 1.5
-juicer_version="1.5.7" 
+# Juicer version 2.0
+juicer_version="2.0" 
 ## Set the following variables to work with your system
 
 # Aiden Lab specific check
@@ -73,9 +73,10 @@ else
     load_gpu="CUDA_VISIBLE_DEVICES=0,1,2,3"
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
-    juiceDir="/gpfs0/juicer/"
+    juiceDir="/gpfs0/juicer2/"
     # default queue, can also be set in options
     queue="commons"
+    queue_time="1400"
     # default long queue, can also be set in options
     long_queue="long"
     long_queue_time="10080"
@@ -89,19 +90,20 @@ groupname="a$(date +%s)"
 # top level directory, can also be set in options
 topDir=$(pwd)
 # restriction enzyme, can also be set in options
-site="MboI"
+site="none"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
 # by default exclude fragment delimited maps
 exclude=1
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-b ligation] [-D Juicer scripts directory] [-q queue] [-l long queue] [-Q queue time] [-L long queue time] [-f] [-h]"
+usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-D Juicer scripts directory] [-q queue] [-l long queue] [-Q queue time] [-L long queue time] [-T threadsHic] [-y sitee_file] [-f] [-h]"
 genomeHelp="   genomeID is either defined in the script, e.g. \"hg19\" or \"mm10\" or the path to the chrom.sizes file"
-dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged_nodups files underneath it"
+dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged files underneath it"
 siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
-stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
-ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
+siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
+threadsHicHelp="* [threads for hic file creation]: number of threads when building hic file"
+stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
 scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
 excludeHelp="   -f: include fragment-delimited maps from Hi-C mega map (will run slower)"
 helpHelp="   -h: print this help and exit"
@@ -111,43 +113,37 @@ printHelpAndExit() {
     echo "$genomeHelp"
     echo "$dirHelp"
     echo "$siteHelp"
+    echo "$siteFileHelp"
     echo "$stageHelp"
-    echo "$ligationHelp"
+    echo "$threadsHicHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hfs:S:l:L:q:Q:b:D:" opt; do
+while getopts "d:g:hfs:S:l:L:q:Q:D:y:T:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
 	d) topDir=$OPTARG ;;
 	s) site=$OPTARG ;;
 	f) exclude=0 ;;
+	y) site_file=$OPTARG ;;
 	S) stage=$OPTARG ;;
 	l) long_queue=$OPTARG ;;
 	L) long_queue_time=$OPTARG ;;
 	q) queue=$OPTARG ;;
 	Q) queue_time=$OPTARG ;;
-	b) ligation=$OPTARG ;;
 	D) juiceDir=$OPTARG ;;
+	T) threadsHic=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
 
-## Set ligation junction based on restriction enzyme
-if [ -z "$ligation" ]; then
-    case $site in
-	HindIII) ligation="AAGCTAGCTT";;
-	DpnII) ligation="GATCGATC";;
-	MboI) ligation="GATCGATC";;
-	none) ligation="XXXX";;
-	*)  ligation="XXXX"
-	    site_file=$site
-	    echo "$site not listed as recognized enzyme, so trying it as site file."
-	    echo "Ligation junction is undefined";;
-    esac
+## If DNAse-type experiment, no fragment maps; or way to get around site file
+if [[ "$site" == "none" ]] 
+then
+    exclude=1;
 fi
 
 if [ -z "$site_file" ]
@@ -156,11 +152,13 @@ then
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ] && [ "$site" != "none" ]
+if [[ ! -e "$site_file" ]] && [[ "$site" != "none" ]] && [[ ! "$site_file" =~ "none" ]]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
-    echo "The site file is used for statistics even if fragment delimited maps are excluded"
     exit 1
+elif [[ "$site" != "none" ]] && [[ ! "$site_file" =~ "none" ]]
+then
+    echo  "Using $site_file as site file"
 fi
 
 if [ ! -z "$stage" ]
@@ -180,41 +178,42 @@ megadir=${topDir}"/mega"
 outputdir=${megadir}"/aligned"
 tmpdir=${megadir}"/HIC_tmp"
 export TMPDIR=${tmpdir}
-outfile=${megadir}/lsf.out
+
 #output messages
 logdir="$megadir/debug"
 touchfile1=${megadir}/touch1
 touchfile2=${megadir}/touch2
 touchfile3=${megadir}/touch3
 touchfile4=${megadir}/touch4
-touchfile5=${megadir}/touch5
-touchfile6=${megadir}/touch6
-touchfile7=${megadir}/touch7
-touchfile8=${megadir}/touch8
 
-## Check for existing merged_nodups files:
-
-merged_count=`find -L ${topDir} | grep merged_nodups.txt | wc -l`
+## Check for existing merged files:
+merged_count=`find -L ${topDir} | grep merged1.txt | wc -l`
 if [ "$merged_count" -lt "1" ]
 then
-	echo "***! Failed to find at least one merged_nodups files under ${topDir}"
+	echo "***! Failed to find at least one merged file under ${topDir}"
 	exit 1
 fi
 
-merged_names=$(find -L ${topDir} | grep merged_nodups.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
+merged_names=$(find -L ${topDir} | grep merged1.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
 if [ ${#merged_names} -eq 0 ]
 then
-    merged_names=$(find -L ${topDir} | grep merged_nodups.txt | tr '\n' ' ')
+    merged_names=$(find -L ${topDir} | grep merged1.txt | tr '\n' ' ')
 fi
+merged_names30=$(find -L ${topDir} | grep merged30.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
+if [ ${#merged_names30} -eq 0 ]
+then
+    merged_names30=$(find -L ${topDir} | grep merged30.txt | tr '\n' ' ')
+fi
+
 inter_names=$(find -L ${topDir} | grep inter.txt | tr '\n' ' ')
 
 ## Create output directory, exit if already exists
 if [[ -d "${outputdir}" ]] && [ -z $final ] && [ -z $postproc ]
 then
     echo "***! Move or remove directory \"${outputdir}\" before proceeding."
-	exit 101			
+    exit 1			
 else
-	mkdir -p ${outputdir}
+    mkdir -p ${outputdir}
 fi
 
 ## Create temporary directory
@@ -225,8 +224,8 @@ fi
 
 ## Create output directory, used for reporting commands output
 if [ ! -d "$logdir" ]; then
-        mkdir "$logdir"
-        chmod 777 "$logdir"
+    mkdir "$logdir"
+    chmod 777 "$logdir"
 fi
 
 ## Arguments have been checked and directories created. Now begins
@@ -246,7 +245,6 @@ then
 #SBATCH -o $logdir/topstats-%j.out
 #SBATCH -e $logdir/topstats-%j.err
 #SBATCH -J "${groupname}_topstats"
-#SBATCH --mem-per-cpu=32G 
 export LC_COLLATE=C
 if ! awk -f ${juiceDir}/scripts/makemega_addstats.awk ${inter_names} > ${outputdir}/inter.txt
 then  
@@ -260,7 +258,7 @@ touch $touchfile1
 TOPSTATS`
     dependtopstats="afterok:$jid1"
 
-# Merge all merged_nodups.txt files found under current dir
+# Merge all merged1.txt files found under current dir
     jid2=`sbatch <<- MRGSRT | egrep -o -e "\b[0-9]+$"
 #!/bin/bash -l
 #SBATCH -p ${long_queue}
@@ -271,33 +269,67 @@ TOPSTATS`
 #SBATCH -e $logdir/merge-%j.err
 #SBATCH -J "${groupname}_merge"
 #SBATCH -d "${dependtopstats}"
-#SBATCH --mem-per-cpu=32G
 if [ ! -f "${touchfile1}" ]
 then
     echo "***! Top stats job failed, type \"scontrol show job $jid1\" to see what happened."
     exit 1
 fi
 
-  if [ $isRice -eq 1 ]
-  then
-    if ! ${juiceDir}/scripts/sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
-    then
+if [ $isRice -eq 1 ]
+then
+   if ! ${juiceDir}/scripts/sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged1.txt
+   then
       echo "***! Some problems occurred somewhere in creating sorted merged_nodups files."
       exit 1
-    fi
+   fi
+else
+  if ! sort --parallel=40 -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged1.txt
+  then 
+      echo "***! Some problems occurred somewhere in creating sorted merged1 file."
+      exit 1
   else
-    if ! sort --parallel=40 -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names} > ${outputdir}/merged_nodups.txt
-    then 
-      echo "***! Some problems occurred somewhere in creating sorted merged_nodups files."
-      exit 1
-    else
-      echo "(-: Finished sorting all merged_nodups files into a single merge."
-      rm -r ${tmpdir}
-    fi
+      echo "(-: Finished sorting all merged files into a single merge."
   fi
+fi
 touch $touchfile2
 MRGSRT`
-    dependmerge="#SBATCH -d afterok:$jid2"
+    dependmerge1="#SBATCH -d afterok:$jid2"
+    jid22=`sbatch <<- MRGSRT2 | egrep -o -e "\b[0-9]+$"
+#!/bin/bash -l
+#SBATCH -p ${long_queue}
+#SBATCH -t ${long_queue_time}
+#SBATCH -c 1
+#SBATCH --ntasks=1
+#SBATCH -o $logdir/merge30-%j.out
+#SBATCH -e $logdir/merge30-%j.err
+#SBATCH -J "${groupname}_merge30"
+#SBATCH -d "${dependtopstats}"
+if [ ! -f "${touchfile1}" ]
+then
+    echo "***! Top stats job failed, type \"scontrol show job $jid1\" to see what happened."
+    exit 1
+fi
+
+if [ $isRice -eq 1 ]
+then
+   if ! ${juiceDir}/scripts/sort --parallel=48 -S8G -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names30} > ${outputdir}/merged30.txt
+   then
+      echo "***! Some problems occurred somewhere in creating sorted merged files."
+      exit 1
+   fi
+else
+  if ! sort --parallel=40 -T ${tmpdir} -m -k2,2d -k6,6d ${merged_names30} > ${outputdir}/merged30.txt
+  then 
+      echo "***! Some problems occurred somewhere in creating sorted merged30 file."
+      exit 1
+  else
+      echo "(-: Finished sorting all merged files into a single merge."
+      rm -r ${tmpdir}
+  fi
+fi
+touch $touchfile2
+MRGSRT2`
+    dependmerge2="#SBATCH -d afterok:$jid22"
 else
     touch $touchfile1
     touch $touchfile2
@@ -306,28 +338,32 @@ fi
 if [ -z $postproc ] && [ -z $early ]
 then
     # Create statistics files for MQ > 0
-    jid3=`sbatch <<- INTER0 | egrep -o -e "\b[0-9]+$"
+    jid3=`sbatch <<- INTER1 | egrep -o -e "\b[0-9]+$"
 #!/bin/bash -l
 #SBATCH -p ${long_queue}
 #SBATCH -t ${long_queue_time}
 #SBATCH -c 1
 #SBATCH --ntasks=1
-#SBATCH -o $logdir/inter0-%j.out
-#SBATCH -e $logdir/inter0-%j.err
-#SBATCH -J "${groupname}_inter0"
-#SBATCH --mem-per-cpu=32G
-${dependmerge}
+#SBATCH -o $logdir/inter1-%j.out
+#SBATCH -e $logdir/inter1-%j.err
+#SBATCH -J "${groupname}_inter1"
+#SBATCH --mem=10G
+${dependmerge1}
 if [ ! -f "${touchfile2}" ]
 then
    echo "***! Sort job failed."
    exit 1
 fi
-if ${juiceDir}/scripts/statistics.pl -q 1 -o${outputdir}/inter.txt -s $site_file -l $ligation ${outputdir}/merged_nodups.txt
+$load_java
+export IBM_JAVA_OPTIONS="-Xmx10000m -Xgcthreads1"
+export _JAVA_OPTIONS="-Xms10000m -Xmx10000m"
+
+if ${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter.txt $outputdir/merged1.txt $genomeID
 then
    touch $touchfile3
 fi
-INTER0`
-    dependinter0="afterok:$jid3"
+INTER1`
+    dependinter1="afterok:$jid3"
 
     # Create statistics files for MQ > 30
     jid4=`sbatch <<- INTER30 | egrep -o -e "\b[0-9]+$"
@@ -339,50 +375,75 @@ INTER0`
 #SBATCH -o $logdir/inter30-%j.out
 #SBATCH -e $logdir/inter30-%j.err
 #SBATCH -J "${groupname}_inter30"
-#SBATCH --mem-per-cpu=32G 
-${dependmerge}
+#SBATCH --mem=10G 
+${dependmerge2}
 if [ ! -f "${touchfile2}" ]
 then
    echo "***! Sort job failed."
    exit 1
 fi
-if ${juiceDir}/scripts/statistics.pl -q 30 -o${outputdir}/inter_30.txt -s $site_file -l $ligation ${outputdir}/merged_nodups.txt 
+$load_java
+export IBM_JAVA_OPTIONS="-Xmx10000m -Xgcthreads1"
+export _JAVA_OPTIONS="-Xms10000m -Xmx10000m"
+if ${juiceDir}/scripts/juicer_tools statistics $site_file $outputdir/inter_30.txt $outputdir/merged30.txt $genomeID
 then
   touch $touchfile4
 fi
 INTER30`
     dependinter30="afterok:$jid4"
 
-    # Create HIC maps file for MQ > 0
-    jid5=`sbatch <<- HIC0 | egrep -o -e "\b[0-9]+$"
+    if [ -z "$threadsHic" ]
+    then
+	threadsHic=1
+	threadHicString=""
+	threadHic30String=""
+	threadNormString=""
+    else
+	threadHicString="--threads $threadsHic -i ${outputdir}/merged1_index.txt -t ${outputdir}/HIC_tmp"
+	threadHic30String="--threads $threadsHic -i ${outputdir}/merged30_index.txt -t ${outputdir}/HIC30_tmp"
+	threadNormString="--threads $threadsHic"
+    fi
+
+    # Create HIC maps file for MQ >= 1
+    jid5=`sbatch <<- HIC1 | egrep -o -e "\b[0-9]+$"
 #!/bin/bash -l
 #SBATCH -p ${long_queue}
 #SBATCH -t ${long_queue_time}
 #SBATCH -c 8
 #SBATCH --ntasks=1
-#SBATCH -o $logdir/hic0-%j.out
-#SBATCH -e $logdir/hic0-%j.err
-#SBATCH -J "${groupname}_hic0"
-#SBATCH -d "${dependinter0}"
-#SBATCH --mem-per-cpu=32G
+#SBATCH -o $logdir/hic1-%j.out
+#SBATCH -e $logdir/hic1-%j.err
+#SBATCH -J "${groupname}_hic1"
+#SBATCH -d "${dependinter1}"
+#SBATCH --mem=150G
 #source $usePath
 $load_java
-export IBM_JAVA_OPTIONS="-Xmx73728m -Xgcthreads1"
-export _JAVA_OPTIONS="-Xms73728m -Xmx73728m"
+export IBM_JAVA_OPTIONS="-Xmx150000m -Xgcthreads1"
+export _JAVA_OPTIONS="-Xms150000m -Xmx150000m"
 if [ ! -f "${touchfile3}" ]
 then
    echo "***! Statistics q=1 job failed."
    exit 1
 fi
-if [ -z "$exclude" ] &&  ${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
-then
-   touch $touchfile5
-elif [ -n "$exclude" ] &&  ${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter.txt -g ${outputdir}/inter_hists.m -q 1 ${outputdir}/merged_nodups.txt ${outputdir}/inter.hic ${genomeID} 
-then
-   touch $touchfile5 
-fi
-HIC0`
-    dependhic0="afterok:$jid5"
+
+	mkdir ${outputdir}"/HIC_tmp"
+
+	# multithreaded and index doesn't exist yet
+	if [[ $threadsHic -gt 1 ]] && [[ ! -s ${outputdir}/merged1_index.txt ]] 
+	then
+	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged1.txt 500000 > ${outputdir}/merged1_index.txt
+	fi
+
+	if [ "$exclude" -eq 1 ]
+	then 
+	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomeID
+	else
+	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHicString $outputdir/merged1.txt $outputdir/inter.hic $genomeID
+	fi
+	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter.hic 
+	rm -Rf ${outputdir}"/HIC_tmp"
+HIC1`
+    dependhic1="afterok:$jid5"
 
     # Create HIC maps file for MQ > 30
     jid6=`sbatch <<- HIC30 | egrep -o -e "\b[0-9]+$"
@@ -395,36 +456,43 @@ HIC0`
 #SBATCH -e $logdir/hic30-%j.err
 #SBATCH -J "${groupname}_hic30"
 #SBATCH -d "${dependinter30}"
-#SBATCH --mem=73G
+#SBATCH --mem=150G
 #source $usePath
 $load_java	
-export IBM_JAVA_OPTIONS="-Xmx73728m -Xgcthreads1"
-export _JAVA_OPTIONS="-Xms73728m -Xmx73728m"
+export IBM_JAVA_OPTIONS="-Xmx150000m -Xgcthreads1"
+export _JAVA_OPTIONS="-Xms150000m -Xmx150000m"
 if [ ! -f "${touchfile4}" ]
 then
    echo "***! Statistics q=30 job failed."
    exit 1
 fi
-if [ -z "${exclude}" ] &&  ${juiceDir}/scripts/juicer_tools pre -f ${site_file} -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
-then
-   touch $touchfile6
-elif [ -n "${exclude}" ] && ${juiceDir}/scripts/juicer_tools pre -s ${outputdir}/inter_30.txt -g ${outputdir}/inter_30_hists.m -q 30 ${outputdir}/merged_nodups.txt ${outputdir}/inter_30.hic ${genomeID} 
-then
-   touch $touchfile6
-fi
+	mkdir ${outputdir}"/HIC30_tmp"
+	# multithreaded and index doesn't exist yet
+	if [[ $threadsHic -gt 1 ]] && [[ ! -s ${outputdir}/merged30_index.txt ]] 
+	then
+	  time ${juiceDir}/scripts/index_by_chr.awk ${outputdir}/merged30.txt 500000 > ${outputdir}/merged30_index.txt
+	fi
+
+        if [ "$exclude" -eq 1 ]
+        then 
+	    time ${juiceDir}/scripts/juicer_tools pre -n -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomeID
+	else
+	    time ${juiceDir}/scripts/juicer_tools pre -n -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 -r 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100 $threadHic30String $outputdir/merged30.txt $outputdir/inter_30.hic $genomeID
+	fi
+	time ${juiceDir}/scripts/juicer_tools addNorm $threadNormString ${outputdir}/inter_30.hic
+	rm -Rf ${outputdir}"/HIC30_tmp"
 HIC30`
     dependhic30only="afterok:$jid6"
     sbatchdepend="#SBATCH -d ${dependhic30only}"
-    dependhic30="${dependhic0}:$jid6"
+    dependhic30="${dependhic1}:$jid6"
 else
-    touch $touchfile3 $touchfile4 $touchfile5 $touchfile6
+    touch $touchfile3 $touchfile4 
     sbatchdepend=""
 fi
 
 if [ -z $early ]
 then
 # Create loop lists file for MQ > 30
-    touchfile7=${megadir}/touch7
     if [ $isRice -eq 1 ] || [ $isVoltron -eq 1 ]
     then
 	if [  $isRice -eq 1 ]
@@ -437,28 +505,19 @@ then
 	#SBATCH -t 1440
 	#SBATCH -c 2
 	#SBATCH --ntasks=1
-	#SBATCH --mem-per-cpu=4G 
+	#SBATCH --mem-per-cpu=2G 
 	#SBATCH -o $logdir/hiccups-%j.out
 	#SBATCH -e $logdir/hiccups-%j.err
 	#SBATCH -J "${groupname}_hiccups"
 	${sbatchdepend}
 	${sbatch_req}
 	$load_java
-	if [ ! -f "${touchfile6}" ]
-	then
-	   echo "***! HIC maps q=30 job failed."
-	   exit 1
-	fi
 	${load_gpu}
 	${juiceDir}/scripts/juicer_hiccups.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic -m ${juiceDir}/references/motif -g $genomeID
-	touch $touchfile7
 	HICCUPS`
 	dependhic30="${dependhic30}:$jid7"
-    else
-	touch $touchfile7
     fi
 
-    touchfile8=${megadir}/touch8
     # Create domain lists for MQ > 30
     jid8=`sbatch <<- ARROWHEAD | egrep -o -e "\b[0-9]+$"
 #!/bin/bash -l
@@ -472,15 +531,9 @@ then
 #SBATCH -J "${groupname}_arrowhead"
 ${sbatchdepend}
 $load_java	
-if [ ! -f "${touchfile6}" ]
-then
-   echo "***! HIC maps q=30 job failed."
-   exit 1
-fi
 ${juiceDir}/scripts/juicer_arrowhead.sh -j ${juiceDir}/scripts/juicer_tools -i $outputdir/inter_30.hic
-touch $touchfile8
 ARROWHEAD`
-    dependhic30="${dependhic0}:$jid8"
+    dependhic30="${dependhic1}:$jid8"
     # Final checks
     jid9=`sbatch <<- FINAL | egrep -o -e "\b[0-9]+$"
 #!/bin/bash -l
@@ -493,32 +546,17 @@ ARROWHEAD`
 #SBATCH -J "${groupname}_done"
 #SBATCH -d "${dependhic30}"
 
-if [ ! -f "${touchfile5}" ]
-then
-   echo "***! Failed to make inter.hic."   
-   exit 1
-fi
-if [ ! -f "${touchfile6}" ]
-then
-   echo "***! Failed to make inter_30.hic."   
-   exit 1
-fi
-if [ ! -f "${touchfile7}" ]
-then
-   echo "***! Failed to create loop lists."   
-   exit 1
-fi
-if [ ! -f "${touchfile8}" ]
-then
-   echo "***! Failed to create domain lists."   
-   exit 1
-fi
 rm -r ${tmpdir}
-rm $touchfile1 $touchfile2 $touchfile3 $touchfile4 $touchfile5 $touchfile6 $touchfile7 $touchfile8
-echo "(-: Successfully completed making mega map. Done. :-)"
+rm $touchfile1 $touchfile2 $touchfile3 $touchfile4 
+if [ -s ${outputdir}/inter.hic ] && [ -s ${outputdir}/inter_30.hic ]
+then
+   echo "(-: Successfully completed making mega maps. Done. :-)"
+else
+   echo "!*** Error: one or both hic files are empty. Check debug directory for hic logs"
+fi
 if [ $isRice -eq 1 ]
 then
-   echo $topDir, $site, $genomeID, $genomePath | mail -r MegaJuicer@rice.edu -s \"Mega Juicer pipeline finished successfully @ Rice\" -t $USER@rice.edu;
+   echo $topDir, $site, $genomeID | mail -r MegaJuicer@rice.edu -s \"Mega Juicer pipeline finished successfully @ Rice\" -t $USER@rice.edu;
 fi
 FINAL`
 else
@@ -533,8 +571,8 @@ else
 #SBATCH -J "${groupname}_done"
 #SBATCH -d "${dependmerge}"
 
-rm -r ${tmpdir}
-rm -f $touchfile1 $touchfile2 $touchfile3 $touchfile4 $touchfile5 $touchfile6 $touchfile7 $touchfile8
+rm -fr ${tmpdir}
+rm -f $touchfile1 $touchfile2 $touchfile3 $touchfile4 
 echo "(-: Successfully completed making mega map. Done. :-)"
 FINAL`
 fi

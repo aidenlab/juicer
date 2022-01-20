@@ -53,8 +53,8 @@ then
     bed_file_dir="/storage/aiden/juicer/references/motif"
 else
     isVoltron=1
-    juicer_tools_path="/gpfs0/juicer/scripts/juicer_tools"
-    bed_file_dir="/gpfs0/juicer/references/motif"
+    juicer_tools_path="/gpfs0/juicer2/scripts/juicer_tools"
+    bed_file_dir="/gpfs0/juicer2/references/motif"
 fi
 
 while getopts "h:g:j:i:m:" opt; do
@@ -83,6 +83,7 @@ fi
 echo -e "\nHiCCUPS:\n"
 if hash nvcc 2>/dev/null 
 then 
+    echo "${juicer_tools_path} hiccups ${hic_file_path} ${hic_file_path%.*}_loops"
     ${juicer_tools_path} hiccups ${hic_file_path} ${hic_file_path%.*}"_loops"
     if [ $? -ne 0 ]; then
 	echo "***! Problem while running HiCCUPS";
@@ -95,14 +96,14 @@ fi
 if [ -n "$(ls -A ${hic_file_path%.*}_loops)" ]
 then
     echo -e "\nAPA:\n"
-    ${juicer_tools_path} apa ${hic_file_path} ${hic_file_path%.*}"_loops" "apa_results"
+    ${juicer_tools_path} apa ${hic_file_path} ${hic_file_path%.*}"_loops/merged_loops.bedpe" "apa_results"
     ## Check that bed folder exists    
     if [ ! -e "${bed_file_dir}" ]; then
 	echo "***! Can't find folder ${bed_file_dir}";
 	echo "***! Not running motif finder";
     else
 	echo -e "\nMOTIF FINDER:\n"
-	${juicer_tools_path} motifs ${genomeID} ${bed_file_dir} ${hic_file_path%.*}"_loops"
+	${juicer_tools_path} motifs ${genomeID} ${bed_file_dir} ${hic_file_path%.*}"_loops/merged_loops.bedpe"
     fi
     echo -e "\n(-: Feature annotation successfully completed (-:"
 else

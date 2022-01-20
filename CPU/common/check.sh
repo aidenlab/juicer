@@ -25,11 +25,11 @@
 #
 # Sanity check once pipeline is complete to be sure number of lines adds up, deduping
 # proceeded appropriately, and that files were created
-# Juicer version 1.5
+# Juicer version 2.0
 
 # Start by checking the statistics to see if they add up 
 res1=`cat ${splitdir}/*norm*res*`
-check1=`cat ${splitdir}/*norm*res* | awk '{s2+=$2; s3+=$3; s4+=$4; s5+=$5; s6+=$6}END{if (s2 != s3+s4+s5+s6){print 0}else{print 1}}'`
+check1=`cat ${splitdir}/*norm*res* | awk '{s2+=$2; s3+=$3; s4+=$4; s5+=$5; s6+=$6; s7+=$7}END{if (s2 != s3+s4+s5+s6+s7){print 0}else{print 1}}'`
 if [ $check1 -eq 0 ] || [ -z "$res1" ]
 then
     echo "***! Error! The statistics do not add up. Alignment likely failed to complete on one or more files. Run relaunch_prep.sh"
@@ -37,19 +37,7 @@ then
     exit 1
 fi
 
-# Check the sizes of merged_sort versus the dups/no dups files to be sure
-# no reads were lost
-total=1
-total2=0
-total=`ls -l ${outputdir}/merged_sort.txt | awk '{print $5}'`
-total2=`ls -l ${outputdir}/merged_nodups.txt ${outputdir}/dups.txt ${outputdir}/opt_dups.txt | awk '{sum = sum + $5}END{print sum}'`
-
-if [ -z $total ] || [ -z $total2 ] || [ $total -ne $total2 ]
-then
-    echo "***! Error! The sorted file and dups/no dups files do not add up, or were empty. Merge or dedupping likely failed, restart pipeline with -S merge or -S dedup"
-    echo "Dups don't add up.  Check ${outputdir} for results"
-    exit 1
-fi
+# could add flagstat check here
 
 wctotal=`cat ${splitdir}/*_linecount.txt | awk '{sum+=$1}END{print sum/4}'`
 check2=`cat ${splitdir}/*norm*res* | awk '{s2+=$2;}END{print s2}'`

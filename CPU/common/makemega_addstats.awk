@@ -23,7 +23,7 @@
 #  THE SOFTWARE.
 ##########
 # Helper script for taking in multiple inter.txt and producing sums
-# Juicer version 1.5
+# Juicer version 2.0
 $1=="Sequenced"{
 gsub(/,/,"",$4);
  total=total+$4;
@@ -47,20 +47,28 @@ gsub(/,/,"",$4);
 $1=="Unique" {
 gsub(/,/,"",$3);
  dedup=dedup+$3}
-$1=="PCR"{
+$1=="Duplicates:"{
 gsub(/,/,"",$3);
  dups=dups+$3}
-$1=="Optical"{
+$1=="Ligation"{
+gsub(/,/,"",$4);
+ ligs=ligs+$4}
+$1=="Single"{
 gsub(/,/,"",$3);
- optdups=optdups+$3}
+ single=single+$3}
+$1=="Average"{
+ avg_insert=avg_insert+$4;
+}
 END{
  printf("%s %'d\n", "Sequenced Read Pairs:", total);
  printf(" %s %'d (%0.2f%)\n", "Normal Paired:", regular, regular*100/total);
  printf(" %s %'d (%0.2f%)\n", "Chimeric Paired:", normal, normal*100/total);
  printf(" %s %'d (%0.2f%)\n", "Chimeric Ambiguous:", abnorm, abnorm*100/total);
  printf(" %s %'d (%0.2f%)\n", "Unmapped:", unmapped, unmapped*100/total);
+ printf(" %s %'d (%0.2f%)\n", "Ligation Motif Present:", ligs, ligs*100/total);
+ printf(" %s %'d (%0.2f%)\n", "Single Alignment:", single, single*100/total);
+ printf(" %s %0.2f\n", "Average insert size:", avg_insert/NR);
  printf(" %s %'d (%0.2f%)\n", "Alignable (Normal+Chimeric Paired):", alignable, alignable*100/total);
  printf("%s %'d\n", "Unique Reads:", dedup);
- printf("%s %'d\n", "PCR Duplicates:", dups);
-  printf("%s %'d\n", "Optical Duplicates:", optdups);
+ printf("%s %'d\n", "Duplicates:", dups);
 }

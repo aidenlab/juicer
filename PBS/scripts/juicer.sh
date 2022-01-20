@@ -64,7 +64,7 @@
 #             through a "*" in the name because the wildcard was not able to
 #             match any files with the read1str.
 shopt -s extglob
-juicer_version="1.5.6"
+juicer_version="2.0"
 
 # timestamp the pipeline and report the juicer app version, and shell
 date +"%Y-%m-%d %H:%M:%S"
@@ -77,8 +77,9 @@ echo "$0 $@"
 # set global tmpdir so no problems with /var/tmp
 ## use cluster load commands:
 #usePath=""
-load_bwa="module load bwa/0.7.15"
+load_bwa="module load bwa/0.7.17"
 load_java='module load java/jdk1.8.0_131'
+load_samtools="module load samtools"
 #load_cluster=""
 #load_coreutils=""
 load_cuda='module load cuda/7.5.18/gcc/4.4.7'
@@ -96,16 +97,26 @@ long_queue="batch"
 long_walltime="walltime=120:00:00"
 # size to split fastqs. adjust to match your needs. 4000000=1M reads per split
 # can also be changed via the -C flag
+splitsize=90000000
 # give your email address to be used in #PBS -M to receive notifications when job error occurs.
 # Must be either set with an email address or skipped
 # This email is not included in the launch stat and postprocessing steps, add manually if needed
 EMAIL='#PBS -M xxx@gmail.com'
-splitsize=90000000
 # fastq files should look like filename_R1.fastq and filename_R2.fastq
 # if your fastq files look different, change this value
 read1str="_R1"
 read2str="_R2"
 
+# default number of threads
+#threads=8
+threads=1
+# default memory allocation
+alloc_mem=$(($threads * 8000))
+# default max memory allocation
+if [ $alloc_mem -gt 80000 ]
+then
+    alloc_mem=80000
+fi
 
 # unique groupname for jobs submitted in each run. lab initial with an timestamp
 # Length of $groupname in this PBS version needs to be no longer than 8 characters.
@@ -120,7 +131,7 @@ groupname="C$(date "+%s"|cut -c 6-11)"
 # top level directory, can also be set in options
 topDir=$(pwd)
 # restriction enzyme, can also be set in options
-site="MboI"
+site="none"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
 # normally both read ends are aligned with long read aligner;
@@ -128,19 +139,17 @@ genomeID="hg19"
 shortreadend=0
 # description, default empty
 about=""
-nofrag=0
+nofrag=1
 
 ## Read arguments
-usageHelp="Usage: ${0##*/} [-W group_list=genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-R end] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-r] [-h] [-x]"
+usageHelp="Usage: ${0##*/} [-W group_list=genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads] [-T threadsHic]\n                 [-e] [-h] [-f] [-j]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
 longQueueHelp="* [long queue] is the queue for running longer jobs such as the hic file\n  creation (default \"$long_queue\")"
 siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" \n  (default \"$site\")"
 aboutHelp="* [about]: enter description of experiment, enclosed in single quotes"
-shortHelp="* -r: use the short read version of the aligner, bwa aln\n  (default: long read, bwa mem)"
-shortHelp2="* [end]: use the short read aligner on read end, must be one of 1 or 2 "
-stageHelp="* [stage]: must be one of \"merge\", \"dedup\", \"final\", \"postproc\", or \"early\".\n    -Use \"merge\" when alignment has finished but the merged_sort file has not\n     yet been created.\n    -Use \"dedup\" when the files have been merged into merged_sort but\n     merged_nodups has not yet been created.\n    -Use \"final\" when the reads have been deduped into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
+stageHelp="* [stage]: must be one of \"chimeric\", \"merge\", \"dedup\", \"final\", \"postproc\", or \"early\".\n    -Use \"merge\" when alignment has finished but the merged_sort file has not\n     yet been created.\n    -Use \"dedup\" when the files have been merged into merged_sort but\n     merged_nodups has not yet been created.\n    -Use \"final\" when the reads have been deduped into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
 pathHelp="* [chrom.sizes path]: enter path for chrom.sizes file"
 siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
 chunkHelp="* [chunk size]: number of lines in split files, must be multiple of 4\n  (default ${splitsize}, which equals $(awk -v ss=${splitsize} 'BEGIN{print ss/4000000}') million reads)"
@@ -148,7 +157,12 @@ scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which 
 refSeqHelp="* [reference genome file]: enter path for reference sequence file, BWA index\n  files must be in same directory"
 queueTimeHelp="* [queue time limit]: time limit for queue, i.e. -l 12:00 is 12 hours\n  (default ${walltime})"
 longQueueTimeHelp="* [long queue time limit]: time limit for long queue, i.e. -l 168:00 is one week\n  (default ${long_walltime})"
-excludeHelp="* -x: exclude fragment-delimited maps from hic file creation"
+ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
+threadsHelp="* [threads]: number of threads when running BWA alignment"
+threadsHicHelp="* [threads for hic file creation]: number of threads when building hic file"
+excludeHelp="* -f: include fragment-delimited maps in hic file creation"
+justHelp="* -j: just exact duplicates excluded at dedupping step"
+earlyexitHelp="* -e: Use for an early exit, before the final creation of the hic files"
 helpHelp="* -h: print this help and exit"
 
 printHelpAndExit() {
@@ -159,8 +173,6 @@ printHelpAndExit() {
     echo -e "$longQueueHelp"
     echo -e "$siteHelp"
     echo -e "$aboutHelp"
-    echo -e "$shortHelp"
-    echo -e "$shortHelp2"
     echo -e "$stageHelp"
     echo -e "$pathHelp"
     echo -e "$siteFileHelp"
@@ -169,38 +181,47 @@ printHelpAndExit() {
     echo -e "$scriptDirHelp"
     echo -e "$queueTimeHelp"
     echo -e "$longQueueTimeHelp"
+    echo -e "$ligationHelp"
+    echo -e "$threadsHelp"
+    echo -e "$threadsHicHelp"
+    echo -e "$earlyexitHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:R:k:a:hrq:s:p:l:y:z:S:C:D:Q:L:x" opt; do
+while getopts "d:g:a:hq:s:p:l:y:z:S:C:D:Q:L:b:i:t:jfecT:" opt; do
     case $opt in
-    g) genomeID=$OPTARG ;;
-    h) printHelpAndExit 0;;
-    d) topDir=$OPTARG ;;
-    l) long_queue=$OPTARG ;;
-    q) queue=$OPTARG ;;
-    s) site=$OPTARG ;;
-    R) shortreadend=$OPTARG ;;
-    r) shortread=1 ;;  #use short read aligner
-    a) about=$OPTARG ;;
-    p) genomePath=$OPTARG ;;
-    y) site_file=$OPTARG ;;
-    z) refSeq=$OPTARG ;;
-    S) stage=$OPTARG ;;
-    C) splitsize=$OPTARG ;;
-    D) juiceDir=$OPTARG ;;
-    Q) walltime=$OPTARG ;;
-    L) long_walltime=$OPTARG ;;
-    x) nofrag=1 ;; #no fragment maps
-    [?]) printHelpAndExit 1;;
+	g) genomeID=$OPTARG ;;
+	h) printHelpAndExit 0;;
+	d) topDir=$OPTARG ;;
+	l) long_queue=$OPTARG ;;
+	q) queue=$OPTARG ;;
+	s) site=$OPTARG ;;
+	a) about=$OPTARG ;;
+	p) genomePath=$OPTARG ;;
+	y) site_file=$OPTARG ;;
+	z) refSeq=$OPTARG ;;
+	S) stage=$OPTARG ;;
+	C) splitsize=$OPTARG; splitme=1 ;;
+	D) juiceDir=$OPTARG ;;
+	Q) walltime=$OPTARG ;;
+	L) long_walltime=$OPTARG ;;
+	f) nofrag=0 ;;
+	b) ligation=$OPTARG ;;
+	t) threads=$OPTARG ;;
+	j) justexact=1 ;;
+	e) earlyexit=1 ;;
+	T) threadsHic=$OPTARG ;;
+	i) sampleName=$OPTARG ;;
+	[?]) printHelpAndExit 1;;
     esac
 done
 
 if [ ! -z "$stage" ]
 then
     case $stage in
+	chimeric) chimeric=1 ;;
         merge) merge=1 ;;
         dedup) dedup=1 ;;
         early) earlyexit=1 ;;
@@ -216,18 +237,18 @@ fi
 if [ -z "$refSeq" ]
 then
     case $genomeID in
-    mm9) refSeq="${juiceDir}/references/Mus_musculus_assembly9_norandom.fasta";;
-    mm10) refSeq="${juiceDir}/references/Mus_musculus_assembly10.fasta";;
-    hg38) refSeq="${juiceDir}/references/hg38.fa";;
-    hg19) refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
-    *)  echo "$usageHelp"
-        echo "$genomeHelp"
-        exit 1
+	mm9) refSeq="${juiceDir}/references/Mus_musculus_assembly9_norandom.fasta";;
+	mm10) refSeq="${juiceDir}/references/Mus_musculus_assembly10.fasta";;
+	hg38) refSeq="${juiceDir}/references/hg38.fa";;
+	hg19) refSeq="${juiceDir}/references/Homo_sapiens_assembly19.fasta";;
+	*)  echo "$usageHelp"
+            echo "$genomeHelp"
+            exit 1
     esac
 else
     # Reference sequence passed in, so genomePath must be set for the .hic file
     # to be properly created
-    if [ -z "$genomePath" ]
+    if [[ -z "$genomePath" ]] && [[ -z $earlyexit ]]
         then
         echo "***! You must define a chrom.sizes file via the \"-p\" flag that delineates the lengths of the chromosomes in the genome at $refSeq";
         exit 1;
@@ -247,17 +268,20 @@ if [ ! -e "${refSeq}.bwt" ]; then
 fi
 
 ## Set ligation junction based on restriction enzyme
-case $site in
-    HindIII) ligation="AAGCTAGCTT";;
-    DpnII) ligation="GATCGATC";;
-    MboI) ligation="GATCGATC";;
-    NcoI) ligation="CCATGCATGG";;
-    none) ligation="XXXX";;
-    *)  ligation="XXXX"
-    echo "$site not listed as recognized enzyme. Using $site_file as site file"
-    echo "Ligation junction is undefined"
-    exit 1
-esac
+if [ -z "$ligation" ]; then
+    case $site in
+	HindIII) ligation="AAGCTAGCTT";;
+	DpnII) ligation="GATCGATC";;
+	MboI) ligation="GATCGATC";;
+	NcoI) ligation="CCATGCATGG";;
+	Arima) ligation="'(GAATAATC|GAATACTC|GAATAGTC|GAATATTC|GAATGATC|GACTAATC|GACTACTC|GACTAGTC|GACTATTC|GACTGATC|GAGTAATC|GAGTACTC|GAGTAGTC|GAGTATTC|GAGTGATC|GATCAATC|GATCACTC|GATCAGTC|GATCATTC|GATCGATC|GATTAATC|GATTACTC|GATTAGTC|GATTATTC|GATTGATC)'" ;;
+	none) ligation="XXXX";;
+	*)  ligation="XXXX"
+	    echo "$site not listed as recognized enzyme. Using $site_file as site file"
+	    echo "Ligation junction is undefined"
+	    exit 1
+    esac
+fi
 
 ## If DNAse-type experiment, no fragment maps
 if [ "$site" == "none" ]
@@ -265,27 +289,24 @@ then
     nofrag=1;
 fi
 
-## If short read end is set, make sure it is 1 or 2
-case $shortreadend in
-    0) ;;
-    1) ;;
-    2) ;;
-    *)    echo "$usageHelp"
-    echo "$shortHelp2"
-    exit 1
-esac
-
 if [ -z "$site_file" ]
 then
     site_file="${juiceDir}/restriction_sites/${genomeID}_${site}.txt"
 fi
 
 ## Check that site file exists, needed for fragment number for merged_nodups
-if [ ! -e "$site_file" ] && [ "$nofrag" -ne 1 ]
+if [[ ! -e "$site_file" ]] && [[ "$site" != "none" ]] &&  [[ ! "$site_file" =~ "none" ]]
 then
     echo "***! $site_file does not exist. It must be created before running this script."
     exit 1
+elif [[ "$site" != "none" ]] && [[ ! "$site_file" =~ "none" ]]
+then
+    echo  "Using $site_file as site file"
 fi
+
+## Set threads for sending appropriate parameters to cluster and string for BWA/Samtools call 
+threadstring="-t $threads"
+sthreadstring="-@ $threads"
 
 ## Directories to be created and regex strings for listing files
 splitdir=${topDir}"/splits"
@@ -294,6 +315,19 @@ fastqdir=${topDir}"/fastq/*_R*.fastq*"
 outputdir=${topDir}"/aligned"
 tmpdir=${topDir}"/HIC_tmp"
 logdir=${topDir}"/logs"
+
+if [ -z "$threadsHic" ]
+then
+    threadsHic=1
+    threadHicString=""
+    threadHic30String=""
+    threadNormString=""
+else
+    threadHicString="--threads $threadsHic -i ${outputdir}/merged0_index.txt -t ${outputdir}/HIC_tmp"
+    threadHic30String="--threads $threadsHic -i ${outputdir}/merged30_index.txt -t ${outputdir}/HIC30_tmp"
+    threadNormString="--threads $threadsHic"
+fi
+
 ## Check that fastq directory exists and has proper fastq files
 if [ ! -d "${topDir}/fastq" ]; then
     echo "Directory \"${topDir}/fastq\" does not exist."
@@ -313,14 +347,14 @@ else
     fi
 fi
 
-## Create output directory, only if not in merge, dedup, final, or postproc stages
-if [[ -d "$outputdir" && -z "$final" && -z "$merge" && -z "$dedup" && -z "$postproc" ]]
+## Create output directory, only if not in dedup, final, or postproc stages
+if [[ -d "$outputdir" && -z "$final" && -z "$dedup" && -z "$postproc" ]]
 then
     echo "***! Move or remove directory \"$outputdir\" before proceeding."
     echo "***! Type \"juicer.sh -h \" for help"
     exit 1
 else
-    if [[ -z "$final" && -z "$dedup" && -z "$merge" && -z "$postproc" ]]; then
+    if [[ -z "$final" && -z "$dedup" && -z "$postproc" ]]; then
         mkdir "$outputdir" || { echo "***! Unable to create ${outputdir}, check permissions." ; exit 1; }
     fi
 fi
@@ -351,29 +385,34 @@ fi
 ## jobIDstring holds the jobIDs as they are submitted
 countjobs=0
 jobIDstring=""
-#check the total fastq input files size, determine the threads number
-#threads value could be customized according to user's job and cluster resources
-fastqsize=$(ls -lL ${fastqdir} | awk '{sum+=$5}END{print sum}')
-if [ "$fastqsize" -gt "2592410750" ]
+
+if [ -z $splitme ]
 then
-    threads=16
+    fastqsize=$(ls -lgGL  ${fastqdir} | awk '{sum+=$3}END{print sum}')
+    if [ "$fastqsize" -gt "2592410750" ]
+    then
+        splitme=1
+    fi
 fi
 
-testname=$(ls -l ${fastqdir} | awk 'NR==1;{print $9}')
+testname=$(ls -lgG ${fastqdir} | awk 'NR==1;{print $7}')
 if [ "${testname: -3}" == ".gz" ]
 then
     skipsplit=1
     read1=${splitdir}"/*${read1str}*.fastq.gz"
+    gzipped=1
 else
     read1=${splitdir}"/*${read1str}*.fastq"
 fi
 
-
-
 ## Not in merge, dedup, final, or postproc stage, i.e. need to split and align files.
 if [[ -z "$final" && -z "$merge" && -z "$dedup" && -z "$postproc" ]]
 then
-    echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with site file $site_file"
+    if [ "$nofrag" -eq 0 ]
+	echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with site file $site_file"
+    else
+	echo -e "(-: Aligning files matching $fastqdir\n in queue $queue to genome $genomeID with no site file."
+    fi
 
     ## Split fastq files into smaller portions for parallelizing alignment
     ## Do this by creating a text script file for the job on STDIN and then
@@ -381,7 +420,7 @@ then
     if [ ! $splitdirexists ]
     then
         echo "(-: Created $splitdir and $outputdir."
-        if [ -n "$threads" ] && [ -z "$skipsplit" ]
+        if [ -n "$splitme" ] && [ -z "$skipsplit" ]
         then
             echo " Splitting files"
             jIDs_spit=""
@@ -397,8 +436,8 @@ then
                 #PBS -S /bin/bash
                 #PBS -q $queue
                 #PBS -l $walltime
-                #PBS -l nodes=1:ppn=1:AMD
-                #PBS -l mem=20gb
+                #PBS -l nodes=1:ppn=1
+                #PBS -l mem=2gb
                 ${EMAIL}
                 #PBS -m a
                 #PBS -o ${logdir}/${timestamp}_split_${filename}_${groupname}.log
@@ -423,8 +462,8 @@ SPLITEND
             #PBS -S /bin/bash
             #PBS -q $queue
             #PBS -l $walltime
-            #PBS -l nodes=1:ppn=1:AMD
-            #PBS -l mem=20gb
+            #PBS -l nodes=1:ppn=1
+            #PBS -l mem=2gb
             ${EMAIL}
             #PBS -m a
             #PBS -o ${logdir}/${timestamp}_move_${groupname}.log
@@ -452,7 +491,7 @@ SPLITMV
     # aligning read2, and merging the two. Keep track of merge names for final
     # merge. When merge jobs successfully finish, can launch final merge job.
 
-    if [ -n "$threads" ] && [ -z "$skipsplit" ]
+    if [ -n "$splitme" ] && [ -z "$skipsplit" ]
     then
         waitstring_alnwrp="#PBS -W depend=afterok:${jID_splitmv}"
     fi
@@ -463,7 +502,7 @@ SPLITMV
     #PBS -S /bin/bash
     #PBS -q $queue
     #PBS -l $walltime
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=6gb
     #PBS -o ${logdir}/${timestamp}_alnwrap_${groupname}.log
     #PBS -j oe
@@ -493,7 +532,7 @@ SPLITMV
         #PBS -S /bin/bash
         #PBS -q $queue
         #PBS -l $walltime
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=4gb
         ${EMAIL}
         #PBS -m a
@@ -520,25 +559,14 @@ CNTLIG
         echo "jID_cntlig \${countjobs} id is \${jID_cntlig}"
         ## Align read1
         # align read1 fastq
-        # allocate memory for alignment according to threads number
-        # set-up the max memory according to the cluster set-up
-        # this local cluster uses shared mem per node when in resource quest
-        alloc_mem_value=\$(( $threads * 5 ))
-        alloc_mem=\${alloc_mem_value}"gb"
-        #set the max mem cap accordingly to ensure the job resource request meet the cluster-setup
-        if [ \$alloc_mem_value -gt 240 ]
-        then
-            alloc_mem=240gb
-        fi
-
-        echo "starting read1 alignemnt"
+        echo "starting alignment"
 
         timestamp=\$(date +"%s" | cut -c 4-10)
         qsub <<ALGNR1
         #PBS -S /bin/bash
         #PBS -q $queue
         #PBS -l $walltime
-        #PBS -l nodes=1:ppn=${threads}:AMD
+        #PBS -l nodes=1:ppn=${threads}
         #PBS -l mem=\${alloc_mem}
         ${EMAIL}
         #PBS -m a
@@ -552,102 +580,38 @@ CNTLIG
 
         date +"%Y-%m-%d %H:%M:%S"
         $load_bwa
-        if [ -n "$shortread" ] || [ "$shortreadend" -eq 1 ]
+        echo 'Running command bwa mem -SP5M $threadstring $refSeq \${name1}\${ext} \${name2}\${ext}   > \${name}\${ext}.sam '
+        bwa mem -SP5M $threadstring $refSeq \${name1}\${ext} \${name2}\${ext} > \${name}\${ext}.sam
+        if [ \$? -ne 0 ]
         then
-            echo 'Running command bwa aln -q 15 $refSeq \${name1}\${ext} > \${name1}\${ext}.sai && bwa samse $refSeq \${name1}\${ext}.sai \${name1}\${ext} > \${name1}\${ext}.sam'
-            bwa aln -q 15 $refSeq \${name1}\${ext} > \${name1}\${ext}.sai && bwa samse $refSeq \${name1}\${ext}.sai \${name1}\${ext} > \${name1}\${ext}.sam
-            if [ \$? -ne 0 ]
-            then
-                echo "Alignment of \${name1}\${ext} failed. Check ${topDir}/pbs.out for results"
-                exit 1
-            else
-                echo " Short align of \${name1}\${ext}.sam done successfully"
-            fi
+            echo "***!Error, failed to align \${name1}\${ext}"
+            exit 1
         else
-            echo 'Running command bwa mem $threads $refSeq \${name1}\${ext} > \${name1}\${ext}.sam '
-            bwa mem -t $threads $refSeq \${name1}\${ext} > \${name1}\${ext}.sam
-            if [ \$? -ne 0 ]
-            then
-                echo "***!Error, failed to align \${name1}\${ext}"
-                exit 1
-            else
-                echo "Mem align of \${name1}\${ext}.sam done successfully"
-            fi
+           echo "Mem align of \${name}\${ext}.sam done successfully"
         fi
-        echo "below is the number of lines in align1 .sam file"
-        cat \${name1}\${ext}.sam |wc -l
+        echo "below is the number of lines in .sam file"
+        wc -l \${name}\${ext}.sam 
 ALGNR1
         wait
         # Get the jobID from qstat ouput by searching job specific string,"read1\${countjobs}" , in job Name.
         jID_1=\$( qstat | grep "ALN1\${countjobs}${groupname}" |cut -d ' ' -f 1 )
-        echo "align1 \$countjobs id is: \${jID_1}"
-        # Align read2
-        echo "starting read2 alignment"
-        # align read2 fastq
-        timestamp=\$(date +"%s" | cut -c 4-10)
-        qsub <<ALGNR2
-        #PBS -S /bin/bash
-        #PBS -q $queue
-        #PBS -l $walltime
-        #PBS -l nodes=1:ppn=${threads}:AMD
-        #PBS -l mem=\$alloc_mem
-        ${EMAIL}
-        #PBS -m a
-        #PBS -o ${logdir}/\${timestamp}_\${jname}_align2_\${countjobs}_${groupname}.log
-        #PBS -j oe
-        #PBS -N ALN2\${countjobs}${groupname}
-        #PBS -W depend=afterok:\$jID_cntlig
-        #PBS -v name=\${name}
-        #PBS -v name2=\${name2}
-        #PBS -v ext=\${ext}
+        echo "align \$countjobs id is: \${jID_1}"
 
-        date +"%Y-%m-%d %H:%M:%S"
-        $load_bwa
-        if [ -n "$shortread" ] || [ "$shortreadend" -eq 2 ]
-        then
-            echo 'Running command bwa aln -q 15 $refSeq \${name2}\${ext} > \${name2}\${ext}.sai && bwa samse $refSeq \${name2}\${ext}.sai \${name2}\${ext} > \${name2}\${ext}.sam '
-            bwa aln -q 15 $refSeq \${name2}\${ext} > \${name2}\${ext}.sai && bwa samse $refSeq \${name2}\${ext}.sai \${name2}\${ext} > \${name2}\${ext}.sam
-            if [ \$? -ne 0 ]
-            then
-                echo "Alignment of \${name2}\${ext} failed. Check ${topDir}/pbs.out for results"
-                exit 1
-            else
-                echo "Short align of \${name2}\${ext}.sam done successfully"
-            fi
-
-        else
-            echo 'Running command bwa mem $threads $refSeq \${name2}\${ext} > \${name2}\${ext}.sam'
-            bwa mem -t $threads $refSeq \${name2}\${ext} > \${name2}\${ext}.sam
-            if [ \$? -ne 0 ]
-            then
-                exit 1
-            else
-                echo "Mem align of \${name2}\${ext}.sam done successfully"
-            fi
-        fi
-        echo "below is the number of lines in aligned .sam file before sorting"
-        cat \${name2}\${ext}.sam |wc -l
-ALGNR2
-        wait
-
-        # Get the jobID of job above from qstat ouput using job specific string,"read2\${countjobs}" , in jobName.
-        jID_2=\$(qstat | grep "ALN2\${countjobs}${groupname}" |cut -d ' ' -f 1 )
-        echo "align2 \${countjobs} id is: \${jID_2}"
-        echo "starting merging from read1 and read2"
-        # wait for align1 and align2 jobs finish,then merge
+        echo "starting chimeric read handling"
+        # wait for align job to finish
         timestamp=\$(date +"%s" | cut -c 4-10)
         qsub <<- MRGALL
         #PBS -S /bin/bash
         #PBS -q $queue
         #PBS -l $long_walltime
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=24gb
         ${EMAIL}
         #PBS -m a
         #PBS -o ${logdir}/\${timestamp}_\${jname}_merge_\${countjobs}_${groupname}.log
         #PBS -j oe
         #PBS -N Mrg\${countjobs}${groupname}
-        #PBS -W depend=afterok:\${jID_1}:\${jID_2}
+        #PBS -W depend=afterok:\${jID_1}
         #PBS -v name=\${name}
         #PBS -v name1=\${name1}
         #PBS -v name2=\${name2}
@@ -655,122 +619,27 @@ ALGNR2
         #PBS -v countjobs=\${countjobs}
 
         date +"%Y-%m-%d %H:%M:%S"
+        $load_samtools
         export LC_ALL=C
-
-        # sort read 1 aligned file by readname
-        sort -T $tmpdir -k1,1f \${name1}\${ext}.sam > \${name1}\${ext}_sort.sam
+        # call chimeric_blacklist.awk to deal with chimeric reads; sorted file is sorted by read name at this point
+        if [ "$site" != "none" ] && [ -e "$site_file" ]
+        then
+           awk -v stem=${name}${ext}_norm -v site_file=$site_file -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
+        else
+           awk -v stem=${name}${ext}_norm -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam2 
+           awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/adjust_insert_size.awk $name$ext.sam2 | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam 
+        fi
         if [ \$? -ne 0 ]
         then
-            echo "***! Error while sorting \${name1}\${ext}.sam"
-            echo "Sort of \${name1}\${ext}.sam failed."
-            exit 1
-        else
-            echo "Sort read 1 aligned file by readname completed."
+           echo "***! Failure during chimera handling of \${name}\${ext}"
+           echo "Chimera handling of \${name}\${ext}.sam failed."
+           exit 1
         fi
-        echo "below is the number of lines in sorted read1 .sam files"
-        cat \${name1}\${ext}_sort.sam | wc -l
-
-        # sort read 2 aligned file by readname
-        sort -T $tmpdir -k1,1f \${name2}\${ext}.sam > \${name2}\${ext}_sort.sam
-        if [ \$? -ne 0 ]
-        then
-            echo "***! Error while sorting \${name2}\${ext}.sam"
-            echo "Sort of \${name2}\${ext}.sam failed."
-            exit 1
-        else
-            echo "Sort read 2 aligned file by readname completed."
-        fi
-        echo "below is the number of lines in sorted read2 .sam files"
-        cat \${name2}\${ext}_sort.sam | wc -l
-
-        # remove header, add read end indicator to read name
-        awk -f ${juiceDir}/scripts/read1_sortproc.awk \${name1}\${ext}_sort.sam > \${name1}\${ext}_sort1.sam
-        awk -f ${juiceDir}/scripts/read2_sortproc.awk \${name2}\${ext}_sort.sam > \${name2}\${ext}_sort1.sam
-        echo "below is the number of lines in \${name1}\${ext}_sort1.sam"
-        cat \${name1}\${ext}_sort1.sam | wc -l
-        echo "below is the number of lines in \${name2}\${ext}_sort1.sam"
-        cat \${name2}\${ext}_sort1.sam | wc -l
-
-        # merge the two sorted read end files
-        sort -T $tmpdir -k1,1f -m \${name1}\${ext}_sort1.sam \${name2}\${ext}_sort1.sam > \${name}\${ext}.sam
-        if [ $? -ne 0 ]
-        then
-            echo "***! Failure during merge of read files"
-            echo "Merge of \${name}\${ext}.sam failed"
-            exit 1
-        else
-            rm \${name1}\${ext}.sa* \${name2}\${ext}.sa* \${name1}\${ext}_sort*.sam \${name2}\${ext}_sort*.sam
-            echo "\${name}\$\{ext}.sam created successfully."
-        fi
-        echo "below is the number of lines in \${name}\${ext}.sam after merging sorted aln1 and aln2"
-        cat \${name}\${ext}.sam | wc -l
-
 MRGALL
+
     wait
 
-    jID_3=\$(qstat | grep "Mrg\${countjobs}${groupname}" | cut -d ' ' -f 1 )
-    echo "merging align1 and align2 \${coutjobs} id is \${jID_3}"
-    echo "starting chimeric step after alignment"
-    timestamp=\$(date +"%s" | cut -c 4-10)
-    qsub <<- CHIMERIC
-    #PBS -S /bin/bash
-    #PBS -q $queue
-    #PBS -l $walltime
-    #PBS -l nodes=1:ppn=1:AMD
-    #PBS -l mem=24gb
-    ${EMAIL}
-    #PBS -m a
-    #PBS -o ${logdir}/\${timestamp}_\${jname}_chimeric_\${countjobs}_${groupname}.log
-    #PBS -j oe
-    #PBS -N Chmr\${countjobs}${groupname}
-    #PBS -W depend=afterok:\${jID_3}
-    #PBS -v name=\${name}
-    #PBS -v ext=\${ext}
-
-    date +"%Y-%m-%d %H:%M:%S"
-    export LC_ALL=C
-    # call chimeric_blacklist.awk to deal with chimeric reads; sorted file is sorted by read name at this point
-    awk -v fname1="\${name}\${ext}_norm.txt" -v fname2="\${name}\${ext}_abnorm.sam" -v fname3="\${name}\${ext}_unmapped.sam" -f ${juiceDir}/scripts/chimeric_blacklist.awk \${name}\${ext}.sam
-
-    if [ \$? -ne 0 ]
-    then
-        echo "***! Failure during chimera handling of \${name}\${ext}"
-        echo "Chimera handling of \${name}\${ext}.sam failed."
-        exit 1
-    fi
-    # if any normal reads were written, find what fragment they correspond to and store that
-    if [ -e "\${name}\${ext}_norm.txt" ] && [ "$site" != "none" ]
-    then
-        ${juiceDir}/scripts/fragment.pl \${name}\${ext}_norm.txt \${name}\${ext}.frag.txt $site_file
-    elif [ "$site" == "none" ]
-    then
-        awk -f ${juiceDir}/scripts/chimeric_nonsites.awk \${name}\${ext}_norm.txt > \${name}\${ext}.frag.txt
-    else
-        echo "***! No \${name}\${ext}_norm.txt file created"
-        echo "Creation of \${name}\${ext}_norm.txt failed."
-        exit 1
-    fi
-    if [ \$? -ne 0 ]
-    then
-        echo "***! Failure during fragment assignment of \${name}\${ext}"
-        echo "Fragment assignment of \${name}\${ext}.sam failed."
-        exit 1
-    fi
-    # sort by chromosome, fragment, strand, and position
-    sort -T $tmpdir -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n \${name}\${ext}.frag.txt > \${name}\${ext}.sort.txt
-    if [ \$? -ne 0 ]
-    then
-        echo "***! Failure during sort of \${name}\${ext}"
-        echo "Sort of \${name}\${ext}.frag.txt failed."
-        exit 1
-    else
-        echo "removing temperary files \${name}\${ext}_norm.txt \${name}\${ext}.frag.txt"
-        rm \${name}\${ext}_norm.txt \${name}\${ext}.frag.txt
-    fi
-CHIMERIC
-    wait
-
-    jID_4=\$(qstat | grep "Chmr\${countjobs}${groupname}" | cut -d ' ' -f 1)
+    jID_4=\$(qstat | grep "Mrg\${countjobs}${groupname}" | cut -d ' ' -f 1)
     echo "chimeric \$countjobs id is \$jID_4"
     exitstatus=\$(qstat -f \${jID_4} |grep "exit_status" )
     echo "the exit status of \{jID_4} is \${exitstatus}"
@@ -787,7 +656,7 @@ CHIMERIC
     qsub <<- CKALIGNFAIL
     #PBS -S /bin/bash
     #PBS -q $queue  
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=2gb
     #PBS -l $walltime
     ${EMAIL}
@@ -805,7 +674,7 @@ CKALIGNFAIL
     qsub <<- CKALIGNFAILCLN
     #PBS -S /bin/bash
     #PBS -q $queue  
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=4gb
     #PBS -l $walltime
     ${EMAIL}
@@ -843,7 +712,7 @@ then
     qsub <<MRGSRTWRAP
     #PBS -S /bin/bash
     #PBS -q $queue  
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=24gb
     #PBS -l $walltime
     ${EMAIL}
@@ -869,7 +738,7 @@ then
     qsub <<MRGSRT
         #PBS -S /bin/bash
         #PBS -q $queue  
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=24gb
         #PBS -l $walltime
         ${EMAIL}
@@ -884,9 +753,10 @@ then
         then
             mv $donesplitdir/* $splitdir/.
         fi
-        if ! sort -T $tmpdir -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt
+	if ! samtools merge -t cb -n $sthreadstring $outputdir/merged_sort.bam  $splitdir/*.bam
         then
             echo "***! Some problems occurred somewhere in creating  sorted align files."
+            exit 1
         else
             echo "Finished sorting all sorted files into a single merge."
             rm -r ${tmpdir}
@@ -899,7 +769,7 @@ MRGSRT
         qsub <<MRGSRTFAILCK
         #PBS -S /bin/bash
         #PBS -q $queue  
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=2gb
         #PBS -l $walltime
         ${EMAIL}
@@ -932,7 +802,7 @@ then
     qsub <<RMDUPWRAP
     #PBS -S /bin/bash
     #PBS -q $queue  
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=4gb
     #PBS -l $walltime
     ${EMAIL}
@@ -954,7 +824,7 @@ then
     qsub <<RMDUPLICATE
         #PBS -S /bin/bash
         #PBS -q $queue  
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=4gb
         #PBS -l $walltime
         ${EMAIL}
@@ -967,7 +837,7 @@ then
         date +"%Y-%m-%d %H:%M:%S"
         echo "Sucess: All mergefragments jobs were successfully finished!"
         echo "now starts to remove duplicates from the big sorted file"
-        awk -v queue=${long_queue} -v outfile=${logdir}/\${timestamp}_awksplit_rmdunps -v juicedir=${juiceDir} -v dir=$outputdir -v groupname=$groupname -v walltime=$long_walltime -f ${juiceDir}/scripts/split_rmdups.awk $outputdir/merged_sort.txt
+        samtools view -h $outputdir/merged_sort.bam | awk -v queue=${long_queue} -v outfile=${logdir}/\${timestamp}_awksplit_rmdups -v juicedir=${juiceDir} -v dir=$outputdir -v groupname=$groupname -v walltime=$long_walltime -v justexact=$justexact -f ${juiceDir}/scripts/split_rmdups_sam.awk 
 RMDUPLICATE
 
 RMDUPWRAP
@@ -998,10 +868,10 @@ then
         fi
         echo "waitstring0 is: $waitstring0"
         timestamp=$(date +"%s" | cut -c 4-10)
-		qsub <<SUPERWRAP1
+	qsub <<SUPERWRAP1
         #PBS -S /bin/bash
         #PBS -q $queue
-        #PBS -l nodes=1:ppn=1:AMD
+        #PBS -l nodes=1:ppn=1
         #PBS -l mem=1gb
         #PBS -l $walltime
         ${EMAIL}
@@ -1028,6 +898,8 @@ then
         export walltime=$walltime
         export long_walltime=$long_walltime
         export nofrag=$nofrag
+        export load_samtools=$load_samtools
+        export sthreadstring=$sthreadstring
         ${juiceDir}/scripts/launch_stats.sh
 SUPERWRAP1
     fi
@@ -1045,7 +917,7 @@ SUPERWRAP1
     #PBS -S /bin/bash
     #PBS -q $queue
     #PBS -l $walltime
-    #PBS -l nodes=1:ppn=1:AMD
+    #PBS -l nodes=1:ppn=1
     #PBS -l mem=4gb
     #PBS -o ${logdir}/${timestamp}_super_wrap2_${groupname}.log
     #PBS -j oe
@@ -1082,7 +954,7 @@ else
     #PBS -S /bin/bash
     #PBS -q $queue
     #PBS -l $walltime
-    #PBS -l nodes=1:ppn=1:AMD 
+    #PBS -l nodes=1:ppn=1 
     #PBS -l mem=1gb
     #PBS -o ${logdir}/${timestamp}_prep_done_${groupname}.out
     #PBS -j oe
@@ -1100,7 +972,7 @@ else
         #PBS -S /bin/bash
         #PBS -q $queue
         #PBS -l $walltime
-        #PBS -l nodes=1:ppn=1:AMD 
+        #PBS -l nodes=1:ppn=1 
         #PBS -l mem=1gb
         #PBS -o ${logdir}/\${timestamp}_done_${groupname}.log
         #PBS -j oe
