@@ -50,8 +50,14 @@ function optcheck(tile1,tile2,x1,x2,y1,y2) {
 # Executed once, before beginning the file read
 BEGIN {
 	i=0;
-	wobble1=4;
-	wobble2=4;
+  if (length(nowobble)==0) {
+      wobble1=4;
+      wobble2=4;
+  }
+  else {
+      wobble1=0;
+      wobble2=0;
+  }
 	# names of output files
 	# the variable "name" can be set via the -v flag
 	dupname=name"dups.txt";
@@ -94,6 +100,10 @@ $1 != p1 || $2 != p2 || $4 != p4 || $5 != p5 || $6 != p6 || $8 != p8 || abs($3-p
 							optdups[k]++;
 						}
 						else dups[k]++; #places a 1 at dups[k]
+					}
+					if (abs(pos1[j]-pos1[k])>wobble1) {
+						#print "test", pos1[j], pos1[k]
+						break
 					}
 				}
 			}
@@ -172,6 +182,11 @@ END {
 						else { 
 							dups[k]++;
 						}
+					}
+					if (abs(pos1[j]-pos1[k])>wobble1) {
+						#print "test", pos1[j], pos1[k]
+						break
+					
 					}
 				}
 			}

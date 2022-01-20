@@ -100,11 +100,12 @@ genomeID="hg19"
 shortreadend=0
 # description, default empty
 about=""
-nofrag=0
-
+nofrag=1
+# use wobble for dedupping by default (not just exact matches)
+justexact=0
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-R end] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads]\n                 [-r] [-h] [-x]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-q queue] [-l long queue] [-s site]\n                 [-a about] [-R end] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-C chunk size] [-D Juicer scripts directory]\n                 [-Q queue time limit] [-L long queue time limit] [-b ligation] [-t threads]\n                 [-r] [-h] [-f] [-j]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="* [queue] is the queue for running alignments (default \"$queue\")"
@@ -113,7 +114,7 @@ siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" 
 aboutHelp="* [about]: enter description of experiment, enclosed in single quotes"
 shortHelp="* -r: use the short read version of the aligner, bwa aln\n  (default: long read, bwa mem)"
 shortHelp2="* [end]: use the short read aligner on read end, must be one of 1 or 2 "
-stageHelp="* [stage]: must be one of \"merge\", \"dedup\", \"final\", \"postproc\", or \"early\".\n    -Use \"merge\" when alignment has finished but the merged_sort file has not\n     yet been created.\n    -Use \"dedup\" when the files have been merged into merged_sort but\n     merged_nodups has not yet been created.\n    -Use \"final\" when the reads have been deduped into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
+stageHelp="* [stage]: must be one of \"merge\", \"dedup\", \"final\", \"postproc\", or \"early\".\n    -Use \"merge\" when alignment has finished but the merged_sort file has not\n     yet been created.\n    -Use \"dedup\" when the files have been merged into merged_sort but\n     merged_nodups has not yet been created.\n    -Use \"final\" when the reads have been deduped into merged_nodups but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files. Can also use -e flag to exit early"
 pathHelp="* [chrom.sizes path]: enter path for chrom.sizes file"
 siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
 chunkHelp="* [chunk size]: number of lines in split files, must be multiple of 4\n  (default ${splitsize}, which equals $(awk -v ss=${splitsize} 'BEGIN{print ss/4000000}') million reads)"
@@ -123,7 +124,9 @@ queueTimeHelp="* [queue time limit]: time limit for queue, i.e. -W 12:00 is 12 h
 longQueueTimeHelp="* [long queue time limit]: time limit for long queue, i.e. -W 168:00 is one week\n  (default ${long_queue_time})"
 ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
 threadsHelp="* [threads]: number of threads when running BWA alignment"
-excludeHelp="* -x: exclude fragment-delimited maps from hic file creation"
+justHelp="* -j: just exact duplicates excluded at dedupping step"
+excludeHelp="* -f: include fragment-delimited maps in hic file creation"
+earlyexitHelp="* -e: Use for an early exit, before the final creation of the hic files"
 helpHelp="* -h: print this help and exit"
 
 printHelpAndExit() {
@@ -146,12 +149,14 @@ printHelpAndExit() {
     echo -e "$longQueueTimeHelp"
     echo -e "$ligationHelp"
     echo -e "$threadsHelp"
+    echo -e "$justHelp"
+    echo -e "$earlyexitHelp"
     echo "$excludeHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:R:a:hrq:s:p:l:y:z:S:C:D:Q:L:b:t:x" opt; do
+while getopts "d:g:R:a:hrq:s:p:l:y:z:S:C:D:Q:L:b:t:fje" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -170,9 +175,11 @@ while getopts "d:g:R:a:hrq:s:p:l:y:z:S:C:D:Q:L:b:t:x" opt; do
 	D) juiceDir=$OPTARG ;;
 	Q) queue_time=$OPTARG ;;
 	L) long_queue_time=$OPTARG ;;
-	x) nofrag=1 ;;
+	f) nofrag=0 ;;
 	b) ligation=$OPTARG ;;
 	t) threads=$OPTARG ;;
+	j) justexact=1 ;;
+	e) earlyexit=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -821,7 +828,7 @@ then
     ${waitstring}
     #BSUB -J "${groupname}_osplit"
     bkill -J ${groupname}_clean1
-    awk -v queue=$long_queue -v outfile=${debugdir}/dedup-${groupname}.out -v juicedir=${juiceDir}  -v dir=$outputdir -v queuetime=$long_queue_time -v groupname=$groupname -f ${juiceDir}/scripts/split_rmdups.awk $outputdir/merged_sort.txt
+    awk -v queue=$long_queue -v outfile=${debugdir}/dedup-${groupname}.out -v juicedir=${juiceDir}  -v dir=$outputdir -v queuetime=$long_queue_time -v groupname=$groupname -v justexact=$justexact -f ${juiceDir}/scripts/split_rmdups.awk $outputdir/merged_sort.txt
 KILLCLNUP
 
     # if it dies, cleanup and write to relaunch script

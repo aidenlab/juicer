@@ -68,8 +68,8 @@ juicer_version="2.0"
 ## Set the following variables to work with your system
 
 # Aiden Lab specific check
-isRice=$(host $(hostname) | awk 'NR==1{if ($1~/rice/){print 1}else {print 0}}') #'
-isBCM=$(host $(hostname) | awk 'NR==1{if ($1~/bcm/){print 1}else {print 0}}') #'
+isRice=$(host $(hostname) | awk 'NR==1{if ($1~/rice/) {print 1} else {print 0}; exit}') #'
+isBCM=$(host $(hostname) | awk 'NR==1{if ($1~/bcm/) {print 1} else {print 0}; exit}') #'
 isVoltron=0
 ## path additionals, make sure paths are correct for your system
 ## use cluster load commands

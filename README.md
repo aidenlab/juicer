@@ -4,7 +4,7 @@ Juicer is a platform for analyzing kilobase resolution Hi-C data. In this
 distribution, we include the pipeline for generating Hi-C maps from fastq raw
 data files and command line tools for feature annotation on the Hi-C maps.
 
-Juicer is currently in its beta release, Juicer version 1.5.
+Juicer is currently in its beta release, Juicer version 1.6.
 For general questions, please use
 [the Google Group](https://groups.google.com/forum/#!forum/3d-genomics).
 
