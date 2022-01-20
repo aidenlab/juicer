@@ -349,7 +349,7 @@ if [ "$first_stage" == "hic" ]; then
     export SHELL=$(type -p bash)
     doit () {
             mapq=$2
-            samtools view -@ 2 -h -q $mapq reads.sorted.bam $1 | awk -F '\t' -v mapq=$mapq '{for(i=12;i<=NF;i++){if($i~/^ip:i:/){ip=substr($i,6)}else if ($i~/^mp:i:/){mp=substr($i,6)}else if ($i~/^MQ:i:/){mq=substr($i,6)}}}(mq<mapq){next}$7=="="{if(ip>mp){next}else if (ip==mp){keep[$1]=$0}else{print 0, $3, ip, 0, 0, $3, mp, 1};next}$7<$3{next}{print 0, $3, ip, 0, 0, $7, mp, 1 > "/dev/stderr"}END{for(i in keep){n=split(keep[i],a,"\t"); for(s=12;s<=n;s++){if(a[s]~"^ip:i:"){ip=substr(a[s],6)}}; print 0, a[3], ip, 0, 0, a[3], ip, 1}}'
+            samtools view -@ 2 -q $mapq reads.sorted.bam $1 | awk -F '\t' -v mapq=$mapq '{ip=0; mp=0; mq=-1; cb=0; chimeric=0; for(i=12;i<=NF;i++){if($i~/^ip:i:/){ip=substr($i,6)}else if ($i~/^mp:i:/){mp=substr($i,6)}else if ($i~/^MQ:i:/){mq=substr($i,6)}else if ($i~/cb:Z:/){cb=i}else if ($i~/SA:Z:/){chimeric=i}}}(mq<mapq){next}$7=="*"{if(!chimeric){next}else{split(substr($chimeric,6),a,","); $7=a[1]}}$7=="="{$7=$3}!cb{next}{cbchr1=gensub("_","","g",$3);cbchr2=gensub("_","","g",$7);testcb1="cb:Z:"cbchr1"_"cbchr2"_"; testcb2="cb:Z:"cbchr2"_"cbchr1"_"}($cb!~testcb1&&$cb!~testcb2){next}(!ip||!mp){next}$7==$3{if(ip>mp){next}else if (ip==mp){keep[$1]=$3" "ip}else{print 0, $3, ip, 0, 0, $7, mp, 1};next}$7<$3{next}{print 0, $3, ip, 0, 0, $7, mp, 1 > "/dev/stderr"}END{for(rd in keep){n=split(keep[rd], a, " "); print 0, a[1], a[2], 0, 0, a[1], a[2], 1}}'
     }
 
     export -f doit
