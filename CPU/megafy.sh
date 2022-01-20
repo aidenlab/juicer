@@ -15,7 +15,7 @@ USAGE="
 *****************************************************
 Optimized mega script for ENCODE DCC hic-pipeline.
 
-USAGE: ./megafy.sh -c|--chrom-sizes <path_to_chrom_sizes_file> [-g|--genome-id genome_id] [-q|--mapq mapq] [-r|--resolutions resolutions_string] [--juicer-dir <path_to_juicer_dir>] [-t|--threads thread_count] [-T|--threads-hic hic_thread_count] [--shortcut-stats-1 inter.hic_1,...inter.hic_N] [--shortcut-stats-30 inter_30.hic_1,...inter_30.hic_N] [--from-stage <stage>] [--to-stage <stage>] <path_to_merged_dedup_bam_1> ... <path_to_merged_dedup_bam_N>
+USAGE: ./megafy.sh -c|--chrom-sizes <path_to_chrom_sizes_file> [-g|--genome-id genome_id] [-q|--mapq mapq] [-r|--resolutions resolutions_string] [--juicer-dir <path_to_juicer_dir>] [-t|--threads thread_count] [-T|--threads-hic hic_thread_count] [-i|--infer-stats inter_30.hic_1,...inter_30.hic_N] [--from-stage <stage>] [--to-stage <stage>] <path_to_merged_dedup_bam_1> ... <path_to_merged_dedup_bam_N>
 
 DESCRIPTION:
 This is an optimized mega.sh script to produce aggregate Hi-C maps and chromatic accessibility tracks from multiple experiments.
@@ -42,7 +42,7 @@ ACTUAL WORK:
 -r|--resolutions    [string]
                         Comma-separated resolutions at which to build the hic files. Default: 2500000,1000000,500000,250000,100000,50000,25000,10000,5000,2000,1000,500,200,100,50,20,10.
 
---shortcut-stats [inter_30.hic_1,...inter_30.hic_N]
+-i|--infer-stats [inter_30.hic_1,...inter_30.hic_N]
                         Comma-separated list of hic files to use to quickly calculate the mega stats file. Make sure the files used were generated at the same mapping quality as expected of the mega-map (default: -q 30).
 
 WORKFLOW CONTROL:
@@ -135,9 +135,9 @@ while :; do
             resolutionsToBuildString="-r "$OPTARG
             shift
         ;;
-        --shortcut-stats) OPTARG=$2
-            echo "... --shortcut-stats flag was triggered with $OPTARG value." >&1
-            shortcut_stats=$OPTARG
+        -i|--infer-stats) OPTARG=$2
+            echo "... -i|--infer-stats flag was triggered with $OPTARG value." >&1
+            infer_stats_from_files_str=$OPTARG
             shift
         ;;
 ## WORKFLOW
@@ -274,7 +274,7 @@ fi
 
 ## I. HIC: 
 ###     (a) reads.sorted.bam & reads.sorted.bam.bai -> merged${mapq}.txt
-###     (b) $shortcut_stats -> inter_${mapq}.txt & inter_${mapq}_hists.m
+###     (b) $infer_stats_from_files_str -> inter_${mapq}.txt & inter_${mapq}_hists.m
 ###     (c) merged${mapq}.txt, inter_${mapq}.txt & inter_${mapq}_hists.m -> inter_$mapq.hic
 
 if [ "$first_stage" == "hic" ]; then
@@ -302,12 +302,12 @@ if [ "$first_stage" == "hic" ]; then
     rm temp.log
     sort -k2,2 -k6,6 -S 6G --parallel=${threads} "merged"${mapq}".tmp.txt" >> "merged"${mapq}".txt" && rm "merged"${mapq}".tmp.txt"
 
-### (b) recreate stats: $shortcut_stats -> inter_${mapq}.txt & inter_${mapq}_hists.m
+### (b) recreate stats: $infer_stats_from_files_str -> inter_${mapq}.txt & inter_${mapq}_hists.m
 
     touch "inter_"${mapq}".txt" "inter_"${mapq}"_hists.m"
-    if [ ! -z ${shortcut_stats} ]; then
+    if [ ! -z ${infer_stats_from_files_str} ]; then
         tmpstr=""
-        IFS=',' read -ra STATS <<< "$shortcut_stats"
+        IFS=',' read -ra STATS <<< "$infer_stats_from_files_str"
         for i in "${STATS[@]}"; do
             [ -s $i ] && tmpstr=$tmpstr" "$i || { echo "One or more of the files listed for shortcutting stats calculation does not exist at expected location or is empty. Continuing without the stats!"; tmpstr=""; break; }
         done
