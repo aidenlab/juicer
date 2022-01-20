@@ -3,7 +3,7 @@
 #### Description: Wrapper script to calculate a "mega" hic file and accessibility track from a set of bams.
 #### Usage: bash ./megafy.sh -c|--chrom-sizes <path_to_chrom_sizes_file> <path_to_merged_dedupped_bam_1> ... <path_to_merged_dedup_bam_N>.
 #### Input: list of merged_dedup.bam files corresponding to individual Hi-C experiments.
-#### Output: "mega" hic map, "mega" chromatin accessibility bw file.
+#### Output: "mega" hic map, "mega" chromatin accessibility bw file, "mega" annotations [latter set to be expanded].
 #### Dependencies: Java, Samtools, GNU Parallel, KentUtils, Juicer.
 #### Written by: OD
 
