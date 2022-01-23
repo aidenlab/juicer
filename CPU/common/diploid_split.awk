@@ -28,7 +28,7 @@
 # diff has paternal assigned to one read end and maternal assigned to the other
 # mismatch has at least one SNP that doesn't match either the reference or the
 # alternate
-# Juicer version 1.5
+# Juicer version 2.0
 NF==13{
     if ($12 ~ /mismatch/ || $13 ~ /mismatch/) {
         print >> stem"mismatch.txt";

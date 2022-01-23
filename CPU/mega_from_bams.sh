@@ -44,14 +44,17 @@ genomeID="hg19"
 juiceDir="/aidenlab"
 # by default exclude fragment delimited maps
 exclude=1
+# single-end input, default no
+singleend=0
 
 usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-s site] [-S stage] [-D Juicer scripts directory] [-T threadsHic] [-y site_file] [-f] [-h]"
 genomeHelp="   genomeID is either defined in the script, e.g. \"hg19\" or \"mm10\" or the path to the chrom.sizes file"
-dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all merged files underneath it"
+dirHelp="   [topDir] is the top level directory (default \"$topDir\") and must contain links to all bam files underneath it"
 siteHelp="   [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" (default \"$site\"); alternatively, this can be the restriction site file"
 siteFileHelp="* [restriction site file]: enter path for restriction site file (locations of\n  restriction sites in genome; can be generated with the script\n  misc/generate_site_positions.py)"
 threadsHicHelp="* [threads for hic file creation]: number of threads when building hic file"
 stageHelp="* [stage]: must be one of \"final\", \"postproc\", or \"early\".\n    -Use \"final\" when the reads have been combined into merged but the\n     final stats and hic files have not yet been created.\n    -Use \"postproc\" when the hic files have been created and only\n     postprocessing feature annotation remains to be completed.\n    -Use \"early\" for an early exit, before the final creation of the stats and\n     hic files"
+singleEndHelp="* -u: Single end alignment"
 scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
 excludeHelp="   -f: include fragment-delimited maps from Hi-C mega map (will run slower)"
 helpHelp="   -h: print this help and exit"
@@ -67,11 +70,12 @@ printHelpAndExit() {
     echo "$scriptDirHelp"
     echo "$threadsHicHelp"
     echo "$excludeHelp"
+    echo "$singleEndHelp"
     echo "$helpHelp"
     exit "$1"
 }
 
-while getopts "d:g:hfs:S:D:y:T:" opt; do
+while getopts "d:g:hfs:S:D:y:T:u:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -82,6 +86,7 @@ while getopts "d:g:hfs:S:D:y:T:" opt; do
 	S) stage=$OPTARG ;;
 	D) juiceDir=$OPTARG ;;
 	T) threadsHic=$OPTARG ;;
+  u) singleend=1 ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
@@ -149,25 +154,18 @@ else
 	threadNormString="--threads $threadsHic"
 fi
 
+cThreads="$(getconf _NPROCESSORS_ONLN)"
+cThreadString="-@ $cThreads"
+
 ## Check for existing merged files:
-merged_count=$(find -L "${topDir}" | grep -c merged1.txt)
-if [ "$merged_count" -lt "1" ]
+merged_count=$(find -L "${topDir}" | grep -c merged_dedup.bam)
+if [ "$merged_count" -lt "2" ]
 then
-    echo "***! Failed to find at least one merged1 file under ${topDir}"
+    echo "***! Failed to find at least two merged_dedup.bam files under ${topDir}"
     exit 1
 fi
 
-merged_names=$(find -L "${topDir}" | grep merged1.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
-if [ ${#merged_names} -eq 0 ]
-then
-    merged_names=$(find -L "${topDir}" | grep merged1.txt | tr '\n' ' ')
-fi
-merged_names30=$(find -L "${topDir}" | grep merged30.txt.gz | awk '{print "<(gunzip -c",$1")"}' | tr '\n' ' ')
-if [ ${#merged_names30} -eq 0 ]
-then
-    merged_names30=$(find -L "${topDir}" | grep merged30.txt | tr '\n' ' ')
-fi
-inter_names=$(find -L "${topDir}" | grep inter.txt | tr '\n' ' ')
+bams_to_merge=$(find -L "${topDir}" | grep merged_dedup.bam | tr '\n' ' ')
 
 ## Create output directory, exit if already exists
 if [[ -d "${outputDir}" ]] && [ -z $final ] && [ -z $postproc ]
@@ -184,18 +182,33 @@ if [ ! -d "$tmpdir" ]; then
     chmod 777 "$tmpdir"
 fi
 
+
+
 ## Arguments have been checked and directories created. Now begins
 ## the real work of the pipeline
 
 # Not in final or postproc
 if [ -z $final ] && [ -z $postproc ]
 then
-# Create top statistics file from all inter.txt files found under current dir
-    awk -f "${juiceDir}"/scripts/common/makemega_addstats.awk "${inter_names}" > "${outputDir}"/inter.txt
+    samtools merge -c -t cb "$cThreadString" -o "${outputDir}"/mega_merged_dedup.bam "${bams_to_merge}"
+    samtools view "$cThreadString" -F 1024 -O sam "${outputDir}"/mega_merged_dedup.bam | awk -v mapq=1 -f "${juiceDir}"/scripts/common/sam_to_pre.awk > "${outputDir}"/merged1.txt
+    samtools view "$cThreadString" -F 1024 -O sam "${outputDir}"/mega_merged_dedup.bam | awk -v mapq=30 -f "${juiceDir}"/scripts/common/sam_to_pre.awk > "${outputDir}"/merged30.txt
+
+    # Create statistics file
+    if [ $singleend -eq 1 ]
+    then
+        ret=$(samtools view "$cThreadString" -f 1024 -F 256 "${outputDir}"/mega_merged_dedup.bam | awk '{if ($0~/rt:A:7/){singdup++}else{dup++}}END{print dup,singdup}')
+        dups=$(echo "$ret" | awk '{print $1}')
+        singdups=$(echo "$ret" | awk '{print $2}')
+        cat "$splitdir"/*.res.txt | awk -v dups="$dups" -v singdups="$singdups" -v ligation="XXXX" -v singleend=1 -f "${juiceDir}"/scripts/common/stats_sub.awk >> "$outputDir"/inter.txt
+    else
+        dups=$(samtools view -c -f 1089 -F 256 "$cThreadString" "${outputDir}"/mega_merged_dedup.bam)
+        cat "$splitdir"/*.res.txt | awk -v dups="$dups" -v ligation="XXXX" -f "${juiceDir}"/scripts/common/stats_sub.awk >> "$outputDir"/inter.txt
+    fi
+    cp "$outputDir"/inter.txt "$outputDir"/inter_30.txt
+
     echo "(-: Finished creating top stats files."
     cp "${outputDir}"/inter.txt "${outputDir}"/inter_30.txt
-    sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d "${merged_names}" > "${outputDir}"/merged1.txt
-    sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d "${merged_names30}" > "${outputDir}"/merged30.txt
     echo "(-: Finished sorting all files into a single merge."
     "${juiceDir}"/scripts/common/juicer_tools statistics "$site_file" "$outputDir"/inter.txt "$outputDir"/merged1.txt "$genomeID"
     "${juiceDir}"/scripts/common/juicer_tools statistics "$site_file" "$outputDir"/inter_30.txt "$outputDir"/merged30.txt "$genomeID"

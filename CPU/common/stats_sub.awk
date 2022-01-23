@@ -54,7 +54,7 @@ END{
       # 1 alignment would go here and be in sum of "no chimera found"
       printf("2 alignments: %'d (%0.2f%)\n", norm+chim, (norm+chim)*100/tot);
       printf(" 2 alignments (A...B): %'d (%0.2f%)\n", norm, norm*100/tot);
-      printf(" 2 alignments (A1….A2B; A1B2...B1A2): %'d (%0.2f%)\n", chim, chim*100/tot);
+      printf(" 2 alignments (A1...A2B; A1B2...B1A2): %'d (%0.2f%)\n", chim, chim*100/tot);
       printf("3 or more alignments: %'d (%0.2f%)\n", coll, coll*100/tot);
      if (ligation ~ /XXXX/) {
        printf("Ligation Motif Present: N/A\n");
