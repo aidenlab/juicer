@@ -613,6 +613,7 @@ then
     fi
 fi
 
+
 if [ -n "$deduponly" ]
 then
     exit 0
@@ -692,12 +693,12 @@ then
     if [ $singleend -eq 1 ] 
     then
 		ret=$(samtools view $sthreadstring -f 1024 -F 256 $outputdir/merged_dedup.bam | awk '{if ($0~/rt:A:7/){singdup++}else{dup++}}END{print dup,singdup}')
-		dups=$(echo $ret | awk '{print $1}')
-		singdups=$(echo $ret | awk '{print $2}')
-		cat $splitdir/*.res.txt | awk -v dups=$dups -v singdups=$singdups -v ligation=$ligation -v singleend=1 -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
-    else
-		dups=$(samtools view -c -f 1089 -F 256 $sthreadstring $outputdir/merged_dedup.bam)
-		cat $splitdir/*.res.txt | awk -v dups=$dups -v ligation=$ligation -f ${juiceDir}/scripts/stats_sub.awk >> $outputdir/inter.txt
+	  dups=$(echo $ret | awk '{print $1}')
+	  singdups=$(echo $ret | awk '{print $2}')
+	  cat $splitdir/*.res.txt | awk -v dups=$dups -v singdups=$singdups -v ligation=$ligation -v singleend=1 -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
+      else
+	  dups=$(samtools view -c -f 1089 -F 256 $sthreadstring $outputdir/merged_dedup.bam)
+	  cat $splitdir/*.res.txt | awk -v dups=$dups -v ligation=$ligation -f ${juiceDir}/scripts/common/stats_sub.awk >> $outputdir/inter.txt
     fi
     
     cp $outputdir/inter.txt $outputdir/inter_30.txt
