@@ -8,18 +8,18 @@ Juicer is a platform for analyzing kilobase resolution Hi-C data. In this
 distribution, we include the pipeline for generating Hi-C maps from fastq raw
 data files and command line tools for feature annotation on the Hi-C maps.
 
-Juicer is currently in its beta release, Juicer version 1.6.
+The beta release for Juicer version 1.6 can be accessed via [the Github Release](https://github.com/aidenlab/juicer/releases/tag/1.6). The main repository on Github is now focused on the Juicer 2.0 release and is under active development.
 For general questions, please use
 [the Google Group](https://groups.google.com/forum/#!forum/3d-genomics).
 
 If you have further difficulties using Juicer, please do not
-hesitate to contact us (theaidenlab@gmail.com)
+hesitate to contact us (aidenlab@bcm.edu)
 
 **If you use Juicer in your research, please cite:
 Neva C. Durand, Muhammad S. Shamim, Ido Machol, Suhas S. P. Rao, Miriam H. Huntley, Eric S. Lander, and Erez Lieberman Aiden. "Juicer provides a one-click system for analyzing loop-resolution Hi-C experiments." Cell Systems 3(1), 2016.**
 
 # Documentation
-Please see [the wiki](https://github.com/theaidenlab/juicer/wiki) for extensive documentation.
+Please see [the wiki](https://github.com/aidenlab/juicer/wiki) for extensive documentation.
 
 # Questions?
 For FAQs, or for asking new questions, please see our forum: [aidenlab.org/forum.html](http://aidenlab.org/forum.html).
@@ -64,7 +64,7 @@ Juicer currently works with the following resource management software:
 ### Juicer tools requirements
 
 The minimum software requirement to run Juicer is a working Java installation
-(version >= 1.7) on Windows, Linux, and Mac OSX.  We recommend using the
+(version >= 1.8) on Windows, Linux, and Mac OSX.  We recommend using the
 latest Java version available, but please do not use the Java Beta Version.
 Minimum system requirements for running Java can be found at
 https://java.com/en/download/help/sysreq.xml
@@ -101,6 +101,8 @@ respective native libraries from
 For best performance, use a dedicated GPU. You may also be able to obtain
 access to GPU clusters through Amazon Web Services or a local research
 institution.
+
+If you cannot access a GPU, you can run the [CPU version of HiCCUPS](https://github.com/aidenlab/juicer/wiki/CPU-HiCCUPS) directly using the `.hic` file and Juicer Tools.
 
 ### Building new jars
 
@@ -180,24 +182,15 @@ Command Line Tools Usage
 ------------------------
 Detailed documentation about the command line tools can be found on the  wiki:
 
-* [Annotating features with Arrowhead, HiCCUPS, MotifFinder, APA, Eigenvector, and Pearsons](https://github.com/theaidenlab/juicer/wiki/Feature-Annotation)
-* [Creating .hic with Pre](https://github.com/theaidenlab/juicer/wiki/Pre)
-* [Extracting data from .hic files with dump](https://github.com/theaidenlab/juicer/wiki/Data-Extraction)
+* [Annotating features with Arrowhead, HiCCUPS, MotifFinder, APA, Eigenvector, and Pearsons](https://github.com/aidenlab/juicer/wiki/Feature-Annotation)
+* [Creating .hic with Pre](https://github.com/aidenlab/juicer/wiki/Pre)
+* [Extracting data from .hic files with straw](https://github.com/aidenlab/straw)
 
 To launch the command line tools, use the shell script “juicer_tools” on Unix/MacOS
 or type
 ```
 java -jar juicer_tools.jar (command...) [flags...] <parameters...>`
 ```
-There are different flavors of juicer_tools that depend on the CUDA version.
-If you do not use GPUs, these versions are equivalent. Otherwise,
-juicer_tools.X.X.jar uses CUDA version X.X
-
-For HiCCUPS loop calling without the shell or bat script, you will need to
-call:
-		`java -Xms512m -Xmx2048m -Djava.library.path=path/to/natives/ -jar juicer_tools.jar hiccups [flags...] <parameters...>`
-   where path/to/natives is the path to the native libraries used for Jcuda
-   By default, these are located in the lib/jcuda folder.
 
 In the command line tools, there are several analysis functions:
 
