@@ -12,7 +12,10 @@ The beta release for Juicer version 1.6 can be accessed via [the Github Release]
 For general questions, please use
 [the Google Group](https://groups.google.com/forum/#!forum/3d-genomics).
 
-If you have further difficulties using Juicer, please do not
+If you are interested in running Juicer in the cloud, you may want to check out the dockerized version 
+of Juicer hosted by [ENCODE](https://github.com/ENCODE-DCC/hic-pipeline).
+
+If you have any difficulties using Juicer, please do not
 hesitate to contact us (aidenlab@bcm.edu)
 
 **If you use Juicer in your research, please cite:
