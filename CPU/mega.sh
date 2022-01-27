@@ -194,14 +194,14 @@ fi
 if [ -z $final ] && [ -z $postproc ]
 then
     # Create top statistics file from all inter.txt files found under current dir
-    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter "${inter_names}"
-    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter_30 "${inter_30_names}"
-    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter "${inter_hist_names}"
-    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter_30 "${inter_30_hist_names}"
+    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter ${inter_names}
+    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter_30 ${inter_30_names}
+    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter ${inter_hist_names}
+    java -Xmx2g -jar "${juiceDir}"/scripts/common/merge-stats.jar "$outputDir"/inter_30 ${inter_30_hist_names}
 
     echo "(-: Finished creating top stats files."
-    sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d "${merged_names}" > "${outputDir}"/merged1.txt
-    sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d "${merged_names30}" > "${outputDir}"/merged30.txt
+    sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d ${merged_names} > "${outputDir}"/merged1.txt
+    sort --parallel=40 -T "${tmpdir}" -m -k2,2d -k6,6d ${merged_names30} > "${outputDir}"/merged30.txt
     echo "(-: Finished sorting all files into a single merge."
 
     mkdir "${tempdirPre}"
