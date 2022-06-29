@@ -85,7 +85,7 @@ fi
 
 echo -e "${juicer_tools_path} is post-processing Hi-C for ${genomeID}\nData read from ${hic_file_path}.\nMotifs read from ${bed_file_dir}\n"
 echo -e "ARROWHEAD:\n"
-${juicer_tools_path} arrowhead ${hic_file_path} ${hic_file_path%.*}"_contact_domains" --threads ${threads}
+${juicer_tools_path} arrowhead --threads ${threads} ${hic_file_path} ${hic_file_path%.*}"_contact_domains"
 if [ $? -ne 0 ]; then
     echo "***! Problem while running Arrowhead";
     exit 1
