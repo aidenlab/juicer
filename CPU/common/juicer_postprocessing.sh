@@ -71,6 +71,11 @@ while getopts "h:g:j:i:m:t:" opt; do
     esac
 done
 
+## Provide reasonable default value for --threads, if not given
+if [ -z ${threads} ] ; then
+    threads=1;
+fi
+
 ## Check that juicer_tools exists
 if [ ! -e "${juicer_tools_path}" ]; then
     echo "***! Can't find juicer tools in ${juicer_tools_path}";
