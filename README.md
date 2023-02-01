@@ -2,6 +2,8 @@
 
 To access Juicer 1.6 (last stable release), please see [the Github Release](https://github.com/aidenlab/juicer/releases/tag/1.6). If you clone the Juicer repo directly from Github, it will clone Juicer 2, which is under active development. If you encounter any bugs, please let us know.
 
+ENCODE's Hi-C uniform processing pipeline based on Juicer can be found [here](https://github.com/ENCODE-DCC/hic-pipeline).
+
 # About Juicer
 
 Juicer is a platform for analyzing kilobase resolution Hi-C data. In this
@@ -32,17 +34,19 @@ Distribution
 ------------
 
 In this repository, we include the scripts for running Juicer on AWS, LSF,
-Univa Grid Engine, SLURM, and a single CPU
+Univa Grid Engine, SLURM, and a single CPU.
 
-/AWS - scripts for running pipeline and postprocessing on AWS
-
-/UGER - scripts for running pipeline and postprocessing on UGER (Univa)
+The SLURM and CPU scripts are the most up to date. For cloud computing, we recommend the [ENCODE uniform processing pipeline based on Juicer](https://github.com/ENCODE-DCC/hic-pipeline)
 
 /SLURM - scripts for running pipeline and postprocessing on SLURM
 
-/LSF - scripts for running pipeline and postprocessing on LSF **BETA**
+/CPU - scripts for running pipeline and postprocessing on a single CPU
 
-/CPU - scripts for running pipeline and postprocessing on a single CPU **BETA**
+/AWS - scripts for running pipeline and postprocessing on AWS **Deprecated**
+
+/UGER - scripts for running pipeline and postprocessing on UGER (Univa) **Deprecated**
+
+/LSF - scripts for running pipeline and postprocessing on LSF **Deprecated**
 
 /misc - miscellaneous helpful scripts
 
@@ -55,7 +59,7 @@ and the post-processing command line tools.
 
 ### Cluster requirements:
 
-Juicer requires the use of a cluster, with ideally >= 4 cores (min 1 core)
+Juicer requires the use of a cluster or the cloud, with ideally >= 4 cores (min 1 core)
 and >= 64 GB RAM (min 16 GB RAM)
 
 Juicer currently works with the following resource management software:
@@ -63,6 +67,8 @@ Juicer currently works with the following resource management software:
 - [LSF](https://www.ibm.com/systems/spectrum-computing/products/lsf)
 - [SLURM](https://slurm.schedmd.com/download.html)
 - GridEngine (Univa, etc. any flavor)
+
+We recommend [ENCODE's Hi-C processing pipeline, based on Juicer](https://github.com/ENCODE-DCC/hic-pipeline) to run in the cloud; the AWS scripts are out of date.
 
 ### Juicer tools requirements
 
@@ -102,7 +108,7 @@ respective native libraries from
 [JCuda](http://www.jcuda.org/downloads/downloads.html).
 
 For best performance, use a dedicated GPU. You may also be able to obtain
-access to GPU clusters through Amazon Web Services or a local research
+access to GPU clusters through Amazon Web Services, Google cloud, or a local research
 institution.
 
 If you cannot access a GPU, you can run the [CPU version of HiCCUPS](https://github.com/aidenlab/juicer/wiki/CPU-HiCCUPS) directly using the `.hic` file and Juicer Tools.
