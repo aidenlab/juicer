@@ -1411,7 +1411,7 @@ then
 	#SBATCH --mem=2G
 	#SBATCH -o $debugdir/mnd-%j.out
 	#SBATCH -e $debugdir/mnd-%j.err
-	#SBATCH -t 1200
+	#SBATCH -t $queue_time
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_mnd"     
@@ -1432,7 +1432,7 @@ MND`
 	#SBATCH --mem=2G
 	#SBATCH -o $debugdir/fincln1-%j.out
 	#SBATCH -e $debugdir/fincln1-%j.err
-	#SBATCH -t 1200
+	#SBATCH -t $queue_time
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_prep_done"     
@@ -1643,7 +1643,7 @@ jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
 	#SBATCH --mem-per-cpu=2G
 	#SBATCH -o $debugdir/fincln-%j.out
 	#SBATCH -e $debugdir/fincln-%j.err
-	#SBATCH -t 1200
+	#SBATCH -t $queue_time
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_prep_done"
