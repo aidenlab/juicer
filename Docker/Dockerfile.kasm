@@ -1,0 +1,92 @@
+FROM kasmweb/core-ubuntu-jammy:1.15.0
+USER root
+
+ENV HOME /home/kasm-default-profile
+ENV STARTUPDIR /dockerstartup
+ENV INST_SCRIPTS $STARTUPDIR/install
+WORKDIR $HOME
+
+######### Customize Container Here ###########
+
+ENV BWA_VERSION 0.7.18
+ENV JUICER_TOOLS_VERSION 2.20.00
+ENV PAIRIX_VERSION 0.3.6
+ENV SAMTOOLS_VERSION 1.20
+
+# For sorting, LC_ALL is C
+ENV LC_ALL C
+ENV PATH /opt:/opt/scripts:/opt/scripts/common:/opt/juicer/misc:/home/kasm-user/bin:$PATH
+
+RUN apt update && apt install -y \
+    bzip2 curl gawk gcc make git wget mc unzip sudo \
+    libbz2-dev libz-dev locales \
+    openjdk-8-jdk python3 python-is-python3 aria2 \
+&& apt clean && rm -rf /var/lib/apt/list/* \
+&& echo 'kasm-user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers 
+RUN echo 'alias awk=gawk' >> /etc/profile.d/aliases.sh && chmod +x /etc/profile.d/aliases.sh && \
+    locale-gen en_US.UTF-8 
+
+WORKDIR /opt/
+
+# Install BWA
+RUN curl -OL "https://github.com/lh3/bwa/archive/v${BWA_VERSION}.zip" && \
+    unzip "v${BWA_VERSION}.zip" && \
+    cd "bwa-${BWA_VERSION}/" && \
+    make && \
+    cp bwa /usr/local/bin && \
+    cd .. && \
+    rm -rf "bwa-v${BWA_VERSION}"
+
+
+# Install Samtools
+RUN curl -OL "https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSION}/samtools-${SAMTOOLS_VERSION}.tar.bz2" && \
+    bunzip2 "samtools-${SAMTOOLS_VERSION}.tar.bz2" && \
+    tar xf "samtools-${SAMTOOLS_VERSION}.tar" && \
+    cd "samtools-${SAMTOOLS_VERSION}" && \
+    ./configure --without-curses --disable-bz2 --disable-lzma && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf "samtools-${SAMTOOLS_VERSION}" "samtools-${SAMTOOLS_VERSION}.tar"
+
+# Install pairix, only need bam2pairs + deps
+RUN curl -OL "https://github.com/4dn-dcic/pairix/archive/${PAIRIX_VERSION}.zip" && \
+    unzip "${PAIRIX_VERSION}.zip" && \
+    cd "pairix-${PAIRIX_VERSION}/" && \
+    make && \
+    cp bin/pairix bin/bgzip /usr/local/bin && \
+    cp util/bam2pairs/bam2pairs /opt && \
+    cd .. && \
+    rm -rf "${PAIRIX_VERSION}.zip" "pairix-${PAIRIX_VERSION}"
+
+# Install Juicer
+RUN git clone --branch encode https://github.com/theaidenlab/juicer.git && \
+    cd juicer && \
+    chmod +x CPU/* CPU/common/* misc/* 
+#    && \
+#    find -mindepth 1 -maxdepth 1  -type d -not -name "CPU" -not -name ".git" -not -name "misc" | xargs rm -rf
+
+# Install Juicer tools
+RUN wget "https://github.com/aidenlab/Juicebox/releases/download/v${JUICER_TOOLS_VERSION}/juicer_tools.${JUICER_TOOLS_VERSION}.jar" -O /opt/juicer/CPU/common/juicer_tools.jar && \
+    chmod 666 /opt/juicer/CPU/common/juicer_tools.jar && \
+    ln -s juicer/CPU scripts && \
+    wget "https://s3.us-east-1.wasabisys.com/hicfiles/public/Juicebox/Juicebox-2.15.jar" -O /opt/juicer/CPU/common/Juicebox.jar && \
+    chmod a+x /opt/juicer/CPU/common/Juicebox.jar && \
+    ln -s /opt/juicer/CPU/common/Juicebox.jar $HOME/Desktop/Juicebox.jar && \
+    ln -s /opt/juicer/CPU/common/juicer_tools.jar $HOME/Desktop/juicer_tools.jar && \
+    mkdir -p /aidenlab && chown -R 1000:0 /aidenlab && chmod -R a+rwX /aidenlab && ln -s /opt/juicer/CPU /aidenlab/scripts 
+
+
+COPY download-and-run-demo.sh /aidenlab/scripts/
+COPY download-demo.txt /aidenlab/
+
+######### End Customizations ###########
+
+RUN chown 1000:0 $HOME
+RUN $STARTUPDIR/set_user_permission.sh $HOME
+
+ENV HOME /home/kasm-user
+WORKDIR $HOME
+RUN mkdir -p $HOME && chown -R 1000:0 $HOME
+
+USER 1000
