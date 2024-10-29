@@ -964,7 +964,7 @@ MRGALL3`
 $userstring
 ${load_samtools}
 #we should probably set the -m based on memory / num of threads
-if time samtools sort -t cb -n -O SAM -@ $sortthreads -l 0 -m 2G $name$ext.sam3 >  ${name}${ext}.sam
+if time samtools sort -t cb -n -O SAM $sthreadstring -l 0 -m 2G $name$ext.sam3 >  ${name}${ext}.sam
 then
    rm -f $name$ext.sam2 $name$ext.sam3
    touch $touchfile
@@ -1326,7 +1326,7 @@ BAMRM`
 		$userstring
 		${load_samtools}                            
 		export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/gpfs0/home/neva/lib
-		samtools sort $sthreadstring ${outputdir}/merged_dedup.bam > ${outputdir}/merged_dedup_sort.bam
+		samtools sort $sthreadstring -m 10G ${outputdir}/merged_dedup.bam > ${outputdir}/merged_dedup_sort.bam
 		/gpfs0/home/neva/bin/MethylDackel extract -F 1024 --keepSingleton --keepDiscordant $refSeq ${outputdir}/merged_dedup_sort.bam 
 		/gpfs0/home/neva/bin/MethylDackel extract -F 1024 --keepSingleton --keepDiscordant --cytosine_report --CHH --CHG $refSeq ${outputdir}/merged_dedup_sort.bam
 		${juiceDir}/scripts/conversion.sh ${outputdir}/merged_dedup_sort.cytosine_report.txt > ${outputdir}/conversion_report.txt

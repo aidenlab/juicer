@@ -16,7 +16,7 @@ USAGE="
 *****************************************************
 Simplified mega script for ENCODE DCC hic-pipeline.
 
-USAGE: ./mega.sh -c|--chrom-sizes <path_to_chrom_sizes_file> [-g|--genome-id genome_id] [-r|--resolutions resolutions_string] [-v|--vcf <path_to_vcf>] [-C|--exclude-chr-from-diploid chr_list]  [--separate-homologs] [-p|--psf <path_to_psf>] [--reads-to-homologs <path_to_reads_to_homologs_file>] [--juicer-dir <path_to_juicer_dir>] [--phaser-dir <path_to_phaser_dir>] [-t|--threads thread_count] [-T|--threads-hic hic_thread_count] [--from-stage stage] [--to-stage stage] <path_to_merged_dedup_bam_1> ... <path_to_merged_dedup_bam_N>
+USAGE: ./mega.sh -c|--chrom-sizes <path_to_chrom_sizes_file> [-g|--genome-id genome_id] [-r|--resolutions resolutions_string] [-v|--vcf <path_to_vcf>] [-C|--exclude-chr-from-diploid chr_list]  [--separate-homologs] [-p|--psf <path_to_psf>] [--reads-to-homologs <path_to_reads_to_homologs_file>] [--juicer-dir <path_to_juicer_dir>] [--phaser-dir <path_to_phaser_dir>] [-t|--threads thread_count] [--mem memory] [-T|--threads-hic hic_thread_count] [--from-stage stage] [--to-stage stage] <path_to_merged_dedup_bam_1> ... <path_to_merged_dedup_bam_N>
 
 DESCRIPTION:
 This is a simplied mega.sh script to produce aggregate Hi-C maps and chromatic accessibility tracks from multiple experiments. The pipeline includes optional diploid steps which produce diploid versions of the contact maps and chromatin accessibility tracks.
@@ -58,6 +58,10 @@ WORKFLOW CONTROL:
 -t|--threads [num]
         				Indicate how many threads to use. Default: half of available cores as calculated by parallel --number-of-cores.
 
+--mem [num]
+                                                Indicate the maximum memory per thread when running samtools sort (default 1G). Suffix K/M/G recognized, gigabyte (G) is used if suffix is not provided.
+
+
 -T|--threads-hic [num]
 						Indicate how many threads to use when generating the Hi-C file. Default: 24.
 
@@ -81,9 +85,10 @@ resolutionsToBuildString="-r 2500000,1000000,500000,250000,100000,50000,25000,10
 exclude_chr="Y|chrY|MT|chrM"
 separate_homologs=false
 mapq=1 ##lowest mapq of interest
+memory="1G" # samtools sort memory per thread
 
 # multithreading
-threads=`parallel --number-of-cores`
+threads="$(getconf _NPROCESSORS_ONLN)"
 threads=$((threads/2))
 # adjust for mem usage
 tmp=`awk '/MemTotal/ {threads=int($2/1024/1024/2/6-1)}END{print threads+0}' /proc/meminfo 2>/dev/null`
@@ -190,6 +195,10 @@ while :; do
 			fi        	
         	shift
         ;;
+        --mem) OPTARG=$2
+            memory=$OPTARG
+            shift
+        ;;
         -T|--threads-hic) OPTARG=$2
         	re='^[0-9]+$'
 			if [[ $OPTARG =~ $re ]]; then
@@ -266,6 +275,19 @@ fi
 
 [ -z $genome_id ] && { echo >&2 ":| Warning: no genome_id is provided. Please provide a genome_id if using one of the common references to be able to run the motif finder. Ignoring motif finder!"; }
 
+## Set memory for sending appropriate parameters to cluster and string for samtools sort calls
+if [[ $memory =~ ^[0-9]+$ ]]
+then
+    smemorystring="-m ${memory}G"
+elif [[ $memory =~ ^[0-9]+[KMG]$ ]]
+then
+    smemorystring="-m ${memory}"
+else
+   echo "Memory unit suffix not recognised. Use default setting: 1G"
+   echo $memory
+   smemorystring="-m 1G"
+fi
+
 ############### HANDLE DEPENDENCIES ###############
 
 ## Juicer & Phaser
@@ -306,7 +328,7 @@ if [ "$first_stage" == "prep" ]; then
 	samtools merge --no-PG -f mega_header.bam ${header_list}
 	rm ${header_list}
 
-	samtools cat -@ $((threads * 2)) -h mega_header.bam $bam | samtools view -u -d "rt:0" -d "rt:1" -d "rt:2" -d "rt:3" -d "rt:4" -d "rt:5" -@ $((threads * 2)) -F 0x400 -q $mapq - |  samtools sort -@ $threads -m 6G -o reads.sorted.bam
+	samtools cat -@ $((threads * 2)) -h mega_header.bam $bam | samtools view -u -d "rt:0" -d "rt:1" -d "rt:2" -d "rt:3" -d "rt:4" -d "rt:5" -@ $((threads * 2)) -F 0x400 -q $mapq - |  samtools sort -@ $threads $smemorystring -o reads.sorted.bam
 	[ `echo "${PIPESTATUS[@]}" | tr -s ' ' + | bc` -eq 0 ] || { echo ":( Pipeline failed at bam sorting. See stderr for more info. Exiting!" | tee -a /dev/stderr && exit 1; }
 	rm mega_header.bam
 
@@ -522,7 +544,7 @@ if [ "$first_stage" == "diploid_hic" ]; then
 	export pipeline=${phaser_dir}
     export reads_to_homologs=$reads_to_homologs
     doit () { 
-        samtools view -@ 2 -h reads.sorted.bam $1 | awk -v chr=$1 'BEGIN{OFS="\t"}FILENAME==ARGV[1]{if($2==chr"-r"||$2==chr"-a"){if(keep[$1]&&keep[$1]!=$2){delete keep[$1]}else{keep[$1]=$2}};next}$0~/^@SQ/{$2=$2"-r"; print; $2=substr($2,1,length($2)-2)"-a";print;next}$0~/^@/{print;next}($1 in keep)&&($7=="="||$7=="*"){$3=keep[$1];print}' $reads_to_homologs - | samtools sort -n -m 1G -O sam | awk '$0~/^@/{next}($1!=prev){if(n==2){sub("\t","",str); print str}; str=""; n=0}{for(i=12;i<=NF;i++){if($i~/^ip:i:/){$4=substr($i,6);break;}};str=str"\t"n"\t"$3"\t"$4"\t"n; n++; prev=$1}END{if(n==2){sub("\t","",str); print str}}' | sort -k 2,2 -S 6G
+        samtools view -@ 2 -h reads.sorted.bam $1 | awk -v chr=$1 'BEGIN{OFS="\t"}FILENAME==ARGV[1]{if($2==chr"-r"||$2==chr"-a"){if(keep[$1]&&keep[$1]!=$2){delete keep[$1]}else{keep[$1]=$2}};next}$0~/^@SQ/{$2=$2"-r"; print; $2=substr($2,1,length($2)-2)"-a";print;next}$0~/^@/{print;next}($1 in keep)&&($7=="="||$7=="*"){$3=keep[$1];print}' $reads_to_homologs - | samtools sort -@ 2 -n $smemorystring -O sam | awk '$0~/^@/{next}($1!=prev){if(n==2){sub("\t","",str); print str}; str=""; n=0}{for(i=12;i<=NF;i++){if($i~/^ip:i:/){$4=substr($i,6);break;}};str=str"\t"n"\t"$3"\t"$4"\t"n; n++; prev=$1}END{if(n==2){sub("\t","",str); print str}}' | sort -k 2,2 -S 6G
 
     }
     export -f doit
@@ -576,7 +598,7 @@ if [ "$first_stage" == "diploid_dhs" ]; then
     export junction_rt_string=${junction_rt_string}
     export reads_to_homologs=${reads_to_homologs}
     doit () {
-samtools view -@2 ${junction_rt_string} -h reads.sorted.bam $1 | awk -v chr=$1 'BEGIN{
+samtools view -@ 2 ${junction_rt_string} -h reads.sorted.bam $1 | awk -v chr=$1 'BEGIN{
         OFS="\t"}FILENAME==ARGV[1]{
                 if($2==chr"-r"||$2==chr"-a"){
                         if(keep[$1]&&keep[$1]!=$2){

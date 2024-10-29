@@ -106,9 +106,11 @@ singleend=0
 sampleName="HiC_sample"
 # library name for RG tag
 libraryName="HiC_library"
+# samtools sort memory per thread
+memory="1G"
 
 ## Read arguments                                                     
-usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-b ligation] [-t threads]\n                 [-T threadsHic] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [-m] [--assembly] [--cleanup] [--qc]"
+usageHelp="Usage: ${0##*/} [-g genomeID] [-d topDir] [-s site]\n                 [-a about] [-S stage] [-p chrom.sizes path]\n                 [-y restriction site file] [-z reference genome file]\n                 [-D Juicer scripts parent dir] [-b ligation] [-t threads] [--mem memory]\n                 [-T threadsHic] [-i sample] [-k library] [-w wobble]\n                 [-e] [-h] [-f] [-j] [-u] [-m] [--assembly] [--cleanup] [--qc]"
 genomeHelp="* [genomeID] must be defined in the script, e.g. \"hg19\" or \"mm10\" (default \n  \"$genomeID\"); alternatively, it can be defined using the -z command"
 dirHelp="* [topDir] is the top level directory (default\n  \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 siteHelp="* [site] must be defined in the script, e.g.  \"HindIII\" or \"MboI\" \n  (default \"$site\")"
@@ -119,7 +121,8 @@ siteFileHelp="* [restriction site file]: enter path for restriction site file (l
 scriptDirHelp="* [Juicer scripts directory]: set the Juicer directory,\n  which should have scripts/ references/ and restriction_sites/ underneath it\n  (default ${juiceDir})"
 refSeqHelp="* [reference genome file]: enter path for reference sequence file, BWA index\n  files must be in same directory"
 ligationHelp="* [ligation junction]: use this string when counting ligation junctions"
-threadsHelp="* [threads]: number of threads when running BWA alignment"
+threadsHelp="* [threads]: number of threads when running BWA alignment and samtools view/sort/merge"
+memoryHelp="* [memory]: maximum memory per thread when running samtools sort (default 1G).\n  Suffix K/M/G recognized, gigabyte (G) is used if suffix is not provided"
 threadsHicHelp="* [threads for hic file creation]: number of threads when building hic file"
 sampleHelp="* [sample name]: will be added to the SM portion of the read group (RG) tag"
 libraryHelp="* [library name]: will be added to the LB portion of the read group (RG) tag"
@@ -149,6 +152,7 @@ printHelpAndExit() {
     echo -e "$scriptDirHelp"
     echo -e "$ligationHelp"
     echo -e "$threadsHelp"
+    echo -e "$memoryHelp"
     echo -e "$threadsHicHelp"
     echo -e "$sampleHelp"
     echo -e "$libraryHelp"
@@ -192,7 +196,8 @@ while getopts "d:g:a:hs:p:y:z:S:D:b:t:jfuecT:1:2:i:-:w:k:m" opt; do
 	m) methylation=1 ;;
 	1) read1files=$OPTARG ;;
 	2) read2files=$OPTARG ;;
-	-) case "${OPTARG}" in 
+	-) case "${OPTARG}" in
+            mem) memory=$2 ;;
 	    assembly) earlyexit=1; assembly=1 ;;
 	    cleanup)  cleanup=1 ;;
 	    qc) qc=1 ;;
@@ -311,7 +316,7 @@ then
     echo  "Using $site_file as site file"
 fi
 
-## Set threads for sending appropriate parameters to cluster and string for BWA call
+## Set threads for sending appropriate parameters to cluster and string for BWA and samtools calls
 if [ -z "$threads" ]
 then
     threads="$(getconf _NPROCESSORS_ONLN)"
@@ -320,6 +325,19 @@ then
 else
     threadstring="-t $threads"
     sthreadstring="-@ $threads"
+fi
+
+## Set memory for sending appropriate parameters to cluster and string for samtools sort calls
+if [[ $memory =~ ^[0-9]+$ ]]
+then
+    smemorystring="-m ${memory}G"
+elif [[ $memory =~ ^[0-9]+[KMG]$ ]]
+then
+    smemorystring="-m ${memory}"
+else
+   echo "Memory unit suffix not recognised. Use default setting: 1G"
+   echo $memory
+   smemorystring="-m 1G"
 fi
 
 if [ -n "$read2files" ] && [ -z "$read1files" ]
@@ -542,17 +560,17 @@ then
 	then		
 	    if [ $singleend -eq 1 ]
 	    then
-		awk -v stem=${name}${ext}_norm -v site_file=$site_file -v singleend=$singleend -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam | samtools sort  -t cb -n $sthreadstring >  ${name}${ext}.bam
+		awk -v stem=${name}${ext}_norm -v site_file=$site_file -v singleend=$singleend -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam | samtools sort -t cb -n $sthreadstring $smemorystring > ${name}${ext}.bam
 	    else
-		awk -v stem=${name}${ext}_norm -v site_file=$site_file -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
+		awk -v stem=${name}${ext}_norm -v site_file=$site_file -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam | samtools sort -t cb -n $sthreadstring $smemorystring > ${name}${ext}.bam
 	    fi
 	else
 	    if [ $singleend -eq 1 ]
 	    then
-		awk -v stem=${name}${ext}_norm -v singleend=$singleend -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam | samtools sort  -t cb -n $sthreadstring >  ${name}${ext}.bam
+		awk -v stem=${name}${ext}_norm -v singleend=$singleend -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam | samtools sort -t cb -n $sthreadstring $smemorystring > ${name}${ext}.bam
 	    else
 		awk -v stem=${name}${ext}_norm -f $juiceDir/scripts/common/chimeric_sam.awk $name$ext.sam > $name$ext.sam2
-		awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/common/adjust_insert_size.awk $name$ext.sam2 | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
+		awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/common/adjust_insert_size.awk $name$ext.sam2 | samtools sort -t cb -n $sthreadstring $smemorystring > ${name}${ext}.bam
 	    fi
 	fi
 
@@ -679,7 +697,7 @@ if [ -z $postproc ]
     if [ "$methylation" = 1 ]
     then
 	$load_methyl
-	samtools sort $sthreadstring ${outputdir}/merged_dedup.bam > ${outputdir}/merged_dedup_sort.bam
+	samtools sort $sthreadstring $smemorystring ${outputdir}/merged_dedup.bam > ${outputdir}/merged_dedup_sort.bam
 	$call_methyl extract -F 1024 --keepSingleton --keepDiscordant $refSeq ${outputdir}/merged_dedup_sort.bam
 	$call_methyl extract -F 1024 --keepSingleton --keepDiscordant --cytosine_report  --CHH --CHG $refSeq ${outputdir}/merged_dedup_sort.bam
 	${juiceDir}/scripts/common/conversion.sh ${outputdir}/merged_dedup_sort.cytosine_report.txt > ${outputdir}/conversion_report.txt
