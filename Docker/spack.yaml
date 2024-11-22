@@ -1,0 +1,29 @@
+spack:
+  specs:
+    - bwa@0.7.17
+    - gawk@5.2.1
+    - coreutils@9.4
+    - samtools@1.19.2
+    - cuda@8.0.61
+    - python@3.11.8
+    - py-pip@23.1.2
+  view: true
+  container:
+    format: singularity
+    strip: true
+    images:
+      os: ubuntu:22.04
+      spack: develop
+    os_packages:
+      final:
+        - mc
+        - git
+  packages:
+    python:
+      buildable: true
+      version: [3.11.8]
+    py-pip:
+      buildable: true
+  definitions:
+    - pip_packages:
+        - toolshed        
