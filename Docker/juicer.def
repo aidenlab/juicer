@@ -1,0 +1,37 @@
+Bootstrap: docker
+From: nvidia/cuda:11.7.1-devel-ubuntu22.04
+
+%environment
+    export BWA_VERSION=0.7.18
+    export JUICER_TOOLS_VERSION=2.20.00
+    export PAIRIX_VERSION=0.3.6
+    export SAMTOOLS_VERSION=1.21
+    export LC_ALL=C
+    export PATH=/opt:/opt/scripts:/opt/scripts/common:/opt/juicer/misc:$PATH
+
+%setup
+    # Commands to be executed on host system
+    mkdir -p ${SINGULARITY_ROOTFS}/opt
+    mkdir -p ${SINGULARITY_ROOTFS}/aidenlab
+
+%files
+    install-dependencies.sh /opt/install-dependencies.sh
+    download-and-run-demo.sh /aidenlab/
+    download-demo.txt /aidenlab/
+
+%post
+    # Commands to be executed inside container during build
+    chmod +x /opt/install-dependencies.sh
+    /opt/install-dependencies.sh
+    chmod +x /aidenlab/download-and-run-demo.sh
+    ln -s /aidenlab/download-and-run-demo.sh /usr/bin/download-and-run-demo
+
+%runscript
+    #!/bin/bash -l
+    # Commands to be executed when the container runs
+    exec /bin/bash -l /opt/scripts/juicer.sh "$@"
+
+%labels
+    Author Aiden Lab
+    Version v2.0
+    Description Juicer is a platform for analyzing kilobase resolution Hi-C data. For more information, please visit https://github.com/aidenlab/juicer

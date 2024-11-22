@@ -1,0 +1,15 @@
+services:
+  juicer-kasm:
+    build:
+      context: .
+      dockerfile: Dockerfile.kasm
+    shm_size: 1g
+    image: aidenlab/juicer-kasm:latest
+    container_name: juicer2
+    ports:
+      - 6901:6901
+    volumes:
+      - ./data:/aidenlab/data
+    environment:
+      - VNC_PW=password
+    restart: unless-stopped

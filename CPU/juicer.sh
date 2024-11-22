@@ -761,6 +761,7 @@ fi
 #CHECK THAT PIPELINE WAS SUCCESSFUL
 export early=$earlyexit
 export splitdir=$splitdir
+export outputdir=$outputdir
 if ${juiceDir}/scripts/common/check.sh && [ "$cleanup" = 1 ]
 then
     ${juiceDir}/scripts/common/cleanup.sh

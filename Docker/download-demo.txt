@@ -13,7 +13,7 @@ https://s3.amazonaws.com/juicerawsmirror/opt/juicer/references/Homo_sapiens_asse
 https://s3.amazonaws.com/juicerawsmirror/opt/juicer/restriction_sites/hg19_MboI.txt 
     dir=restriction_sites
 http://juicerawsmirror.s3.amazonaws.com/opt/juicer/work/HIC003/fastq/HIC003_S2_L001_R1_001.fastq.gz
-    dir=demo/HIC003/fastq
+    dir=HIC003/fastq
 http://juicerawsmirror.s3.amazonaws.com/opt/juicer/work/HIC003/fastq/HIC003_S2_L001_R2_001.fastq.gz
-    dir=demo/HIC003/fastq
+    dir=HIC003/fastq
 
