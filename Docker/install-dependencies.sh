@@ -50,8 +50,8 @@ curl -OL "https://github.com/4dn-dcic/pairix/archive/${PAIRIX_VERSION}.zip" && \
     rm -rf "${PAIRIX_VERSION}.zip" "pairix-${PAIRIX_VERSION}"
 
 # Install Juicer
-git clone --branch encode https://github.com/theaidenlab/juicer.git && \    
-    chmod +x juicer/CPU/* juicer/CPU/common/* juicer/misc/* 
+git clone --branch encode https://github.com/aidenlab/juicer.git && \
+    chmod +x juicer/CPU/* juicer/CPU/common/* juicer/misc/*
 #    && \
 #    find -mindepth 1 -maxdepth 1  -type d -not -name "CPU" -not -name ".git" -not -name "misc" | xargs rm -rf
 
