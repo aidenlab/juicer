@@ -262,10 +262,19 @@ then
     fi
 
     ## Check that index for refSeq exists
-    if [[ ! -e "${refSeq}.bwt" ]] 
+    if [[ ! -e "${refSeq}.bwt.2bit.64" ]]
     then
-	echo "***! Reference sequence $refSeq does not appear to have been indexed. Please run bwa index on this file before running juicer.";
-	exit 1;
+        echo "bwa-mem2 index was not found. Checking if bwa index exists...";
+        if [[ ! -e "${refSeq}.bwt" ]]
+            then
+            echo "***! Reference sequence $refSeq does not appear to have been indexed. Please run 'bwa index' or 'bwa-mem2 index' on this file before running juicer.";
+	        exit 1;
+	    fi
+	    echo "bwa index was found. Using...";
+	    bwa_cmd="bwa";
+	else
+	    echo "bwa-mem2 index was found. Using...";
+	    bwa_cmd="bwa-mem2";
     fi
 fi
 
