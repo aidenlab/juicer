@@ -1,6 +1,4 @@
 #!/bin/bash
-#SBATCH --account=hammou0
-#SBATCH --partition=standard
 ##########
 #The MIT License (MIT)
 #
