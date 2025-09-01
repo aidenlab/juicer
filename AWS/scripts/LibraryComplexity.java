@@ -52,20 +52,26 @@ class LibraryComplexity {
           reader = new BufferedReader(new FileReader(f));
           while (reader.readLine() != null) opticalDups++;
           reader.close();
-        }
+        } else {
+	  System.out.println("Warning: opt_dups.txt not found in the directory");
+	}
         f = new File(args[0] + "/merged_nodups.txt");
         if (f.exists()) {
           reader = new BufferedReader(new FileReader(f));
           while (reader.readLine() != null) uniqueReadPairs++;
           reader.close();				
-        }
+        } else {
+	  System.out.println("Warning: merged_nodups.txt not found in the directory");
+	}
         f = new File(args[0] + "/dups.txt");
         if (f.exists()) {
           reader = new BufferedReader(new FileReader(args[0] + "/dups.txt"));
           while (reader.readLine() != null) readPairs++;
           reader.close();				
           readPairs += uniqueReadPairs; 
-        }
+        } else {
+	  System.out.println("Warning: dups.txt not found in the directory");
+	}
         String fname = "inter.txt";
         if (args.length == 2) fname = args[1];
         f = new File(args[0] + "/" + fname);
@@ -87,7 +93,9 @@ class LibraryComplexity {
             line = reader.readLine(); 
           }
           reader.close();
-        }
+        } else {
+	  System.out.println("Warning: inter.txt not found");
+	}
       } catch (IOException error) {
         System.err.println("Problem counting lines in merged_nodups and dups");
         System.exit(1);
