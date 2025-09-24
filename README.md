@@ -101,7 +101,7 @@ Instructions for installing the latest version of CUDA can be found on the
 
 The native libraries included with Juicer are compiled for CUDA 7 or CUDA 7.5.
 See the [download page for Juicer
-Tools](https://github.com/theaidenlab/juicer/wiki/Download).
+Tools](https://github.com/aidenlab/juicer/wiki/Download).
 
 Other versions of CUDA can be used, but you will need to download the
 respective native libraries from
@@ -115,7 +115,7 @@ If you cannot access a GPU, you can run the [CPU version of HiCCUPS](https://git
 
 ### Building new jars
 
-See the Juicebox documentation at <https://github.com/theaidenlab/Juicebox> for
+See the Juicebox documentation at <https://github.com/aidenlab/Juicebox> for
 details on building new jars of the juicer_tools.
 
 ------------

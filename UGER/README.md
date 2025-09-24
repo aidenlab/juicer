@@ -1,1 +1,1 @@
-Please see the [wiki](https://github.com/theaidenlab/juicer/wiki/Running-Juicer-on-a-cluster) for extensive instructions
+Please see the [wiki](https://github.com/aidenlab/juicer/wiki/Running-Juicer-on-a-cluster) for extensive instructions
