@@ -608,13 +608,22 @@ ALGNR1
         date +"%Y-%m-%d %H:%M:%S"
         $load_samtools
         export LC_ALL=C
+
+        # Set memory for samtools sort (maximum memory is set above with 'mem=24gb')
+        smemory=$(echo 24 / $threads | bc)
+        if [ "$smemory" -le 1 ]
+        then
+           smemory=1
+        fi
+        smemorystring="-m ${smemory}G"
+
         # call chimeric_blacklist.awk to deal with chimeric reads; sorted file is sorted by read name at this point
         if [ "$site" != "none" ] && [ -e "$site_file" ]
         then
-           awk -v stem=${name}${ext}_norm -v site_file=$site_file -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam
+           awk -v stem=${name}${ext}_norm -v site_file=$site_file -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam | samtools sort -t cb -n $sthreadstring $smemorystring > ${name}${ext}.bam
         else
            awk -v stem=${name}${ext}_norm -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam2 
-           awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/adjust_insert_size.awk $name$ext.sam2 | samtools sort -t cb -n $sthreadstring >  ${name}${ext}.bam 
+           awk -v avgInsertFile=${name}${ext}_norm.txt.res.txt -f $juiceDir/scripts/adjust_insert_size.awk $name$ext.sam2 | samtools sort -t cb -n $sthreadstring $smemorystring > ${name}${ext}.bam
         fi
         if [ $? -ne 0 ]
         then
