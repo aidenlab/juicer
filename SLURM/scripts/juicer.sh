@@ -585,7 +585,7 @@ then
 else
     queuestring="#SBATCH -p $queue"
 fi
-jid=`sbatch <<- HEADER | egrep -o -e "\b[0-9]+$"
+jid=`sbatch --parsable <<- HEADER
 	#!/bin/bash -l 
         $userstring
 	$queuestring
@@ -660,7 +660,7 @@ then
 		filename=${filename%.*}      
                 if [ -z "$gzipped" ]
                 then	
-		    jid=`sbatch <<- SPLITEND | egrep -o -e "\b[0-9]+$"
+		    jid=`sbatch --parsable <<- SPLITEND
 			#!/bin/bash -l
                         #SBATCH -p $queue
 			#SBATCH -t $queue_time
@@ -676,7 +676,7 @@ then
 			date
 SPLITEND`
 		else
-		    jid=`sbatch <<- SPLITEND | egrep -o -e "\b[0-9]+$"
+		    jid=`sbatch --parsable <<- SPLITEND
 			#!/bin/bash -l
 			#SBATCH -p $queue
 			#SBATCH -t $queue_time
@@ -760,7 +760,7 @@ SPLITEND`
 	    fi
 
 	    # count ligations
-	    jid=`sbatch <<- CNTLIG |  egrep -o -e "\b[0-9]+$"
+	    jid=`sbatch --parsable <<- CNTLIG
 		#!/bin/bash -l
 		#SBATCH -p $queue
 		#SBATCH -t $queue_time
@@ -778,7 +778,7 @@ CNTLIG`
 	    dependcount="$jid"
 
 	    # align fastqs
-	    jid=`sbatch <<- ALGNR1 | egrep -o -e "\b[0-9]+$"
+	    jid=`sbatch --parsable <<- ALGNR1
 		#!/bin/bash -l
 		$queuestring
 		#SBATCH -o $debugdir/align1-%j.out
@@ -836,7 +836,7 @@ ALGNR1`
 	else
 	    name=${i%.sam}
 	    ext=""
-	    jid=`sbatch <<- CNTLINE |  egrep -o -e "\b[0-9]+$"
+	    jid=`sbatch --parsable  <<- CNTLINE
 		#!/bin/bash -l
 		#SBATCH -p $queue
 		#SBATCH -t $queue_time
@@ -861,7 +861,7 @@ CNTLINE`
 	# wait for alignment, chimeric read handling
 	if [ "$site" != "none" ] && [ -e "$site_file" ] 
 	then		
-	    jid=`sbatch <<- MRGALL | egrep -o -e "\b[0-9]+$"
+	    jid=`sbatch --parsable <<- MRGALL
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/merge-%j.out
@@ -889,7 +889,7 @@ MRGALL`
 	else
 	    if [ $singleend -eq 1 ]
 	    then
-		jid=`sbatch <<- MRGALL1 | egrep -o -e "\b[0-9]+$"
+		jid=`sbatch --parsable <<- MRGALL1
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/merge1-%j.out
@@ -909,7 +909,7 @@ MRGALL`
 MRGALL1`
 		dependalign="afterok:$jid"
 	    else
-		jid=`sbatch <<- MRGALL1 | egrep -o -e "\b[0-9]+$"
+		jid=`sbatch --parsable <<- MRGALL1
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/merge1-%j.out
@@ -928,7 +928,7 @@ MRGALL1`
 		time awk -v stem=${name}${ext}_norm -f $juiceDir/scripts/chimeric_sam.awk $name$ext.sam > $name$ext.sam2
 MRGALL1`
 		dependalign="afterok:$jid"
-		jid=`sbatch <<- MRGALL3 | egrep -o -e "\b[0-9]+$"
+		jid=`sbatch --parsable <<- MRGALL3
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/merge2-%j.out
@@ -949,7 +949,7 @@ MRGALL3`
 	    fi
 	fi
 	
-	jid2=`sbatch <<- MRGALL2 | egrep -o -e "\b[0-9]+$"
+	jid2=`sbatch --parsable <<- MRGALL2
 #!/bin/bash -l
 #SBATCH -p $long_queue
 #SBATCH -o $debugdir/mergesort-%j.out
@@ -989,7 +989,7 @@ MRGALL2`
 	msg="***! Error in job ${ARRAY[$i]}  Type squeue -j ${JIDS[$i]} to see what happened"
 	
 	# check that alignment finished successfully
-	jid=`sbatch <<- EOF
+	jid=`sbatch --parsable <<- EOF
 		#!/bin/bash -l
 		#SBATCH -o $debugdir/aligncheck-%j.out
 		#SBATCH -e $debugdir/aligncheck-%j.err
@@ -1008,7 +1008,6 @@ MRGALL2`
 		fi
 		date
 EOF`
-	jid=$(echo $jid | egrep -o -e "\b[0-9]+$")
 	dependmergecheck="${dependmerge}:${jid}"
     done
 fi  # Not in merge, dedup,  or final stage, i.e. need to split and align files.
@@ -1040,7 +1039,7 @@ then
 	sbatch_mem_alloc="#SBATCH --mem=64G"
     fi
 
-    jid=`sbatch <<- EOF
+    jid=`sbatch --parsable <<- EOF
 		#!/bin/bash -l
 		#SBATCH -o $debugdir/fragmerge-%j.out
 		#SBATCH -e $debugdir/fragmerge-%j.err
@@ -1075,7 +1074,6 @@ then
 		date
 EOF`
 
-    jid=$(echo $jid | egrep -o -e "\b[0-9]+$")
     dependmrgsrt="afterok:$jid"
 fi
 
@@ -1091,7 +1089,7 @@ then
     # Guard job for dedup. this job is a placeholder to hold any job submitted after dedup.
     # We keep the ID of this guard, so we can later alter dependencies of inner dedupping phase.
     # After dedup is done, this job will be released. 
-    guardjid=`sbatch <<- DEDUPGUARD | egrep -o -e "\b[0-9]+$"
+    guardjid=`sbatch --parsable <<- DEDUPGUARD
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/dedupguard-%j.out
@@ -1110,7 +1108,7 @@ DEDUPGUARD`
     dependguard="afterok:$guardjid"
 
     # if jobs succeeded, kill the cleanup job, remove the duplicates from the big sorted file
-    jid=`sbatch <<- DEDUP | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- DEDUP
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
 	#SBATCH --mem-per-cpu=2G
@@ -1148,7 +1146,7 @@ DEDUP`
     scontrol update JobID=$guardjid dependency=afterok:$jid
 
     #Wait for all parts of split_rmdups to complete:
-    jid=`sbatch <<- MSPLITWAIT | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- MSPLITWAIT
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/post_dedup-%j.out
@@ -1184,7 +1182,7 @@ if [ -z $postproc ] && [ -z $final ]
     then
     # Check that dedupping worked properly
     awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash -l\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*; rm %s/split*;\n rm %s/merged_sort.sam;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."; exit 1}}'
-    jid=`sbatch <<- DUPCHECK | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- DUPCHECK
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/dupcheck-%j.out
@@ -1205,7 +1203,7 @@ if [ -z $postproc ] && [ -z $final ]
 DUPCHECK`
 
     sbatch_wait="#SBATCH -d afterok:$jid"
-    jid1=`sbatch <<- MERGED1 | egrep -o -e "\b[0-9]+$" 
+    jid1=`sbatch --parsable <<- MERGED1
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/merged1-%j.out
@@ -1224,7 +1222,7 @@ DUPCHECK`
 MERGED1`
 
     sbatch_wait1="#SBATCH -d afterok:$jid1"
-    jid2=`sbatch <<- MERGED30 | egrep -o -e "\b[0-9]+$" 
+    jid2=`sbatch --parsable <<- MERGED30
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/merged30-%j.out
@@ -1245,7 +1243,7 @@ MERGED30`
 
     sbatch_wait0="#SBATCH -d afterok:$jid1:$jid2"
 
-    jid=`sbatch <<- PRESTATS | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- PRESTATS
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/prestats-%j.out
@@ -1291,7 +1289,7 @@ MERGED30`
 PRESTATS`
     sbatch_wait000="${sbatch_wait1}:$jid"
 
-    jid=`sbatch <<- BAMRM  | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- BAMRM
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH -o $debugdir/bamrm-%j.out
@@ -1312,7 +1310,7 @@ BAMRM`
 
     if [ "$methylation" = 1 ]
     then
-	tmpj=`sbatch <<- METH | egrep -o -e "\b[0-9]+$"
+	tmpj=`sbatch --parsable <<- METH
 		#!/bin/bash -l
 		#SBATCH -p commons
 		#SBATCH -o $debugdir/meth-%j.out
@@ -1335,7 +1333,7 @@ METH`
     fi
 
     sbatch_wait00="${sbatch_wait2}:$jid"
-    jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- STATS
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
 	#SBATCH -o $debugdir/stats-%j.out
@@ -1365,7 +1363,7 @@ STATS`
     sbatch_wait1="#SBATCH -d afterok:$jid"
 
     dependstats="afterok:$jid"
-    jid=`sbatch <<- STATS30 | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- STATS30
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
 	#SBATCH -o $debugdir/stats30-%j.out
@@ -1405,7 +1403,7 @@ then
     then
 	if [ $assembly -eq 1 ]
 	then
-	    jid=`sbatch <<- MND | egrep -o -e "\b[0-9]+$" 
+	    jid=`sbatch --parsable <<- MND
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem=2G
@@ -1426,7 +1424,7 @@ MND`
 	    sbatch_wait1="#SBATCH -d afterok:$jid"
 	fi
 
-	jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$" 
+	jid=`sbatch --parsable <<- FINCLN1
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem=2G
@@ -1467,7 +1465,7 @@ FINCLN1`
         fragstr="-f $site_file"
     fi
 
-    jid=`sbatch <<- HIC | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- HIC
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
 	#SBATCH -o $debugdir/hic-%j.out
@@ -1505,7 +1503,7 @@ HIC`
 
     dependhic="afterok:$jid"
 
-    jid=`sbatch <<- HIC30 | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- HIC30
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
 	#SBATCH -o $debugdir/hic30-%j.out
@@ -1554,7 +1552,7 @@ then
     fi
     if [ "$qc" != 1 ]
     then
-	jid=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
+	jid=`sbatch --parsable <<- HICCUPS
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=4G
@@ -1588,7 +1586,7 @@ fi
 
 if [ "$qc" != 1 ]
 then
-    jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- ARROWS
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=8G
@@ -1617,7 +1615,7 @@ fi
 
 if [ "$qc_apa" = 1 ]
 then
-    jid=`sbatch <<- QC | egrep -o -e "\b[0-9]+$"
+    jid=`sbatch --parsable <<- QC
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=4G
@@ -1637,7 +1635,7 @@ then
 QC`
 fi
 
-jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
+jid=`sbatch --parsable <<- FINCLN1
 	#!/bin/bash -l
 	#SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
